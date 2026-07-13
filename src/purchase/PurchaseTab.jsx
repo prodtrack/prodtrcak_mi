@@ -6,12 +6,14 @@
 
 import { useState } from "react";
 import { SectionHeader } from "../shared.jsx";
+import PurchaseRequisitionsTab from "./PurchaseRequisitionsTab.jsx";
 import PurchaseOrdersTab from "./PurchaseOrdersTab.jsx";
 import GRNTab from "./GRNTab.jsx";
 import PurchaseVendorsTab from "./PurchaseVendorsTab.jsx";
 import MRPQueueTab from "./MRPQueueTab.jsx";
 
 const SUBTABS=[
+  {id:"requisitions", label:"Requisitions"},
   {id:"orders", label:"Purchase Orders"},
   {id:"grn",    label:"GRN"},
   {id:"vendors",label:"Vendors"},
@@ -19,7 +21,7 @@ const SUBTABS=[
 ];
 
 export default function PurchaseTab({profile,showToast}){
-  const [subtab,setSubtab]=useState("orders");
+  const [subtab,setSubtab]=useState("requisitions");
 
   return(
     <div>
@@ -33,6 +35,7 @@ export default function PurchaseTab({profile,showToast}){
         ))}
       </div>
 
+      {subtab==="requisitions" &&<PurchaseRequisitionsTab profile={profile} showToast={showToast}/>}
       {subtab==="orders" &&<PurchaseOrdersTab profile={profile} showToast={showToast}/>}
       {subtab==="grn"    &&<GRNTab            profile={profile} showToast={showToast}/>}
       {subtab==="vendors"&&<PurchaseVendorsTab profile={profile} showToast={showToast}/>}

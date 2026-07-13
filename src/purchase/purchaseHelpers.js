@@ -88,6 +88,9 @@ async function nextNumber(counterKey,prefix,plant){
 }
 export function generatePONumber(plant){return nextNumber("PO","PO",plant);}
 export function generateGRNNumber(plant){return nextNumber("GRN","GRN",plant);}
+// Own counter ("PR"), so PR numbering never collides with or borrows from the
+// PO sequence — mirrors the exact same plant/FY-scoped pattern as generatePONumber.
+export function generatePRNumber(plant){return nextNumber("PR","PR",plant);}
 
 // Vendor codes are plant-agnostic (shared vendor master) — single global counter.
 export async function generateVendorCode(){
@@ -98,6 +101,49 @@ export async function generateVendorCode(){
     tx.set(ref,{last:next});
     return `V${String(next).padStart(3,"0")}`;
   });
+}
+
+// ─── Purchase Requisition (PR) ──────────────────────────────────────────────
+// PR sits upstream of PO: a store/dept raises a requisition (optionally with
+// a preferred vendor already in mind, matching how PRs are actually raised
+// here), it goes through one approval step, and once approved a PO is
+// generated automatically — pre-filled but left in "draft" so the buyer can
+// still review/adjust rates before it goes through the PO's own approval.
+export const REQUISITION_TYPES = ["Internal","Import"];
+
+export const PR_STATUSES = ["draft","pending_approval","approved","rejected","cancelled"];
+export const PR_STATUS_LABELS = {
+  draft:"Draft", pending_approval:"Pending Approval", approved:"Approved",
+  rejected:"Rejected", cancelled:"Cancelled",
+};
+export const PR_STATUS_COLORS = {
+  draft:{bg:"#f3f4f6",c:"#6b7280"},
+  pending_approval:{bg:"#fffbeb",c:"#b45309"},
+  approved:{bg:"#f0fdf4",c:"#16a34a"},
+  rejected:{bg:"#fef2f2",c:"#dc2626"},
+  cancelled:{bg:"#fef2f2",c:"#dc2626"},
+};
+
+export function emptyPRLineItem(){
+  return {item_code:"",material_id:"",material_name:"",inventory_qty:0,qty:"",unit:"kg",required_date:"",last_po_rate:null,remarks:""};
+}
+
+// Looks up the most recent rate this item was purchased at (from already-
+// loaded PO data — no extra Firestore read), matching the "Last PO Rate"
+// column on the reference requisition form. Matches by material_id when the
+// line came from the catalog, otherwise falls back to matching by name for
+// free-text items. Returns null if the item has never appeared on a PO.
+export function lastPORateForMaterial(purchaseOrders,materialId,materialName){
+  const matches=(purchaseOrders||[]).filter(po=>
+    (po.line_items||[]).some(it=>materialId?it.material_id===materialId:it.material_name===materialName)
+  );
+  if(matches.length===0)return null;
+  const sorted=[...matches].sort((a,b)=>{
+    const at=a.created_at?.seconds||0, bt=b.created_at?.seconds||0;
+    return bt-at;
+  });
+  const line=(sorted[0].line_items||[]).find(it=>materialId?it.material_id===materialId:it.material_name===materialName);
+  return line?.rate??null;
 }
 
 // ─── Line item helpers ──────────────────────────────────────────────────────

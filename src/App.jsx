@@ -147,7 +147,6 @@ function MainApp({user,profile}){
           <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
             <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:isMobile?24:28,flexShrink:0}}/>
             <span style={{...S,fontSize:isMobile?14:18,fontWeight:700,color:"#e8c547",letterSpacing:".06em",flexShrink:0}}>PRODTRACK</span>
-            <span style={{fontSize:11,color:"#9ca3af",borderLeft:"1px solid #e5e7eb",paddingLeft:12,whiteSpace:"nowrap"}}>Mahendra Industries</span>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:isMobile?8:12,flexShrink:0}}>
             <span style={{fontSize:12,color:"#6b7280",whiteSpace:"nowrap"}}>{profile.name||user.email}</span>
