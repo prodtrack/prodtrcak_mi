@@ -320,12 +320,13 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
     if(materialId==="__custom__"){updateLine(i,"material_id","");return;}
     const m=materials.find(m=>m.id===materialId);
     if(!m)return;
-    const invQty=m.qty??m.current_qty??0;
     const lastRate=lastPORateForMaterial(purchaseOrders,materialId,m.material_name);
     setLineItems(items=>items.map((it,idx)=>idx===i?{
+      // Inventory qty is manual-only now — no longer pre-filled from
+      // rm_inventory's current_stock, since stock counts get verified/typed
+      // in by hand at requisition time rather than trusted from the system.
       ...it, material_id:materialId, material_name:m.material_name||it.material_name,
-      item_code:m.item_code||m.part_code||it.item_code, unit:m.unit||it.unit,
-      inventory_qty:invQty, last_po_rate:lastRate,
+      unit:m.unit||it.unit, last_po_rate:lastRate,
     }:it));
   }
 
@@ -429,7 +430,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div>
                 <label style={labelStyle}>Inventory qty</label>
-                <div style={{...fieldStyle,...S,background:"#f9fafb"}}>{it.inventory_qty||0} {it.unit}</div>
+                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.inventory_qty} onChange={e=>updateLine(i,"inventory_qty",e.target.value)}/>
               </div>
               <div>
                 <label style={labelStyle}>Required qty *</label>

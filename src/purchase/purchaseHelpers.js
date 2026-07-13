@@ -125,7 +125,7 @@ export const PR_STATUS_COLORS = {
 };
 
 export function emptyPRLineItem(){
-  return {item_code:"",material_id:"",material_name:"",inventory_qty:0,qty:"",unit:"kg",required_date:"",last_po_rate:null,remarks:""};
+  return {item_code:"",material_id:"",material_name:"",inventory_qty:"",qty:"",unit:"kg",required_date:"",last_po_rate:null,remarks:""};
 }
 
 // Looks up the most recent rate this item was purchased at (from already-
@@ -144,6 +144,30 @@ export function lastPORateForMaterial(purchaseOrders,materialId,materialName){
   });
   const line=(sorted[0].line_items||[]).find(it=>materialId?it.material_id===materialId:it.material_name===materialName);
   return line?.rate??null;
+}
+
+// ─── Goods Inward Note (GIN) ────────────────────────────────────────────────
+// GIN is the gate log: physical arrival against a PO, captured with
+// challan/LR/vehicle detail and an accept/reject decision per line, BEFORE
+// stock is touched. Approving a GIN posts a GRN using Accepted Qty (reusing
+// GRNTab's exact existing receipt/stock-update logic) — GIN itself never
+// writes to rm_inventory directly.
+export const GIN_TYPES = ["Domestic","Import"];
+export const GIN_STATUSES = ["draft","pending_approval","approved","rejected","cancelled"];
+export const GIN_STATUS_LABELS = {
+  draft:"Draft", pending_approval:"Pending Approval", approved:"Approved",
+  rejected:"Rejected", cancelled:"Cancelled",
+};
+export const GIN_STATUS_COLORS = {
+  draft:{bg:"#f3f4f6",c:"#6b7280"},
+  pending_approval:{bg:"#fffbeb",c:"#b45309"},
+  approved:{bg:"#f0fdf4",c:"#16a34a"},
+  rejected:{bg:"#fef2f2",c:"#dc2626"},
+  cancelled:{bg:"#fef2f2",c:"#dc2626"},
+};
+export function generateGINNumber(plant){return nextNumber("GIN","GIN",plant);}
+export function emptyGINLineItem(){
+  return {item_code:"",material_id:"",material_name:"",unit:"kg",challan_qty:"",accepted_qty:"",rejected_qty:"",actual_challan_qty:"",remarks:""};
 }
 
 // ─── Line item helpers ──────────────────────────────────────────────────────
