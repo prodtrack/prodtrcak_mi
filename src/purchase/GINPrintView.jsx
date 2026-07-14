@@ -66,7 +66,7 @@ export function printGoodsInwardNote(gin){
       <span>Email&nbsp;&nbsp;${escapeHtml(company.email||"")}</span>
     </div>
   </div>
-  <div class="title-bar">DUPLICATE : Goods Inward Note</div>
+  <div class="title-bar">Goods Inward Note</div>
 
   <table class="header-table">
     <tr>
