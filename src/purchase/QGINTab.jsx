@@ -14,7 +14,7 @@ import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shar
 import {
   PLANTS, QGIN_STATUSES, QGIN_STATUS_LABELS, QGIN_STATUS_COLORS,
   QUALITY_TYPES, INSPECTION_LOCATIONS, QGIN_PARAMETERS, emptyQGINParameter,
-  generateGRNNumber, poReceivedStatus, COMPANY_INFO,
+  generateGRNNumber, generateQGINNumber, poReceivedStatus, COMPANY_INFO,
 } from "./purchaseHelpers";
 import { printQualityGIN } from "./QGINPrintView.jsx";
 
@@ -32,6 +32,8 @@ export default function QGINTab({profile,showToast}){
   const canApprove=canApproveQC(profile);
 
   const [qgins,setQgins]=useState([]);
+  const [approvedGins,setApprovedGins]=useState([]);
+  const [pickerOpen,setPickerOpen]=useState(false);
   const [statusFilter,setStatusFilter]=useState("all");
   const [plantFilter,setPlantFilter]=useState("all");
   const [search,setSearch]=useState("");
@@ -42,6 +44,32 @@ export default function QGINTab({profile,showToast}){
     const q=query(collection(db,"quality_gins"),orderBy("created_at","desc"));
     return onSnapshot(q,snap=>setQgins(snap.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
+  // Loaded so the manual "New QGIN" picker can list approved GINs' line
+  // items — used only as a fallback when auto-creation was missed, or a
+  // second/re-inspection QGIN is needed against the same line.
+  useEffect(()=>{
+    const q=query(collection(db,"goods_inward_notes"),orderBy("created_at","desc"));
+    return onSnapshot(q,snap=>setApprovedGins(snap.docs.map(d=>({id:d.id,...d.data()})).filter(g=>g.status==="approved")));
+  },[]);
+
+  async function createManualQGIN(gin,lineIdx){
+    const line=gin.line_items[lineIdx];
+    const qginNumber=await generateQGINNumber(gin.plant);
+    await addDoc(collection(db,"quality_gins"),{
+      qgin_number:qginNumber, plant:gin.plant,
+      item_code:line.item_code||"", material_id:line.material_id||null, material_name:line.material_name, base_uom:line.unit,
+      gin_id:gin.id, gin_number:gin.gin_number, po_id:gin.po_id||null, po_number:gin.po_number||null,
+      vendor_id:gin.vendor_id||null, vendor_name:gin.vendor_name||null,
+      quality_type:null, gin_qty:parseFloat(line.accepted_qty)||0, testing_qty:null,
+      accepted_location:null, rejected_location:null,
+      accepted_qty:parseFloat(line.accepted_qty)||0, rejected_qty:parseFloat(line.rejected_qty)||0, rework_qty:0, scrap_qty:0, pending_qty:0,
+      parameters:[], remarks:null, reasons:null,
+      status:"draft",
+      created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
+    });
+    showToast(`${qginNumber} created as draft — fill in QC detail and submit`);
+    setPickerOpen(false);
+  }
 
   const q=search.trim().toLowerCase();
   const filtered=qgins.filter(g=>
@@ -65,12 +93,17 @@ export default function QGINTab({profile,showToast}){
     showToast(`${qgin.qgin_number} cancelled`);
   }
 
+  if(pickerOpen){
+    return <QGINPicker approvedGins={approvedGins} onCreate={createManualQGIN} onClose={()=>setPickerOpen(false)}/>;
+  }
+
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{hasActiveNarrowing?`${filtered.length} of ${qgins.length} QGIN${qgins.length!==1?"s":""}`:`${qgins.length} QGIN${qgins.length!==1?"s":""}`}</div>
+        {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setPickerOpen(true)}><Icon name="plus" size={12}/>New QGIN</button>}
       </div>
-      <div style={{fontSize:12,color:"#9ca3af",marginTop:-10,marginBottom:16}}>QGINs are created automatically when a GIN is approved — nothing to create manually here.</div>
+      <div style={{fontSize:12,color:"#9ca3af",marginTop:-10,marginBottom:16}}>QGINs are created automatically when a GIN is approved — use "New QGIN" only if one was missed or a line needs re-inspection.</div>
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
         {[["all","All"],...QGIN_STATUSES.map(s=>[s,QGIN_STATUS_LABELS[s]])].map(([v,l])=>(
@@ -310,6 +343,64 @@ function QtyStat({label,value,unit,color}){
     <div>
       <div style={{fontSize:10,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".05em",marginBottom:4}}>{label}</div>
       <div style={{...S,fontSize:14,fontWeight:700,color:color||"#1a1f2e"}}>{value??0}{unit?` ${unit}`:""}</div>
+    </div>
+  );
+}
+
+// ─── Manual QGIN picker ──────────────────────────────────────────────────────
+// Fallback for when auto-creation was missed, or a line needs a second QGIN
+// (re-inspection). Lists every accepted-qty line item across all approved
+// GINs — including lines that already have a QGIN, since re-inspection is a
+// valid reason to raise another one.
+function QGINPicker({approvedGins,onCreate,onClose}){
+  const [creatingKey,setCreatingKey]=useState(null);
+  const rows=[];
+  approvedGins.forEach(gin=>{
+    (gin.line_items||[]).forEach((line,idx)=>{
+      if((parseFloat(line.accepted_qty)||0)>0)rows.push({gin,line,idx});
+    });
+  });
+
+  async function handleCreate(gin,idx,key){
+    setCreatingKey(key);
+    try{ await onCreate(gin,idx); }
+    finally{ setCreatingKey(null); }
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Raise a QGIN manually</div>
+      </div>
+      {rows.length===0
+        ?<EmptyState text="No eligible lines" sub="No approved GINs with accepted quantity found"/>
+        :(
+          <div className="card" style={{padding:0,overflow:"hidden"}}>
+            <div style={{display:"flex",gap:8,padding:"8px 14px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase"}}>
+              <span style={{flex:1}}>Item</span><span style={{width:110}}>GIN</span><span style={{width:80,textAlign:"right"}}>Accepted</span><span style={{width:120}}></span>
+            </div>
+            {rows.map(({gin,line,idx})=>{
+              const key=`${gin.id}-${idx}`;
+              return(
+                <div key={key} style={{display:"flex",gap:8,padding:"10px 14px",borderBottom:"1px solid #f9fafb",alignItems:"center",fontSize:12}}>
+                  <span style={{flex:1}}>
+                    <div style={{fontWeight:500}}>{line.item_code&&<span style={{...S,color:"#6b7280"}}>{line.item_code} — </span>}{line.material_name}</div>
+                    <div style={{...S,fontSize:10,color:"#9ca3af"}}>Vendor: {gin.vendor_name}</div>
+                  </span>
+                  <span style={{width:110,...S,fontSize:11,color:"#6b7280"}}>{gin.gin_number}</span>
+                  <span style={{width:80,textAlign:"right",...S}}>{line.accepted_qty} {line.unit}</span>
+                  <span style={{width:120,textAlign:"right"}}>
+                    <button className="btn-primary" style={{fontSize:11,padding:"6px 10px"}} disabled={creatingKey===key} onClick={()=>handleCreate(gin,idx,key)}>
+                      {creatingKey===key?"…":"Create QGIN"}
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )
+      }
     </div>
   );
 }

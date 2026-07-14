@@ -114,7 +114,7 @@ export default function GINTab({profile,showToast}){
 
 function GINListItem({gin,profile,pos,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelGIN}){
   const sc=GIN_STATUS_COLORS[gin.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const canEdit=["draft","pending_approval"].includes(gin.status)&&canCreate;
+  const canEdit=["draft","pending_approval","approved"].includes(gin.status)&&canCreate;
   const canCancel=["draft","pending_approval"].includes(gin.status);
 
   return(
@@ -308,6 +308,12 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
 // ─── GIN create / edit form ──────────────────────────────────────────────────
 function GINForm({profile,pos,existing,showToast,onClose}){
   const isEdit=!!existing;
+  // Once QGINs have already been spawned from this GIN's accepted/rejected
+  // qty, those numbers are locked — QGIN docs already snapshotted them, and
+  // silently changing the GIN afterward would desync from QC's records.
+  // Header/transport fields (Vehicle No, Challan No, remarks, etc.) stay
+  // editable regardless, for correcting typos after the fact.
+  const qtyLocked=(existing?.qgin_numbers?.length||0)>0;
   const [plant,setPlant]=useState(existing?.plant||"Bidadi");
   const [ginType,setGinType]=useState(existing?.gin_type||"Domestic");
   const [poId,setPoId]=useState(existing?.po_id||"");
@@ -450,14 +456,15 @@ function GINForm({profile,pos,existing,showToast,onClose}){
 
       <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Line items {!po&&<span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>— select a PO above to load items</span>}</div>
+        {qtyLocked&&<div style={{fontSize:11,color:"#b45309",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:12}}>Qty fields are locked — QGIN(s) were already raised from these numbers. Remarks stay editable.</div>}
         {lineItems.map((it,i)=>(
           <div key={i} style={{borderTop:i>0?"1px solid #f3f4f6":undefined,paddingTop:i>0?14:0,marginTop:i>0?14:0}}>
             <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{it.item_code&&<span style={{...S,color:"#6b7280"}}>{it.item_code} — </span>}{it.material_name}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 2fr",gap:10}}>
-              <div><label style={labelStyle}>Challan qty</label><input type="number" style={fieldStyle} min="0" step="0.01" value={it.challan_qty} onChange={e=>updateLine(i,"challan_qty",e.target.value)}/></div>
-              <div><label style={labelStyle}>Accepted qty</label><input type="number" style={fieldStyle} min="0" step="0.01" value={it.accepted_qty} onChange={e=>updateLine(i,"accepted_qty",e.target.value)}/></div>
-              <div><label style={labelStyle}>Rejected qty</label><input type="number" style={fieldStyle} min="0" step="0.01" value={it.rejected_qty} onChange={e=>updateLine(i,"rejected_qty",e.target.value)}/></div>
-              <div><label style={labelStyle}>Actual challan qty</label><input type="number" style={fieldStyle} min="0" step="0.01" value={it.actual_challan_qty} onChange={e=>updateLine(i,"actual_challan_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Challan qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.challan_qty} onChange={e=>updateLine(i,"challan_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Accepted qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.accepted_qty} onChange={e=>updateLine(i,"accepted_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Rejected qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.rejected_qty} onChange={e=>updateLine(i,"rejected_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Actual challan qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.actual_challan_qty} onChange={e=>updateLine(i,"actual_challan_qty",e.target.value)}/></div>
               <div><label style={labelStyle}>Remarks</label><input style={fieldStyle} value={it.remarks} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="e.g. LME rate, coil no."/></div>
             </div>
           </div>
