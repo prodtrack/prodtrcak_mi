@@ -170,6 +170,42 @@ export function emptyGINLineItem(){
   return {item_code:"",material_id:"",material_name:"",unit:"kg",challan_qty:"",accepted_qty:"",rejected_qty:"",actual_challan_qty:"",remarks:""};
 }
 
+// ─── Quality GIN (QGIN) ──────────────────────────────────────────────────────
+// Sits between GIN approval and GRN posting: one QGIN per GIN line item (not
+// per GIN), since QC inspects and dispositions each material individually.
+// Auto-created (pending_approval) when a GIN is approved — QC fills in the
+// parameter table and the Accepted/Rejected/Rework/Scrap/Pending qty split,
+// then approving a QGIN is what actually posts the GRN (using QC's final
+// Accepted Qty, which may differ from the gate's initial number).
+// ─── Quality GIN (QGIN) ──────────────────────────────────────────────────────
+// QGIN is the QC inspection step, created ONE PER GIN LINE ITEM (not one per
+// GIN) — a GIN with 3 items spawns up to 3 separate QGINs. Approving a QGIN
+// is what actually posts the GRN for that item's accepted qty — GIN approval
+// itself no longer posts a GRN; it just marks the GIN ready for QC.
+export const QGIN_STATUSES = ["draft","pending_approval","approved","rejected","cancelled"];
+export const QGIN_STATUS_LABELS = {
+  draft:"Draft", pending_approval:"Pending Approval", approved:"Approved",
+  rejected:"Rejected", cancelled:"Cancelled",
+};
+export const QGIN_STATUS_COLORS = {
+  draft:{bg:"#f3f4f6",c:"#6b7280"},
+  pending_approval:{bg:"#fffbeb",c:"#b45309"},
+  approved:{bg:"#f0fdf4",c:"#16a34a"},
+  rejected:{bg:"#fef2f2",c:"#dc2626"},
+  cancelled:{bg:"#fef2f2",c:"#dc2626"},
+};
+export function generateQGINNumber(plant){return nextNumber("QGIN","QGIN",plant);}
+
+// Placeholder lists — edit freely, single source of truth for both dropdowns.
+export const QUALITY_TYPES = ["Non Destructive Storage","Destructive Testing","Visual Inspection"];
+export const INSPECTION_LOCATIONS = ["Inspection Location 1","Inspection Location 2","Store","Rejection Yard"];
+// Parameter list starts minimal per Shan's instruction — more to be added later.
+export const QGIN_PARAMETERS = ["Size","T.C. Verification"];
+
+export function emptyQGINParameter(){
+  return {parameter:QGIN_PARAMETERS[0],parameter_description:"",visual:"",uom:"",standard_value:"",actual_value:""};
+}
+
 // ─── Line item helpers ──────────────────────────────────────────────────────
 export function lineAmount(item){
   const qty=parseFloat(item.qty)||0, rate=parseFloat(item.rate)||0;

@@ -1,20 +1,19 @@
 // ─── GINTab.jsx ─────────────────────────────────────────────────────────────
 // Goods Inward Note: gate log against an approved/partially-received PO.
 // Captures Challan/LR/Bill/Vehicle detail and an Accepted/Rejected Qty
-// decision per line. Approving a GIN posts a GRN using Accepted Qty — same
-// `goods_inward` doc shape, same rm_inventory stock update, same PO
-// received_status roll-forward that GRNTab's "Receive against PO" already
-// does, just triggered from here instead of a manual GRN entry.
+// decision per line. Approving a GIN does NOT post a GRN directly — it
+// generates one QGIN per line item with accepted qty > 0 (see QGINTab.jsx),
+// and only an approved QGIN posts the actual GRN.
 // Stored in `goods_inward_notes` — deliberately NOT `goods_inward`, since
 // that collection name is already used by GRN's receipt history.
 
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
-import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
 import {
   PLANTS, GIN_TYPES, GIN_STATUSES, GIN_STATUS_LABELS, GIN_STATUS_COLORS,
-  generateGINNumber, generateGRNNumber, emptyGINLineItem, poReceivedStatus, PO_STATUS_LABELS,
+  generateGINNumber, generateQGINNumber, PO_STATUS_LABELS,
 } from "./purchaseHelpers";
 import { printGoodsInwardNote } from "./GINPrintView.jsx";
 
@@ -171,57 +170,43 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
     }finally{setBusy(false);}
   }
 
-  // Approving a GIN posts a GRN using Accepted Qty per line — mirrors
-  // GRNTab's ReceiveAgainstPO.post() exactly: one goods_inward doc per line
-  // (sharing one grn_number), rm_inventory stock bumped, PO received_qty +
-  // status rolled forward. Rejected Qty never touches stock.
-  async function approveAndPostGRN(){
+  // Approving a GIN no longer posts a GRN directly — it generates one QGIN
+  // per line item with an accepted qty (pending_approval, ready for QC),
+  // carrying over the vendor/PO/plant context each QGIN needs. GRN posting
+  // now happens only when QC approves the corresponding QGIN.
+  async function approveAndSendToQGIN(){
     setBusy(true);
     try{
       const now=serverTimestamp();
       const operatorName=profile.name||auth.currentUser.email;
       const operatorUid=auth.currentUser.uid;
-      const linesToPost=(gin.line_items||[]).filter(it=>(parseFloat(it.accepted_qty)||0)>0);
-      if(linesToPost.length===0){showToast("No accepted quantity on any line — nothing to post","error");setBusy(false);return;}
+      const linesToSend=(gin.line_items||[]).filter(it=>(parseFloat(it.accepted_qty)||0)>0);
+      if(linesToSend.length===0){showToast("No accepted quantity on any line — nothing to send to QGIN","error");setBusy(false);return;}
 
-      const grnNumber=await generateGRNNumber(gin.plant);
-
-      for(const it of linesToPost){
+      const qginNumbers=[];
+      for(const it of linesToSend){
         const acceptedQty=parseFloat(it.accepted_qty)||0;
-        await addDoc(collection(db,"goods_inward"),{
-          material_id:it.material_id||null,material_name:it.material_name,
-          supplier_id:gin.vendor_id||null,supplier_name:gin.vendor_name,
-          quantity:acceptedQty,unit:it.unit,date_received:gin.challan_date||new Date().toISOString().split("T")[0],
-          po_id:gin.po_id||null,po_number:gin.po_number||null,grn_number:grnNumber,plant:gin.plant,
-          remarks:`From ${gin.gin_number}${it.remarks?` — ${it.remarks}`:""}`,
-          operator_uid:operatorUid,operator_name:operatorName,created_at:now,
+        const qginNumber=await generateQGINNumber(gin.plant);
+        qginNumbers.push(qginNumber);
+        await addDoc(collection(db,"quality_gins"),{
+          qgin_number:qginNumber, plant:gin.plant,
+          item_code:it.item_code||"", material_id:it.material_id||null, material_name:it.material_name, base_uom:it.unit,
+          gin_id:gin.id, gin_number:gin.gin_number, po_id:gin.po_id||null, po_number:gin.po_number||null,
+          vendor_id:gin.vendor_id||null, vendor_name:gin.vendor_name||null,
+          quality_type:null, gin_qty:acceptedQty, testing_qty:null,
+          accepted_location:null, rejected_location:null,
+          accepted_qty:acceptedQty, rejected_qty:parseFloat(it.rejected_qty)||0, rework_qty:0, scrap_qty:0, pending_qty:0,
+          parameters:[], remarks:null, reasons:null,
+          status:"pending_approval",
+          created_by:operatorUid, created_by_name:operatorName, created_at:now,
         });
-        if(it.material_id){
-          const matRef=doc(db,"rm_inventory",it.material_id);
-          const matSnap=await getDoc(matRef);
-          const current=matSnap.exists()?(matSnap.data().current_stock||0):0;
-          await updateDoc(matRef,{current_stock:current+acceptedQty,updated_at:now});
-        }
-      }
-
-      if(gin.po_id){
-        const poSnap=await getDoc(doc(db,"purchase_orders",gin.po_id));
-        if(poSnap.exists()){
-          const po=poSnap.data();
-          const updatedLines=(po.line_items||[]).map(pit=>{
-            const posted=linesToPost.find(l=>l.material_id&&l.material_id===pit.material_id);
-            const acceptedQty=posted?parseFloat(posted.accepted_qty)||0:0;
-            return posted?{...pit,received_qty:(pit.received_qty||0)+acceptedQty}:pit;
-          });
-          await updateDoc(doc(db,"purchase_orders",gin.po_id),{line_items:updatedLines,status:poReceivedStatus(updatedLines),updated_at:now});
-        }
       }
 
       await updateDoc(doc(db,"goods_inward_notes",gin.id),{
-        status:"approved", grn_number:grnNumber,
+        status:"approved", qgin_numbers:qginNumbers,
         approved_by:profile.name||auth.currentUser.email, approved_at:now,
       });
-      showToast(`${gin.gin_number} approved — ${grnNumber} posted`);
+      showToast(`${gin.gin_number} approved — ${qginNumbers.length} QGIN${qginNumbers.length>1?"s":""} sent for QC`);
     }catch(e){showToast("Error: "+e.message,"error");}
     finally{setBusy(false);}
   }
@@ -241,7 +226,7 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
         <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printGoodsInwardNote(gin)}><Icon name="clipboard" size={12}/>Print GIN</button>
         {canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>Edit</button>}
         {gin.status==="draft"&&canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={submitForApproval}><Icon name="check" size={12}/>Submit for Approval</button>}
-        {gin.status==="pending_approval"&&canApprove&&<button className="btn-primary" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={approveAndPostGRN}><Icon name="check" size={12}/>Approve & Post GRN</button>}
+        {gin.status==="pending_approval"&&canApprove&&<button className="btn-primary" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={approveAndSendToQGIN}><Icon name="check" size={12}/>Approve & Send to QGIN</button>}
         {canCancel&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px",color:"#dc2626"}} onClick={onCancel}>Cancel GIN</button>}
       </div>
 
@@ -301,6 +286,11 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
             <span style={{width:70,textAlign:"right",...S,color:(parseFloat(it.rejected_qty)||0)>0?"#dc2626":"#9ca3af"}}>{it.rejected_qty||0} {it.unit}</span>
           </div>
         ))}
+        {gin.qgin_numbers?.length>0&&(
+          <div style={{padding:"8px 14px",borderTop:"1px solid #f3f4f6",fontSize:11,color:"#6b7280",background:"#fafafa"}}>
+            Sent to QC: {gin.qgin_numbers.map(n=><span key={n} style={{...S,background:"#eef2ff",color:"#4338ca",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600,marginRight:6}}>{n}</span>)}
+          </div>
+        )}
       </div>
 
       {gin.remarks&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}><span style={{color:"#9ca3af"}}>Remarks:</span> {gin.remarks}</div>}
