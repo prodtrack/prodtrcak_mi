@@ -13,10 +13,11 @@ import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy,
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
 import {
   PLANTS, QGIN_STATUSES, QGIN_STATUS_LABELS, QGIN_STATUS_COLORS,
-  QUALITY_TYPES, INSPECTION_LOCATIONS, QGIN_PARAMETERS, emptyQGINParameter,
+  QUALITY_TYPES, INSPECTION_LOCATIONS, QGIN_PARAMETERS, emptyQGINParameter, UNITS,
   generateGRNNumber, generateQGINNumber, poReceivedStatus, COMPANY_INFO,
 } from "./purchaseHelpers";
 import { printQualityGIN } from "./QGINPrintView.jsx";
+import SelectOrCustom from "./PurchaseFormControls.jsx";
 
 // Roles allowed to approve/reject QC — separate from Purchase Manager, per
 // Shan's instruction, since there's no AdminPanel.jsx to add a dedicated
@@ -505,7 +506,7 @@ function QGINForm({profile,existing,showToast,onClose}){
             </div>
             <div><label style={labelStyle}>Description</label><input style={fieldStyle} value={p.parameter_description} onChange={e=>updateParam(i,"parameter_description",e.target.value)}/></div>
             <div><label style={labelStyle}>Visual</label><input style={fieldStyle} value={p.visual} onChange={e=>updateParam(i,"visual",e.target.value)}/></div>
-            <div><label style={labelStyle}>UOM</label><input style={fieldStyle} value={p.uom} onChange={e=>updateParam(i,"uom",e.target.value)}/></div>
+            <div><SelectOrCustom label="UOM" value={p.uom} onChange={v=>updateParam(i,"uom",v)} options={UNITS} placeholder="— Select —"/></div>
             <div><label style={labelStyle}>Standard value</label><input style={fieldStyle} value={p.standard_value} onChange={e=>updateParam(i,"standard_value",e.target.value)}/></div>
             <div><label style={labelStyle}>Actual value</label><input style={fieldStyle} value={p.actual_value} onChange={e=>updateParam(i,"actual_value",e.target.value)}/></div>
             {parameters.length>1&&<button className="btn-ghost" style={{padding:"7px 8px"}} onClick={()=>removeParam(i)}><Icon name="x" size={12}/></button>}
