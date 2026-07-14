@@ -1,109 +1,145 @@
 // ─── PRPrintView.jsx ────────────────────────────────────────────────────────
-// Standalone print window for a Purchase Requisition, laid out to match the
-// reference PR format (Requisition No / Date / Site / Requisition Type /
-// Requested By Code header block, Vendor Code / Vendor Name / Job Order on
-// the right, then the item table, then Remarks / Comments footer).
-// I don't have your POPrintView.jsx source to match its exact CSS, so this
-// is built independently from the reference screenshot — flag any styling
-// mismatch and I'll align it once I can see POPrintView.jsx.
+// Renders a Purchase Requisition as standalone, self-contained HTML — same
+// approach as POPrintView.jsx (new window, inline CSS, print-only render).
+// Letterhead/logo/GSTIN block and CSS classes are deliberately copied from
+// POPrintView.jsx so both documents look like they belong to the same
+// company stationery — change the shared look in both places if it changes.
 
 import { COMPANY_INFO } from "./purchaseHelpers";
-import { formatDate } from "../shared.jsx";
+import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
+
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function fmtDate(d){
+  if(!d)return"-";
+  const dt=new Date(d);
+  if(isNaN(dt))return"-";
+  return dt.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"}).replace(/\//g,"-");
+}
 
 export function printPurchaseRequisition(pr){
   const company=COMPANY_INFO[pr.plant]||{};
-  const win=window.open("","_blank","width=900,height=1000");
-  if(!win){alert("Please allow pop-ups to print.");return;}
+  const items=pr.line_items||[];
 
-  const rows=(pr.line_items||[]).map((it,i)=>`
+  const rows=items.map((it,i)=>`
     <tr>
       <td class="c">${i+1}</td>
-      <td>${escapeHtml(it.item_code||"")}</td>
-      <td>${escapeHtml(it.material_name||"")}</td>
-      <td class="r">${fmtQty(it.inventory_qty)}</td>
-      <td class="r">${fmtQty(it.qty)}</td>
-      <td class="c">${escapeHtml(it.unit||"")}</td>
-      <td class="c">${it.required_date?formatDate(it.required_date):"—"}</td>
-      <td class="r">${it.last_po_rate!=null?Number(it.last_po_rate).toLocaleString("en-IN"):""}</td>
-      <td>${escapeHtml(it.remarks||"")}</td>
+      <td>${esc(it.item_code||"")}</td>
+      <td>${esc(it.material_name)}</td>
+      <td class="r">${Number(it.inventory_qty||0).toFixed(3)}</td>
+      <td class="r">${Number(it.qty||0).toFixed(3)}</td>
+      <td class="c">${esc((it.unit||"").toUpperCase())}</td>
+      <td class="c">${fmtDate(it.required_date)}</td>
+      <td class="r">${it.last_po_rate!=null?Number(it.last_po_rate).toFixed(2):""}</td>
+      <td>${esc(it.remarks||"")}</td>
     </tr>`).join("");
 
-  win.document.write(`
-<!DOCTYPE html>
+  const html=`<!DOCTYPE html>
 <html>
 <head>
-<title>${escapeHtml(pr.pr_number)}</title>
 <meta charset="utf-8"/>
+<title>${esc(pr.pr_number)}</title>
 <style>
-  @page { size: A4 landscape; margin: 14mm; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin:0; }
-  table { width:100%; border-collapse: collapse; }
-  .header-table td { border: 1px solid #000; padding: 5px 8px; vertical-align: top; }
-  .label { color:#374151; }
-  .value { font-weight: 600; }
-  .items { margin-top: -1px; }
-  .items th, .items td { border: 1px solid #000; padding: 5px 8px; }
-  .items th { background:#e5e7eb; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
-  .r { text-align:right; }
-  .c { text-align:center; }
-  .footer-box { border: 1px solid #000; border-top:none; padding:8px; min-height: 46px; }
-  .footer-box .label{ font-size:11px; margin-bottom:4px; }
-  .print-btn { margin-bottom:14px; }
-  @media print { .print-btn { display:none; } }
+  @page { size: A4; margin: 12mm; }
+  *{box-sizing:border-box;}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:0;}
+  .sheet{border:1.5px solid #000;}
+  .r{text-align:right;}
+  .c{text-align:center;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:4px 8px;vertical-align:top;}
+  .header{padding:12px 16px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
+  .addr{font-size:11px;margin-top:8px;}
+  .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
+  .title{text-align:center;font-size:16px;font-weight:700;padding:8px 0;border-bottom:1px solid #000;}
+  .two-col{display:flex;border-bottom:1px solid #000;}
+  .two-col>div{flex:1;padding:8px;font-size:11px;line-height:1.6;}
+  .two-col>div:first-child{border-right:1px solid #000;}
+  .two-col b{font-weight:700;}
+  .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
+  .items-table td{border-bottom:1px solid #eee;font-size:11px;}
+  .items-table th,.items-table td{border-left:1px solid #000;}
+  .items-table th:first-child,.items-table td:first-child{border-left:none;}
+  .remarks-row{border-top:1px solid #000;min-height:44px;padding:6px 8px;font-size:11px;}
+  .remarks-row:last-child{border-bottom:1px solid #000;}
+  .remarks-row b{font-weight:700;}
+  @media print{
+    .print-btn{display:none;}
+    body{padding:0;}
+  }
+  .print-btn{position:fixed;top:10px;right:10px;padding:8px 16px;background:#1a1f2e;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;}
 </style>
 </head>
 <body>
-  <button class="print-btn" onclick="window.print()">Print</button>
+<button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+<div class="sheet">
 
-  <table class="header-table">
-    <tr>
-      <td style="width:50%">
-        <div><span class="label">Requisition No: </span><span class="value">${escapeHtml(pr.pr_number)}</span></div>
-        <div><span class="label">Site: </span><span class="value">${escapeHtml(company.name||pr.plant)}</span></div>
-        <div><span class="label">Requisition Type: </span><span class="value">${escapeHtml(pr.requisition_type||"")}</span></div>
-        <div><span class="label">Requested By Code: </span><span class="value">${escapeHtml(pr.requested_by_code||"—")}</span></div>
-      </td>
-      <td style="width:50%">
-        <div><span class="label">Date: </span><span class="value">${formatDate(pr.created_at?.toDate?pr.created_at.toDate():pr.created_at)}</span></div>
-        <div><span class="label">Vendor Code: </span><span class="value">${escapeHtml(pr.vendor_code||"—")}</span></div>
-        <div><span class="label">Vendor Name: </span><span class="value">${escapeHtml(pr.vendor_name||"—")}</span></div>
-        <div><span class="label">Job Order: </span><span class="value">${escapeHtml(pr.job_order||"—")}</span></div>
-      </td>
-    </tr>
-  </table>
+  <div class="header">
+    <img class="logo" src="${COMPANY_LOGO_DATA_URI}" alt="Mahendra Industries"/>
+    <div class="addr">${esc(company.address)}</div>
+  </div>
+  <div class="contact-row">
+    <span>Phone : ${esc(company.phone)}</span>
+    <span>Email : ${esc(company.email)}</span>
+    <span>Website : ${esc(company.website)}</span>
+  </div>
+  <div class="contact-row" style="border-bottom:1px solid #000;">
+    <span>GSTIN : ${esc(company.gstin)}</span>
+    <span>PAN : ${esc(company.pan)}</span>
+    <span></span>
+  </div>
 
-  <table class="items">
+  <div class="title">Purchase Requisition</div>
+
+  <div class="two-col">
+    <div>
+      <div>Requisition No: <b>${esc(pr.pr_number)}</b></div>
+      <div>Site: <b>${esc(company.name||pr.plant)}</b></div>
+      <div>Requisition Type: <b>${esc(pr.requisition_type||"")}</b></div>
+      <div>Requested By Code: <b>${esc(pr.requested_by_code||"—")}</b></div>
+    </div>
+    <div>
+      <div>Date: <b>${fmtDate(pr.created_at?.toDate?pr.created_at.toDate():pr.created_at)}</b></div>
+      <div>Vendor Code: <b>${esc(pr.vendor_code||"—")}</b></div>
+      <div>Vendor Name: <b>${esc(pr.vendor_name||"—")}</b></div>
+      <div>Job Order: <b>${esc(pr.job_order||"—")}</b></div>
+    </div>
+  </div>
+
+  <table class="items-table">
     <thead>
       <tr>
-        <th style="width:32px">Sr. No</th>
-        <th>Item Code</th>
+        <th style="width:28px;">Sr.<br/>No</th>
+        <th style="width:70px;">Item Code</th>
         <th>Item Description</th>
-        <th style="width:80px">Inventory Qty</th>
-        <th style="width:80px">Required Qty</th>
-        <th style="width:56px">UOM</th>
-        <th style="width:90px">Required Date</th>
-        <th style="width:80px">Last PO Rate</th>
+        <th style="width:70px;">Inventory<br/>Qty</th>
+        <th style="width:70px;">Required<br/>Qty</th>
+        <th style="width:44px;">UOM</th>
+        <th style="width:70px;">Required<br/>Date</th>
+        <th style="width:64px;">Last PO<br/>Rate</th>
         <th>Remarks</th>
       </tr>
     </thead>
     <tbody>
-      ${rows||`<tr><td colspan="9" class="c" style="padding:16px;color:#9ca3af;">No items</td></tr>`}
+      ${rows||`<tr><td colspan="9" class="c" style="padding:16px;color:#999;">No items</td></tr>`}
     </tbody>
   </table>
 
-  <div class="footer-box"><div class="label">Remarks:</div>${escapeHtml(pr.remarks||"")}</div>
-  <div class="footer-box"><div class="label">Comments:</div>${escapeHtml(pr.comments||"")}</div>
+  <div class="remarks-row"><b>Remarks:</b><br/>${esc(pr.remarks||"")}</div>
+  <div class="remarks-row"><b>Comments:</b><br/>${esc(pr.comments||"")}</div>
 
-  <script>window.onload = () => window.focus();</script>
+</div>
 </body>
-</html>`);
-  win.document.close();
-}
+</html>`;
 
-function fmtQty(v){
-  const n=parseFloat(v);
-  return isNaN(n)?"—":n.toLocaleString("en-IN",{minimumFractionDigits:3,maximumFractionDigits:3});
-}
-function escapeHtml(s){
-  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const win=window.open("","_blank","width=900,height=1000");
+  if(!win){
+    alert("Please allow pop-ups for this site to print the PR.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
 }
