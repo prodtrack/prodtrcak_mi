@@ -193,8 +193,8 @@ export function printPurchaseOrder(po){
   </div>
 
   <div class="sign-row">
-    <div>purchase 1<br/><br/><br/>Prepared By</div>
-    <div>purchase 1<br/><br/><br/>Checked By</div>
+    <div><br/><br/><br/>Prepared By</div>
+    <div><br/><br/><br/>Checked By</div>
     <div><div class="for-company">For MAHENDRA INDUSTRIES</div>Authorised Signatory</div>
   </div>
 
