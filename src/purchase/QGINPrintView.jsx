@@ -127,8 +127,8 @@ export function printQualityGIN(qgin){
   <div class="footer-box"><div class="label">Remarks</div>${esc(qgin.remarks||"")}</div>
   <div class="footer-box"><div class="label">Reasons</div>${esc(qgin.reasons||"")}</div>
   <div class="sign-row">
-    <div>Prepared By&nbsp;&nbsp;${esc(qgin.created_by_name||"-")}</div>
-    <div>Approved By&nbsp;&nbsp;${esc(qgin.approved_by||"-")}</div>
+    <div>Prepared By</div>
+    <div>Approved By</div>
   </div>
 
   <script>window.onload = () => window.focus();</script>
