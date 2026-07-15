@@ -9,9 +9,9 @@ import { useState, useEffect } from "react";
 export const S = { fontFamily:"'Space Mono',monospace" };
 
 // ─── Roles (shared across all modules) ──────────────────────────────────────
-export const ROLES        = ["admin","production","store","sales"];
-export const ROLE_LABELS  = {admin:"Admin",production:"Production",store:"Store",sales:"Sales / Dispatch"};
-export const ROLE_COLORS  = {admin:"#e8c547",production:"#059669",store:"#2563eb",sales:"#7c3aed"};
+export const ROLES        = ["admin","production","store","sales","purchase"];
+export const ROLE_LABELS  = {admin:"Admin",production:"Production",store:"Store",sales:"Sales / Dispatch",purchase:"Purchase"};
+export const ROLE_COLORS  = {admin:"#e8c547",production:"#059669",store:"#2563eb",sales:"#7c3aed",purchase:"#d97706"};
 
 // ─── Mobile detection ───────────────────────────────────────────────────────
 // Single source of truth for "are we on a phone-width screen" — every
