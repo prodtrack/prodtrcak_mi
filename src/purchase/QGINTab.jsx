@@ -53,22 +53,24 @@ export default function QGINTab({profile,showToast}){
     return onSnapshot(q,snap=>setApprovedGins(snap.docs.map(d=>({id:d.id,...d.data()})).filter(g=>g.status==="approved")));
   },[]);
 
-  async function createManualQGIN(gin,lineIdx){
+  const [manualSeed,setManualSeed]=useState(null);
+
+  // Manual picker no longer writes to Firestore immediately — it builds a
+  // seed object from the GIN line and opens the same form used for editing,
+  // in "new" mode. The QGIN document only actually gets created once the
+  // user clicks Save as Draft or Submit for Approval on that form. Auto-
+  // creation (GINTab's approveAndSendToQGIN) is untouched — it still writes
+  // a real draft doc immediately, by design.
+  function startManualQGIN(gin,lineIdx){
     const line=gin.line_items[lineIdx];
-    const qginNumber=await generateQGINNumber(gin.plant);
-    await addDoc(collection(db,"quality_gins"),{
-      qgin_number:qginNumber, plant:gin.plant,
+    setManualSeed({
+      plant:gin.plant,
       item_code:line.item_code||"", material_id:line.material_id||null, material_name:line.material_name, base_uom:line.unit,
       gin_id:gin.id, gin_number:gin.gin_number, po_id:gin.po_id||null, po_number:gin.po_number||null,
       vendor_id:gin.vendor_id||null, vendor_name:gin.vendor_name||null,
-      quality_type:null, gin_qty:parseFloat(line.accepted_qty)||0, testing_qty:null,
-      accepted_location:null, rejected_location:null,
-      accepted_qty:parseFloat(line.accepted_qty)||0, rejected_qty:parseFloat(line.rejected_qty)||0, rework_qty:0, scrap_qty:0, pending_qty:0,
-      parameters:[], remarks:null, reasons:null,
-      status:"draft",
-      created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
+      gin_qty:parseFloat(line.accepted_qty)||0,
+      accepted_qty:parseFloat(line.accepted_qty)||0, rejected_qty:parseFloat(line.rejected_qty)||0,
     });
-    showToast(`${qginNumber} created as draft — fill in QC detail and submit`);
     setPickerOpen(false);
   }
 
@@ -94,8 +96,20 @@ export default function QGINTab({profile,showToast}){
     showToast(`${qgin.qgin_number} cancelled`);
   }
 
+  if(manualSeed){
+    return(
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+          <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={()=>setManualSeed(null)}><Icon name="arrow" size={14}/>Back</button>
+          <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>New Quality GIN</div>
+        </div>
+        <QGINForm profile={profile} existing={manualSeed} showToast={showToast} onClose={()=>setManualSeed(null)}/>
+      </div>
+    );
+  }
+
   if(pickerOpen){
-    return <QGINPicker approvedGins={approvedGins} onCreate={createManualQGIN} onClose={()=>setPickerOpen(false)}/>;
+    return <QGINPicker approvedGins={approvedGins} onCreate={startManualQGIN} onClose={()=>setPickerOpen(false)}/>;
   }
 
   return(
@@ -354,19 +368,12 @@ function QtyStat({label,value,unit,color}){
 // GINs — including lines that already have a QGIN, since re-inspection is a
 // valid reason to raise another one.
 function QGINPicker({approvedGins,onCreate,onClose}){
-  const [creatingKey,setCreatingKey]=useState(null);
   const rows=[];
   approvedGins.forEach(gin=>{
     (gin.line_items||[]).forEach((line,idx)=>{
       if((parseFloat(line.accepted_qty)||0)>0)rows.push({gin,line,idx});
     });
   });
-
-  async function handleCreate(gin,idx,key){
-    setCreatingKey(key);
-    try{ await onCreate(gin,idx); }
-    finally{ setCreatingKey(null); }
-  }
 
   return(
     <div>
@@ -392,8 +399,8 @@ function QGINPicker({approvedGins,onCreate,onClose}){
                   <span style={{width:110,...S,fontSize:11,color:"#6b7280"}}>{gin.gin_number}</span>
                   <span style={{width:80,textAlign:"right",...S}}>{line.accepted_qty} {line.unit}</span>
                   <span style={{width:120,textAlign:"right"}}>
-                    <button className="btn-primary" style={{fontSize:11,padding:"6px 10px"}} disabled={creatingKey===key} onClick={()=>handleCreate(gin,idx,key)}>
-                      {creatingKey===key?"…":"Create QGIN"}
+                    <button className="btn-primary" style={{fontSize:11,padding:"6px 10px"}} onClick={()=>onCreate(gin,idx)}>
+                      Start QGIN
                     </button>
                   </span>
                 </div>
@@ -406,10 +413,13 @@ function QGINPicker({approvedGins,onCreate,onClose}){
   );
 }
 
-// ─── QGIN edit form ──────────────────────────────────────────────────────────
-// No "create new" entry point — QGINs are only ever spawned by GIN approval.
-// This form is edit-only, for filling in the QC detail before submitting.
+// ─── QGIN form ───────────────────────────────────────────────────────────────
+// Handles both modes: editing a real doc (existing.id present — updateDoc),
+// and filling in a brand-new manual QGIN before it's ever been written
+// (existing is just a seed built from a GIN line — addDoc happens on save).
+// Auto-created QGINs always arrive here in edit mode, unaffected by this.
 function QGINForm({profile,existing,showToast,onClose}){
+  const isNew=!existing.id;
   const [qualityDate,setQualityDate]=useState(existing.quality_date||new Date().toISOString().split("T")[0]);
   const [qualityType,setQualityType]=useState(existing.quality_type||QUALITY_TYPES[0]);
   const [testingQty,setTestingQty]=useState(existing.testing_qty??"");
@@ -436,7 +446,7 @@ function QGINForm({profile,existing,showToast,onClose}){
     if(errs.length){setErrors(errs);return;}
     setErrors([]);setSaving(true);
     try{
-      await updateDoc(doc(db,"quality_gins",existing.id),{
+      const payload={
         quality_date:qualityDate, quality_type:qualityType,
         testing_qty:parseFloat(testingQty)||0,
         accepted_location:acceptedLocation||null, rejected_location:rejectedLocation||null,
@@ -444,10 +454,28 @@ function QGINForm({profile,existing,showToast,onClose}){
         rework_qty:parseFloat(reworkQty)||0, scrap_qty:parseFloat(scrapQty)||0, pending_qty:parseFloat(pendingQty)||0,
         parameters:parameters.filter(p=>p.parameter),
         remarks:remarks||null, reasons:reasons||null,
-        status:submitForApproval?"pending_approval":existing.status,
         updated_at:serverTimestamp(),
-      });
-      showToast(submitForApproval?`${existing.qgin_number} submitted for approval`:`${existing.qgin_number} updated`);
+      };
+      if(isNew){
+        const qginNumber=await generateQGINNumber(existing.plant);
+        await addDoc(collection(db,"quality_gins"),{
+          ...payload,
+          qgin_number:qginNumber, plant:existing.plant,
+          item_code:existing.item_code||"", material_id:existing.material_id||null, material_name:existing.material_name, base_uom:existing.base_uom,
+          gin_id:existing.gin_id, gin_number:existing.gin_number, po_id:existing.po_id||null, po_number:existing.po_number||null,
+          vendor_id:existing.vendor_id||null, vendor_name:existing.vendor_name||null,
+          gin_qty:existing.gin_qty,
+          status:submitForApproval?"pending_approval":"draft",
+          created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
+        });
+        showToast(`${qginNumber} ${submitForApproval?"submitted for approval":"saved as draft"}`);
+      }else{
+        await updateDoc(doc(db,"quality_gins",existing.id),{
+          ...payload,
+          status:submitForApproval?"pending_approval":existing.status,
+        });
+        showToast(submitForApproval?`${existing.qgin_number} submitted for approval`:`${existing.qgin_number} updated`);
+      }
       onClose();
     }catch(e){setErrors([`Save failed: ${e.message}`]);}
     finally{setSaving(false);}
