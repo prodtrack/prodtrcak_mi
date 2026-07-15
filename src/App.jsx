@@ -1074,7 +1074,12 @@ function MaterialForm({existing,vendors,showToast,onClose}){
 // ─── Dispatch Tab ─────────────────────────────────────────────────────────────
 function DispatchTab({profile,showToast}){
   const [orders,setOrders]=useState([]);
-  const canDispatch=["admin","sales"].includes(profile.role);
+  // Admin and Sales always have dispatch access by role; anyone else's
+  // access is governed by the dispatch_access toggle. Existing users who
+  // predate this flag default to enabled (!==false) so nobody's silently
+  // locked out — new users created going forward start disabled until an
+  // Admin explicitly turns it on, same pattern as wo_access/inventory_access.
+  const canDispatch=["admin","sales"].includes(profile.role)||profile.dispatch_access!==false;
   useEffect(()=>{
     const q=query(collection(db,"work_orders"),where("status","==","ready_dispatch"));
     return onSnapshot(q,snap=>setOrders(snap.docs.map(d=>({id:d.id,...d.data()}))));
@@ -1145,7 +1150,7 @@ function UserManager({showToast}){
   const [users,setUsers]=useState([]);
   const [showAdd,setShowAdd]=useState(false);
   const [editUser,setEditUser]=useState(null); // user object currently being edited, or null
-  const [newUser,setNewUser]=useState({userId:"",name:"",role:"production",password:"",confirmPassword:"",can_purchase:false,isPurchaseManager:false,wo_access:false,inventory_access:false});
+  const [newUser,setNewUser]=useState({userId:"",name:"",role:"production",password:"",confirmPassword:"",can_purchase:false,isPurchaseManager:false,wo_access:false,inventory_access:false,dispatch_access:false});
   const [saving,setSaving]=useState(false);
   const [busyId,setBusyId]=useState(null); // uid currently mid-action (remove), disables its row buttons
 
@@ -1160,9 +1165,9 @@ function UserManager({showToast}){
       await callCreateUser({
         userId:newUser.userId.trim(),name:newUser.name.trim(),role:newUser.role,password:newUser.password,
         can_purchase:newUser.can_purchase,isPurchaseManager:newUser.isPurchaseManager,
-        wo_access:newUser.wo_access,inventory_access:newUser.inventory_access,
+        wo_access:newUser.wo_access,inventory_access:newUser.inventory_access,dispatch_access:newUser.dispatch_access,
       });
-      setNewUser({userId:"",name:"",role:"production",password:"",confirmPassword:"",can_purchase:false,isPurchaseManager:false,wo_access:false,inventory_access:false});
+      setNewUser({userId:"",name:"",role:"production",password:"",confirmPassword:"",can_purchase:false,isPurchaseManager:false,wo_access:false,inventory_access:false,dispatch_access:false});
       setShowAdd(false);showToast(`User "${newUser.userId.trim()}" created`);
     }catch(e){showToast(e.message||"Could not create user","error");}
     finally{setSaving(false);}
@@ -1188,7 +1193,7 @@ function UserManager({showToast}){
         <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
-            {["User ID","Name","Role","Purchase Access","PO Approval","WO Access","Inventory Reports","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+            {["User ID","Name","Role","Purchase Access","PO Approval","WO Access","Inventory Reports","Dispatch Access","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
           </tr></thead>
           <tbody>{users.map((u,i)=>(
             <tr key={u.id} className="table-row" style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
@@ -1215,6 +1220,11 @@ function UserManager({showToast}){
               <td style={{padding:"10px 12px"}}>
                 <span style={{...S,background:u.inventory_access!==false?"rgba(180,83,9,.1)":"#f3f4f6",border:`1px solid ${u.inventory_access!==false?"rgba(180,83,9,.35)":"#e5e7eb"}`,color:u.inventory_access!==false?"#b45309":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
                   {u.inventory_access!==false?"✓ Enabled":"— Disabled"}
+                </span>
+              </td>
+              <td style={{padding:"10px 12px"}}>
+                <span style={{...S,background:u.dispatch_access!==false?"rgba(13,148,136,.1)":"#f3f4f6",border:`1px solid ${u.dispatch_access!==false?"rgba(13,148,136,.35)":"#e5e7eb"}`,color:u.dispatch_access!==false?"#0d9488":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+                  {u.dispatch_access!==false?"✓ Enabled":"— Disabled"}
                 </span>
               </td>
               <td style={{padding:"10px 12px"}}>
@@ -1277,10 +1287,16 @@ function UserManager({showToast}){
                 {newUser.wo_access?"✓ Enabled":"✕ Disabled"}
               </button>
             </div>
-            <div style={{marginBottom:20,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{marginBottom:14,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div><div style={{fontSize:12,fontWeight:600,color:"#374151"}}>Inventory Reports access</div><div style={{fontSize:11,color:"#9ca3af"}}>View and update RM Inventory</div></div>
               <button onClick={()=>setNewUser(p=>({...p,inventory_access:!p.inventory_access}))} style={{...S,background:newUser.inventory_access?"rgba(180,83,9,.1)":"#f3f4f6",border:`1px solid ${newUser.inventory_access?"rgba(180,83,9,.4)":"#d1d5db"}`,color:newUser.inventory_access?"#b45309":"#6b7280",borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
                 {newUser.inventory_access?"✓ Enabled":"✕ Disabled"}
+              </button>
+            </div>
+            <div style={{marginBottom:20,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div><div style={{fontSize:12,fontWeight:600,color:"#374151"}}>Dispatch access</div><div style={{fontSize:11,color:"#9ca3af"}}>Mark ready orders as dispatched</div></div>
+              <button onClick={()=>setNewUser(p=>({...p,dispatch_access:!p.dispatch_access}))} style={{...S,background:newUser.dispatch_access?"rgba(13,148,136,.1)":"#f3f4f6",border:`1px solid ${newUser.dispatch_access?"rgba(13,148,136,.4)":"#d1d5db"}`,color:newUser.dispatch_access?"#0d9488":"#6b7280",borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                {newUser.dispatch_access?"✓ Enabled":"✕ Disabled"}
               </button>
             </div>
             <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -1304,6 +1320,7 @@ function EditUserModal({user,showToast,onClose}){
   const [isPOManager,setIsPOManager]=useState(!!user.isPurchaseManager);
   const [woAccess,setWoAccess]=useState(user.wo_access!==false);
   const [inventoryAccess,setInventoryAccess]=useState(user.inventory_access!==false);
+  const [dispatchAccess,setDispatchAccess]=useState(user.dispatch_access!==false);
   const [saving,setSaving]=useState(false);
   const [newPassword,setNewPassword]=useState("");
   const [confirmPassword,setConfirmPassword]=useState("");
@@ -1313,7 +1330,7 @@ function EditUserModal({user,showToast,onClose}){
     if(!name.trim()){showToast("Name is required","error");return;}
     setSaving(true);
     try{
-      await updateDoc(doc(db,"users",user.id),{name:name.trim(),role,can_purchase:canPurchase,isPurchaseManager:isPOManager,wo_access:woAccess,inventory_access:inventoryAccess});
+      await updateDoc(doc(db,"users",user.id),{name:name.trim(),role,can_purchase:canPurchase,isPurchaseManager:isPOManager,wo_access:woAccess,inventory_access:inventoryAccess,dispatch_access:dispatchAccess});
       showToast("Profile updated");
       onClose();
     }catch(e){showToast("Update failed: "+e.message,"error");}
@@ -1371,10 +1388,16 @@ function EditUserModal({user,showToast,onClose}){
                 {woAccess?"✓ Enabled":"✕ Disabled"}
               </button>
             </div>
-            <div style={{marginBottom:20,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{marginBottom:14,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{fontSize:12,fontWeight:600,color:"#374151"}}>Inventory Reports access</div>
               <button onClick={()=>setInventoryAccess(v=>!v)} style={{...S,background:inventoryAccess?"rgba(180,83,9,.1)":"#f3f4f6",border:`1px solid ${inventoryAccess?"rgba(180,83,9,.4)":"#d1d5db"}`,color:inventoryAccess?"#b45309":"#6b7280",borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
                 {inventoryAccess?"✓ Enabled":"✕ Disabled"}
+              </button>
+            </div>
+            <div style={{marginBottom:20,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontSize:12,fontWeight:600,color:"#374151"}}>Dispatch access</div>
+              <button onClick={()=>setDispatchAccess(v=>!v)} style={{...S,background:dispatchAccess?"rgba(13,148,136,.1)":"#f3f4f6",border:`1px solid ${dispatchAccess?"rgba(13,148,136,.4)":"#d1d5db"}`,color:dispatchAccess?"#0d9488":"#6b7280",borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                {dispatchAccess?"✓ Enabled":"✕ Disabled"}
               </button>
             </div>
           </>
