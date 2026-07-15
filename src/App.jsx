@@ -908,7 +908,7 @@ function InventoryTab({profile,showToast}){
       )}
 
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:11,color:"#9ca3af",...S,textTransform:"uppercase"}}>
           <span style={{width:130,flexShrink:0}}>Item Code</span>
           <span style={{flex:1,minWidth:160}}>Description</span>
           <span style={{width:160,flexShrink:0}}>Vendor</span>
@@ -929,7 +929,7 @@ function InventoryTab({profile,showToast}){
             const hasPO=poInProgressFor(m.id);
             const vendor=vendorMap[m.vendor_id];
             return(
-              <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:i<filtered.length-1?"1px solid #f9fafb":undefined,borderLeft:zero?"3px solid #dc2626":"3px solid transparent",background:zero?"#fef2f2":"#fff",fontSize:13}}
+              <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<filtered.length-1?"1px solid #f9fafb":undefined,borderLeft:zero?"3px solid #dc2626":"3px solid transparent",background:zero?"#fef2f2":"#fff",fontSize:13}}
                 onMouseEnter={e=>e.currentTarget.style.background=zero?"#fee2e2":"#fafafa"}
                 onMouseLeave={e=>e.currentTarget.style.background=zero?"#fef2f2":"#fff"}>
                 <span style={{...S,width:130,flexShrink:0,fontWeight:600,color:"#1d4ed8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.item_code||"—"}</span>
