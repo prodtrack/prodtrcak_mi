@@ -122,18 +122,22 @@ function MainApp({user,profile}){
   // off in the Add User form, so it's opt-in for them as intended.
   const canWO=isAdmin||profile.wo_access!==false;
   const canInventory=isAdmin||profile.inventory_access!==false;
+  const canDispatch=isAdmin||["sales"].includes(profile.role)||profile.dispatch_access!==false;
 
   const TABS=[
     ...(canWO?[{id:"dashboard",label:"Work Orders"}]:[]),
     ...(canPurchase?[{id:"purchase",label:"Purchase"}]:[]),
     ...(canInventory?[{id:"inventory",label:"Inventory"}]:[]),
-    {id:"dispatch",label:"Dispatch"},
+    ...(canDispatch?[{id:"dispatch",label:"Dispatch"}]:[]),
     ...(isAdmin?[{id:"admin",label:"Admin"}]:[]),
   ];
 
-  // Default landing tab: first one this profile actually has access to —
-  // never assume "dashboard" (Work Orders) is safe to land on.
-  const [tab,setTab]=useState(()=>TABS[0]?.id||"dispatch");
+  // Default landing tab: first one this profile actually has access to. No
+  // hardcoded fallback string here — if TABS is genuinely empty (a user with
+  // every access flag off), tab stays undefined and every check below falls
+  // through to nothing rendered, rather than assuming any specific tab
+  // (dispatch included) is always safe to land on.
+  const [tab,setTab]=useState(()=>TABS[0]?.id);
 
   const isMobile=useIsMobile();
   const shellWidth=isMobile?"100%":(["inventory","admin"].includes(tab)?1400:900);
@@ -169,8 +173,9 @@ function MainApp({user,profile}){
         {tab==="dashboard"    && (canWO?<DashboardTab profile={profile} showToast={showToast} onNavigate={setTab}/>:<AccessDenied/>)}
         {tab==="purchase"     && (canPurchase?<PurchaseTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="inventory"    && (canInventory?<InventoryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
-        {tab==="dispatch"     && <DispatchTab       profile={profile} showToast={showToast}/>}
+        {tab==="dispatch"     && (canDispatch?<DispatchTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="admin"        && (isAdmin?<AdminTab showToast={showToast}/>:<AccessDenied/>)}
+        {!tab && <AccessDenied/>}
       </div>
       {toastEl}
     </div>
