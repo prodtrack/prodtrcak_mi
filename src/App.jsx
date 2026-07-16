@@ -422,7 +422,7 @@ function OrderForm({profile,existing,showToast,onClose}){
   const labelStyle={fontSize:12,color:"#6b7280",display:"block",marginBottom:6};
 
   function updateDim(k,v){setDims(d=>({...d,[k]:v}));}
-  function addIns(){setInsulation(i=>[...i,{scheme:"Enamel",thermal:"Class F",tempIndex:"155°C",covering:"",spec:"",rawMaterial:"",qtyUsed:""}]);}
+  function addIns(){setInsulation(i=>[...i,{scheme:"",thermal:"",tempIndex:"",covering:"",spec:"",rawMaterial:"",qtyUsed:""}]);}
   function removeIns(i){setInsulation(ins=>ins.filter((_,idx)=>idx!==i));}
   function updateIns(i,k,v){setInsulation(ins=>ins.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
@@ -431,6 +431,9 @@ function OrderForm({profile,existing,showToast,onClose}){
     if(conductorType==="conductor"){if(!dims.width)errs.push("Width");if(!dims.thickness)errs.push("Thickness");}
     else{if(!dims.diameter)errs.push("Diameter");}
     if(!insulation.length)errs.push("At least one insulation layer");
+    if(insulation.some(r=>!r.scheme))errs.push("Insulation scheme on all layers");
+    if(insulation.some(r=>!r.thermal))errs.push("Thermal class on all layers");
+    if(insulation.some(r=>!r.tempIndex))errs.push("Temp index on all layers");
     if(insulation.some(r=>!r.covering))errs.push("Covering (mm) on all layers");
     if(!qty)errs.push("Quantity");
     if(!poNumber)errs.push("PO number");
@@ -571,18 +574,21 @@ function OrderForm({profile,existing,showToast,onClose}){
               <div>
                 <label style={labelStyle}>Insulation scheme</label>
                 <select style={fieldStyle} value={ins.scheme} onChange={e=>updateIns(i,"scheme",e.target.value)}>
+                  <option value="">— Select —</option>
                   {INSULATION_SCHEMES.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label style={labelStyle}>Thermal class</label>
                 <select style={fieldStyle} value={ins.thermal} onChange={e=>updateIns(i,"thermal",e.target.value)}>
+                  <option value="">— Select —</option>
                   {THERMAL_CLASSES.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label style={labelStyle}>Temp index</label>
                 <select style={fieldStyle} value={ins.tempIndex} onChange={e=>updateIns(i,"tempIndex",e.target.value)}>
+                  <option value="">— Select —</option>
                   {TEMP_INDEX_LIST.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
