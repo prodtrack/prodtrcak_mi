@@ -396,7 +396,7 @@ function OrderForm({profile,existing,showToast,onClose}){
   const [conductorType,setConductorType]=useState(existing?.conductor_type||"conductor");
   const [productType,setProductType]=useState(existing?.product_type||"conductor");
   const [dims,setDims]=useState(existing?.dimensions||{});
-  const [insulation,setInsulation]=useState(existing?.insulation||[{scheme:"Enamel",thermal:"Class F",tempIndex:"155°C",covering:"",spec:"",rawMaterial:"",qtyUsed:""}]);
+  const [insulation,setInsulation]=useState(existing?.insulation||[{scheme:"",thermal:"",tempIndex:"",covering:"",spec:"",rawMaterial:"",qtyUsed:""}]);
   const [allMaterials,setAllMaterials]=useState([]);
   const insulationMaterials=allMaterials.filter(m=>["Varnish","Insulation"].includes(m.category));
   const baseMaterials=allMaterials.filter(m=>["Copper","Aluminium"].includes(m.category));
@@ -548,16 +548,18 @@ function OrderForm({profile,existing,showToast,onClose}){
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Insulation scheme</div>
         {insulation.map((ins,i)=>(
           <div key={i} style={{borderTop:i>0?"1px solid #f3f4f6":undefined,paddingTop:i>0?16:0,marginTop:i>0?16:0}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <span style={{...S,fontSize:11,color:"#6b7280",fontWeight:600}}>LAYER {i+1}</span>
-              {insulation.length>1&&<button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeIns(i)}><Icon name="x" size={11}/>Remove</button>}
-            </div>
+            {insulation.length>1&&(
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+                <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeIns(i)}><Icon name="x" size={11}/>Remove</button>
+              </div>
+            )}
             {insulationMaterials.length>0&&(
               <div style={{marginBottom:12}}>
                 <label style={labelStyle}>Raw material</label>
-                <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
-                  {insulationMaterials.map(m=><button key={m.id} style={segStyle(ins.rawMaterial===m.material_name)} onClick={()=>updateIns(i,"rawMaterial",m.material_name)}>{m.material_name}</button>)}
-                </div>
+                <select style={fieldStyle} value={ins.rawMaterial} onChange={e=>updateIns(i,"rawMaterial",e.target.value)}>
+                  <option value="">— Select —</option>
+                  {insulationMaterials.map(m=><option key={m.id} value={m.material_name}>{m.material_name}</option>)}
+                </select>
                 {ins.rawMaterial&&(()=>{
                   const selMat=insulationMaterials.find(m=>m.material_name===ins.rawMaterial);
                   return(
@@ -603,7 +605,7 @@ function OrderForm({profile,existing,showToast,onClose}){
             </div>
           </div>
         ))}
-        <button className="btn-ghost" style={{width:"100%",justifyContent:"center",marginTop:16,borderStyle:"dashed"}} onClick={addIns}><Icon name="plus" size={13}/>Add insulation layer</button>
+        <button className="btn-ghost" style={{padding:"6px 14px",fontSize:12,marginTop:16,borderStyle:"dashed"}} onClick={addIns}><Icon name="plus" size={12}/>Add insulation layer</button>
       </div>
 
       {/* Order details */}
