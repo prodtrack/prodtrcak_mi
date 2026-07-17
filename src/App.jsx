@@ -939,7 +939,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
             <label style={labelStyle}>UOM</label>
             <select style={fieldStyle} value={uom} onChange={e=>setUom(e.target.value)}>
               <option value="">— Select —</option>
-              <option>kg</option><option>m</option><option>nos</option>
+              <option>kg</option><option>pcs</option><option>mtr</option><option>ltr</option><option>rolls</option><option>nos</option>
             </select>
           </div>
           <div>
