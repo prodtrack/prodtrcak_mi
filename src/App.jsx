@@ -16,6 +16,7 @@ import {
 } from "./shared.jsx";
 import PurchaseTab from "./purchase/PurchaseTab.jsx";
 import { COMPANY_LOGO_DATA_URI } from "./purchase/companyLogo.js";
+import SelectOrCustom from "./purchase/PurchaseFormControls.jsx";
 
 // ─── Constants (work order specific) ───────────────────────────────────────────
 // Must match INTERNAL_EMAIL_DOMAIN in functions/index.js exactly — this is how
@@ -772,7 +773,7 @@ function TenderTab({profile,showToast}){
   }
 
   if(showForm||editTender){
-    return <TenderForm existing={editTender} profile={profile} showToast={showToast} onClose={()=>{setShowForm(false);setEditTender(null);}}/>;
+    return <TenderForm existing={editTender} profile={profile} showToast={showToast} tenders={tenders} onClose={()=>{setShowForm(false);setEditTender(null);}}/>;
   }
 
   return(
@@ -789,7 +790,7 @@ function TenderTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                {["Tender No","Company","Size","Insulation Type","Quantity","Fabrication","Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                {["Tender No","LOI No.","Company","Size","Insulation Type","Quantity","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {tenders.map(t=>{
@@ -797,11 +798,13 @@ function TenderTab({profile,showToast}){
                   return(
                     <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
                       <td style={{padding:"10px 12px",...S,fontWeight:600}}>{t.tender_number||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.loi_no||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.company||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.size||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.insulation_type||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.quantity||"—"}</td>
-                      <td style={{padding:"10px 12px"}}>{t.fabrication||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.fabrication_rate||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.bme_copper_price||"—"}</td>
                       <td style={{padding:"10px 12px",...S,color:overdue?"#dc2626":"#1a1f2e",fontWeight:overdue?600:400}}>{t.due_date?formatDate(t.due_date):"—"}{overdue&&" ⚠"}</td>
                       <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
                         {canManage&&<>
@@ -821,26 +824,33 @@ function TenderTab({profile,showToast}){
   );
 }
 
-function TenderForm({existing,profile,showToast,onClose}){
+function TenderForm({existing,profile,showToast,tenders,onClose}){
   const isEdit=!!existing;
   const [tenderNumber,setTenderNumber]=useState(existing?.tender_number||"");
+  const [loiNo,setLoiNo]=useState(existing?.loi_no||"");
   const [company,setCompany]=useState(existing?.company||"");
   const [size,setSize]=useState(existing?.size||"");
   const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
   const [quantity,setQuantity]=useState(existing?.quantity||"");
-  const [fabrication,setFabrication]=useState(existing?.fabrication||"");
+  const [fabricationRate,setFabricationRate]=useState(existing?.fabrication_rate||"");
+  const [bmeCopperPrice,setBmeCopperPrice]=useState(existing?.bme_copper_price||"");
   const [dueDate,setDueDate]=useState(existing?.due_date||"");
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
+
+  // No dedicated customer master yet — grows organically from company names
+  // already used on past tenders, with a custom-entry fallback via
+  // SelectOrCustom so a brand-new company can still be typed in directly.
+  const companyOptions=[...new Set((tenders||[]).map(t=>t.company).filter(Boolean))].sort();
 
   async function save(){
     if(!tenderNumber.trim()){setError("Tender number is required");return;}
     setError("");setSaving(true);
     try{
       const payload={
-        tender_number:tenderNumber.trim(),company:company.trim()||null,size:size.trim()||null,
-        insulation_type:insulationType.trim()||null,quantity:quantity||null,
-        fabrication:fabrication.trim()||null,due_date:dueDate||null,
+        tender_number:tenderNumber.trim(),loi_no:loiNo.trim()||null,company:company.trim()||null,size:size.trim()||null,
+        insulation_type:insulationType||null,quantity:quantity||null,
+        fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,due_date:dueDate||null,
         updated_at:serverTimestamp(),
       };
       if(isEdit){
@@ -871,8 +881,11 @@ function TenderForm({existing,profile,showToast,onClose}){
             <input style={fieldStyle} value={tenderNumber} onChange={e=>setTenderNumber(e.target.value)} placeholder="e.g. TND-2026-014"/>
           </div>
           <div>
-            <label style={labelStyle}>Company</label>
-            <input style={fieldStyle} value={company} onChange={e=>setCompany(e.target.value)} placeholder="Party name"/>
+            <label style={labelStyle}>LOI No. <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
+            <input style={fieldStyle} value={loiNo} onChange={e=>setLoiNo(e.target.value)} placeholder="e.g. LOI-2026-014"/>
+          </div>
+          <div>
+            <SelectOrCustom label="Company" value={company} onChange={setCompany} options={companyOptions} placeholder="— Select —"/>
           </div>
           <div>
             <label style={labelStyle}>Size</label>
@@ -880,18 +893,25 @@ function TenderForm({existing,profile,showToast,onClose}){
           </div>
           <div>
             <label style={labelStyle}>Insulation type</label>
-            <input style={fieldStyle} value={insulationType} onChange={e=>setInsulationType(e.target.value)} placeholder="e.g. Enamel + DGC"/>
+            <select style={fieldStyle} value={insulationType} onChange={e=>setInsulationType(e.target.value)}>
+              <option value="">— Select —</option>
+              {INSULATION_SCHEMES.map(s=><option key={s}>{s}</option>)}
+            </select>
           </div>
           <div>
             <label style={labelStyle}>Quantity</label>
             <input style={fieldStyle} type="number" min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)} placeholder="0"/>
           </div>
           <div>
-            <label style={labelStyle}>Fabrication</label>
-            <input style={fieldStyle} value={fabrication} onChange={e=>setFabrication(e.target.value)} placeholder="Fabrication detail"/>
+            <label style={labelStyle}>Fabrication rate</label>
+            <input style={fieldStyle} value={fabricationRate} onChange={e=>setFabricationRate(e.target.value)} placeholder="Fabrication rate"/>
           </div>
           <div>
-            <label style={labelStyle}>Due date</label>
+            <label style={labelStyle}>BME/Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid — leave blank)</span></label>
+            <input style={fieldStyle} value={bmeCopperPrice} onChange={e=>setBmeCopperPrice(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Bid due date</label>
             <input style={fieldStyle} type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/>
           </div>
         </div>
