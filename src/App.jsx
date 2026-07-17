@@ -766,6 +766,17 @@ function TenderTab({profile,showToast}){
     return onSnapshot(q,snap=>setTenders(snap.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
 
+  // Upcoming-only: due_date within the next 7 days and not already passed —
+  // already-overdue tenders keep their existing red-text treatment in the
+  // table row itself, this banner is specifically the heads-up warning.
+  const now=new Date();now.setHours(0,0,0,0);
+  const weekEnd=new Date(now);weekEnd.setDate(weekEnd.getDate()+7);
+  const dueSoon=tenders.filter(t=>{
+    if(!t.due_date)return false;
+    const d=new Date(t.due_date);
+    return d>=now&&d<=weekEnd;
+  });
+
   async function removeTender(t){
     if(!window.confirm(`Delete tender ${t.tender_number||"(no number)"}? This cannot be undone.`))return;
     await deleteDoc(doc(db,"tenders",t.id));
@@ -783,6 +794,13 @@ function TenderTab({profile,showToast}){
         <div style={{fontSize:14,fontWeight:600}}>{tenders.length} tender{tenders.length!==1?"s":""}</div>
         {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Tender</button>}
       </div>
+
+      {dueSoon.length>0&&(
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10,fontSize:12,flexWrap:"wrap"}}>
+          <span style={{color:"#dc2626",fontWeight:600}}>⚠ {dueSoon.length} due within 7 days:</span>
+          <span style={{color:"#374151"}}>{dueSoon.slice(0,4).map(t=>`${t.tender_number||"—"}${t.company?` (${t.company})`:""}`).join(" · ")}{dueSoon.length>4?` +${dueSoon.length-4} more`:""}</span>
+        </div>
+      )}
 
       {tenders.length===0
         ?<EmptyState text="No tenders yet" sub={canManage?"Click 'New Tender' to add one":undefined}/>
