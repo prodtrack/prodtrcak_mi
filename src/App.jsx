@@ -121,11 +121,13 @@ function MainApp({user,profile}){
   // takes it away. New users created going forward default this toggle to
   // off in the Add User form, so it's opt-in for them as intended.
   const canWO=isAdmin||profile.wo_access!==false;
+  const canTender=isAdmin||profile.role==="sales";
   const canInventory=isAdmin||profile.inventory_access!==false;
   const canDispatch=isAdmin||["sales"].includes(profile.role)||profile.dispatch_access!==false;
 
   const TABS=[
     ...(canWO?[{id:"dashboard",label:"Work Orders"}]:[]),
+    ...(canTender?[{id:"tender",label:"Tender"}]:[]),
     ...(canPurchase?[{id:"purchase",label:"Purchase"}]:[]),
     ...(canInventory?[{id:"inventory",label:"Inventory"}]:[]),
     ...(canDispatch?[{id:"dispatch",label:"Dispatch"}]:[]),
@@ -171,6 +173,7 @@ function MainApp({user,profile}){
       {/* Content */}
       <div style={{maxWidth:shellWidth,margin:"0 auto",padding:isMobile?"20px 12px":"28px 20px",transition:"max-width .15s"}}>
         {tab==="dashboard"    && (canWO?<DashboardTab profile={profile} showToast={showToast} onNavigate={setTab}/>:<AccessDenied/>)}
+        {tab==="tender"       && (canTender?<TenderTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="purchase"     && (canPurchase?<PurchaseTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="inventory"    && (canInventory?<InventoryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="dispatch"     && (canDispatch?<DispatchTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
@@ -741,6 +744,165 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
           ✓ Ready for dispatch
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tender Tab ───────────────────────────────────────────────────────────────
+// Simple manual-entry tracker for tenders — no numbering scheme, no approval
+// workflow, no auto-fill. Every field is plain text/number/date, matching
+// what was asked for "for now" — fields can be extended or made smarter
+// (dropdowns, linked to WO, etc.) later without restructuring this tab.
+function TenderTab({profile,showToast}){
+  const isAdmin=profile.role==="admin";
+  const canManage=isAdmin||profile.role==="sales";
+  const [tenders,setTenders]=useState([]);
+  const [showForm,setShowForm]=useState(false);
+  const [editTender,setEditTender]=useState(null);
+
+  useEffect(()=>{
+    const q=query(collection(db,"tenders"),orderBy("created_at","desc"));
+    return onSnapshot(q,snap=>setTenders(snap.docs.map(d=>({id:d.id,...d.data()}))));
+  },[]);
+
+  async function removeTender(t){
+    if(!window.confirm(`Delete tender ${t.tender_number||"(no number)"}? This cannot be undone.`))return;
+    await deleteDoc(doc(db,"tenders",t.id));
+    showToast("Tender deleted");
+  }
+
+  if(showForm||editTender){
+    return <TenderForm existing={editTender} profile={profile} showToast={showToast} onClose={()=>{setShowForm(false);setEditTender(null);}}/>;
+  }
+
+  return(
+    <div>
+      <div style={{marginBottom:16}}><SectionHeader mono="Sales" title="Tender" sub="Tender tracking — manual entry"/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:600}}>{tenders.length} tender{tenders.length!==1?"s":""}</div>
+        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Tender</button>}
+      </div>
+
+      {tenders.length===0
+        ?<EmptyState text="No tenders yet" sub={canManage?"Click 'New Tender' to add one":undefined}/>
+        :(
+          <div className="card" style={{padding:0,overflow:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
+                {["Tender No","Company","Size","Insulation Type","Quantity","Fabrication","Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {tenders.map(t=>{
+                  const overdue=isOverdue(t.due_date);
+                  return(
+                    <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                      <td style={{padding:"10px 12px",...S,fontWeight:600}}>{t.tender_number||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{t.company||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.size||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{t.insulation_type||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.quantity||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{t.fabrication||"—"}</td>
+                      <td style={{padding:"10px 12px",...S,color:overdue?"#dc2626":"#1a1f2e",fontWeight:overdue?600:400}}>{t.due_date?formatDate(t.due_date):"—"}{overdue&&" ⚠"}</td>
+                      <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
+                        {canManage&&<>
+                          <button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,marginRight:6}} onClick={()=>setEditTender(t)}><Icon name="edit" size={11}/>Edit</button>
+                          <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeTender(t)}><Icon name="trash" size={11}/>Delete</button>
+                        </>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+function TenderForm({existing,profile,showToast,onClose}){
+  const isEdit=!!existing;
+  const [tenderNumber,setTenderNumber]=useState(existing?.tender_number||"");
+  const [company,setCompany]=useState(existing?.company||"");
+  const [size,setSize]=useState(existing?.size||"");
+  const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
+  const [quantity,setQuantity]=useState(existing?.quantity||"");
+  const [fabrication,setFabrication]=useState(existing?.fabrication||"");
+  const [dueDate,setDueDate]=useState(existing?.due_date||"");
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+
+  async function save(){
+    if(!tenderNumber.trim()){setError("Tender number is required");return;}
+    setError("");setSaving(true);
+    try{
+      const payload={
+        tender_number:tenderNumber.trim(),company:company.trim()||null,size:size.trim()||null,
+        insulation_type:insulationType.trim()||null,quantity:quantity||null,
+        fabrication:fabrication.trim()||null,due_date:dueDate||null,
+        updated_at:serverTimestamp(),
+      };
+      if(isEdit){
+        await updateDoc(doc(db,"tenders",existing.id),payload);
+        showToast("Tender updated");
+      }else{
+        await addDoc(collection(db,"tenders"),{
+          ...payload,created_by:profile.name||auth.currentUser.email,created_at:serverTimestamp(),
+        });
+        showToast("Tender created");
+      }
+      onClose();
+    }catch(e){setError("Save failed: "+e.message);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{isEdit?"Edit Tender":"New Tender"}</div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          <div>
+            <label style={labelStyle}>Tender number *</label>
+            <input style={fieldStyle} value={tenderNumber} onChange={e=>setTenderNumber(e.target.value)} placeholder="e.g. TND-2026-014"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Company</label>
+            <input style={fieldStyle} value={company} onChange={e=>setCompany(e.target.value)} placeholder="Party name"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Size</label>
+            <input style={fieldStyle} value={size} onChange={e=>setSize(e.target.value)} placeholder="e.g. 10x8mm"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Insulation type</label>
+            <input style={fieldStyle} value={insulationType} onChange={e=>setInsulationType(e.target.value)} placeholder="e.g. Enamel + DGC"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Quantity</label>
+            <input style={fieldStyle} type="number" min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)} placeholder="0"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Fabrication</label>
+            <input style={fieldStyle} value={fabrication} onChange={e=>setFabrication(e.target.value)} placeholder="Fabrication detail"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Due date</label>
+            <input style={fieldStyle} type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/>
+          </div>
+        </div>
+      </div>
+
+      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Tender":"Save Tender"}</button>
+      </div>
     </div>
   );
 }
