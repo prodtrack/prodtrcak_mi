@@ -1138,7 +1138,7 @@ function InventoryTab({profile,showToast}){
       )}
 
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:11,color:"#9ca3af",...S,textTransform:"uppercase"}}>
           <span style={{width:130,flexShrink:0}}>Item Code</span>
           <span style={{flex:1,minWidth:160}}>Description</span>
           <span style={{width:160,flexShrink:0}}>Vendor</span>
@@ -1159,7 +1159,7 @@ function InventoryTab({profile,showToast}){
             const hasPO=poInProgressFor(m.id);
             const vendor=vendorMap[m.vendor_id];
             return(
-              <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:i<filtered.length-1?"1px solid #f9fafb":undefined,borderLeft:zero?"3px solid #dc2626":"3px solid transparent",background:zero?"#fef2f2":"#fff",fontSize:13}}
+              <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<filtered.length-1?"1px solid #f9fafb":undefined,borderLeft:zero?"3px solid #dc2626":"3px solid transparent",background:zero?"#fef2f2":"#fff",fontSize:13}}
                 onMouseEnter={e=>e.currentTarget.style.background=zero?"#fee2e2":"#fafafa"}
                 onMouseLeave={e=>e.currentTarget.style.background=zero?"#fef2f2":"#fff"}>
                 <span style={{...S,width:130,flexShrink:0,fontWeight:600,color:"#1d4ed8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.item_code||"—"}</span>
@@ -1426,43 +1426,43 @@ function UserManager({showToast}){
           <button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowAdd(true)}><Icon name="plus" size={12}/>Add User</button>
         </div>
         <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
-            {["User ID","Name","Role","Purchase Access","PO Approval","WO Access","Inventory Reports","Dispatch Access","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+            {["User ID","Name","Role","Purchase Access","PO Approval","WO Access","Inventory Reports","Dispatch Access","Actions"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:10,whiteSpace:"nowrap",...S}}>{h}</th>)}
           </tr></thead>
           <tbody>{users.map((u,i)=>(
             <tr key={u.id} className="table-row" style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
-              <td style={{padding:"10px 12px",...S,fontWeight:600,color:"#1d4ed8"}}>{u.user_id||u.email}</td>
-              <td style={{padding:"10px 12px",fontWeight:500}}>{u.name}</td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px",...S,fontWeight:600,color:"#1d4ed8"}}>{u.user_id||u.email}</td>
+              <td style={{padding:"6px 10px",fontWeight:500}}>{u.name}</td>
+              <td style={{padding:"6px 10px"}}>
                 <span style={{...S,background:`${ROLE_COLORS[u.role]||"#6b7280"}18`,color:ROLE_COLORS[u.role]||"#6b7280",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600}}>{ROLE_LABELS[u.role]||u.role}</span>
               </td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px"}}>
                 <span style={{...S,background:u.can_purchase?"rgba(22,163,74,.1)":"#f3f4f6",border:`1px solid ${u.can_purchase?"rgba(22,163,74,.35)":"#e5e7eb"}`,color:u.can_purchase?"#15803d":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
                   {u.can_purchase?"✓ Enabled":"— Disabled"}
                 </span>
               </td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px"}}>
                 <span style={{...S,background:u.isPurchaseManager?"rgba(124,58,237,.1)":"#f3f4f6",border:`1px solid ${u.isPurchaseManager?"rgba(124,58,237,.35)":"#e5e7eb"}`,color:u.isPurchaseManager?"#6d28d9":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
                   {u.isPurchaseManager?"✓ Enabled":"— Cannot Approve"}
                 </span>
               </td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px"}}>
                 <span style={{...S,background:u.wo_access!==false?"rgba(29,78,216,.1)":"#f3f4f6",border:`1px solid ${u.wo_access!==false?"rgba(29,78,216,.35)":"#e5e7eb"}`,color:u.wo_access!==false?"#1d4ed8":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
                   {u.wo_access!==false?"✓ Enabled":"— Disabled"}
                 </span>
               </td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px"}}>
                 <span style={{...S,background:u.inventory_access!==false?"rgba(180,83,9,.1)":"#f3f4f6",border:`1px solid ${u.inventory_access!==false?"rgba(180,83,9,.35)":"#e5e7eb"}`,color:u.inventory_access!==false?"#b45309":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
                   {u.inventory_access!==false?"✓ Enabled":"— Disabled"}
                 </span>
               </td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px"}}>
                 <span style={{...S,background:u.dispatch_access!==false?"rgba(13,148,136,.1)":"#f3f4f6",border:`1px solid ${u.dispatch_access!==false?"rgba(13,148,136,.35)":"#e5e7eb"}`,color:u.dispatch_access!==false?"#0d9488":"#9ca3af",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
                   {u.dispatch_access!==false?"✓ Enabled":"— Disabled"}
                 </span>
               </td>
-              <td style={{padding:"10px 12px"}}>
+              <td style={{padding:"6px 10px"}}>
                 <div style={{display:"flex",gap:6}}>
                   <button className="btn-ghost" style={{padding:"4px 10px",fontSize:11}} onClick={()=>setEditUser(u)}><Icon name="edit" size={11}/>Edit</button>
                   {u.role!=="admin"&&<button className="btn-ghost" style={{padding:"4px 10px",fontSize:11,color:"#dc2626"}} disabled={busyId===u.id} onClick={()=>removeUser(u)}><Icon name="trash" size={11}/>{busyId===u.id?"…":"Remove"}</button>}
