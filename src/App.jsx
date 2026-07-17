@@ -790,7 +790,7 @@ function TenderTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                {["Tender No","LOI No.","Company","Size","Insulation Type","Quantity","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                {["Tender No","Tender Date","LOI No.","Spec. No.","Company","Size","Insulation Type","Quantity","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {tenders.map(t=>{
@@ -798,7 +798,9 @@ function TenderTab({profile,showToast}){
                   return(
                     <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
                       <td style={{padding:"10px 12px",...S,fontWeight:600}}>{t.tender_number||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.tender_date?formatDate(t.tender_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.loi_no||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.specification_number||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.company||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.size||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.insulation_type||"—"}</td>
@@ -827,7 +829,9 @@ function TenderTab({profile,showToast}){
 function TenderForm({existing,profile,showToast,tenders,onClose}){
   const isEdit=!!existing;
   const [tenderNumber,setTenderNumber]=useState(existing?.tender_number||"");
+  const [tenderDate,setTenderDate]=useState(existing?.tender_date||"");
   const [loiNo,setLoiNo]=useState(existing?.loi_no||"");
+  const [specNumber,setSpecNumber]=useState(existing?.specification_number||"");
   const [company,setCompany]=useState(existing?.company||"");
   const [size,setSize]=useState(existing?.size||"");
   const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
@@ -848,7 +852,8 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
     setError("");setSaving(true);
     try{
       const payload={
-        tender_number:tenderNumber.trim(),loi_no:loiNo.trim()||null,company:company.trim()||null,size:size.trim()||null,
+        tender_number:tenderNumber.trim(),tender_date:tenderDate||null,loi_no:loiNo.trim()||null,
+        specification_number:specNumber.trim()||null,company:company.trim()||null,size:size.trim()||null,
         insulation_type:insulationType||null,quantity:quantity||null,
         fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,due_date:dueDate||null,
         updated_at:serverTimestamp(),
@@ -881,8 +886,16 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
             <input style={fieldStyle} value={tenderNumber} onChange={e=>setTenderNumber(e.target.value)} placeholder="e.g. TND-2026-014"/>
           </div>
           <div>
+            <label style={labelStyle}>Tender date</label>
+            <input style={fieldStyle} type="date" value={tenderDate} onChange={e=>setTenderDate(e.target.value)}/>
+          </div>
+          <div>
             <label style={labelStyle}>LOI No. <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
             <input style={fieldStyle} value={loiNo} onChange={e=>setLoiNo(e.target.value)} placeholder="e.g. LOI-2026-014"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Specification number</label>
+            <input style={fieldStyle} value={specNumber} onChange={e=>setSpecNumber(e.target.value)} placeholder="e.g. IS 13730"/>
           </div>
           <div>
             <SelectOrCustom label="Company" value={company} onChange={setCompany} options={companyOptions} placeholder="— Select —"/>
