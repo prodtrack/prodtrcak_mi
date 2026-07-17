@@ -907,7 +907,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
             <input style={fieldStyle} value={fabricationRate} onChange={e=>setFabricationRate(e.target.value)} placeholder="Fabrication rate"/>
           </div>
           <div>
-            <label style={labelStyle}>BME/Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid — leave blank)</span></label>
+            <label style={labelStyle}>BME/Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
             <input style={fieldStyle} value={bmeCopperPrice} onChange={e=>setBmeCopperPrice(e.target.value)}/>
           </div>
           <div>
