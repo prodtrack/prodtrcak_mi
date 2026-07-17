@@ -808,7 +808,7 @@ function TenderTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                {["Tender No","Tender Date","LOI No.","Spec. No.","Company","Size","Insulation Type","Quantity","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                {["Tender No","Tender Date","LOI No.","Spec. No.","Company","Size","Insulation Type","Quantity","UOM","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {tenders.map(t=>{
@@ -823,6 +823,7 @@ function TenderTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S}}>{t.size||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.insulation_type||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.quantity||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{t.uom||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.fabrication_rate||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.bme_copper_price||"—"}</td>
                       <td style={{padding:"10px 12px",...S,color:overdue?"#dc2626":"#1a1f2e",fontWeight:overdue?600:400}}>{t.due_date?formatDate(t.due_date):"—"}{overdue&&" ⚠"}</td>
@@ -854,6 +855,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
   const [size,setSize]=useState(existing?.size||"");
   const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
   const [quantity,setQuantity]=useState(existing?.quantity||"");
+  const [uom,setUom]=useState(existing?.uom||"");
   const [fabricationRate,setFabricationRate]=useState(existing?.fabrication_rate||"");
   const [bmeCopperPrice,setBmeCopperPrice]=useState(existing?.bme_copper_price||"");
   const [dueDate,setDueDate]=useState(existing?.due_date||"");
@@ -872,7 +874,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
       const payload={
         tender_number:tenderNumber.trim(),tender_date:tenderDate||null,loi_no:loiNo.trim()||null,
         specification_number:specNumber.trim()||null,company:company.trim()||null,size:size.trim()||null,
-        insulation_type:insulationType||null,quantity:quantity||null,
+        insulation_type:insulationType||null,quantity:quantity||null,uom:uom||null,
         fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,due_date:dueDate||null,
         updated_at:serverTimestamp(),
       };
@@ -932,6 +934,13 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
           <div>
             <label style={labelStyle}>Quantity</label>
             <input style={fieldStyle} type="number" min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)} placeholder="0"/>
+          </div>
+          <div>
+            <label style={labelStyle}>UOM</label>
+            <select style={fieldStyle} value={uom} onChange={e=>setUom(e.target.value)}>
+              <option value="">— Select —</option>
+              <option>kg</option><option>m</option><option>nos</option>
+            </select>
           </div>
           <div>
             <label style={labelStyle}>Fabrication rate</label>
