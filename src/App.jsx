@@ -1555,13 +1555,18 @@ function VendorMasterAdmin({showToast}){
         return "";
       }
 
-      const existingNames=new Set(vendors.map(v=>v.name?.toLowerCase()));
-      let added=0;
+      // Name → existing doc, so a duplicate name in the sheet backfills any
+      // currently-blank fields on the record already imported, instead of
+      // being silently discarded — the source sheet has 6 duplicate party
+      // names, and for 3 of them the SECOND occurrence has the real
+      // Payment Term/GSTIN while the first is blank. Never overwrites a
+      // field that already has a value.
+      const byName=new Map(vendors.map(v=>[v.name?.toLowerCase(),v]));
+      let added=0,backfilled=0;
       for(const row of rows){
         const name=pick(row,["party name"]);
-        if(!name||existingNames.has(name.toLowerCase()))continue;
-        const record={
-          name,
+        if(!name)continue;
+        const fields={
           party_type:pick(row,["party type"])||null,
           category:pick(row,["category"])||null,
           currency:pick(row,["currency"])||null,
@@ -1590,13 +1595,31 @@ function VendorMasterAdmin({showToast}){
           payment_term_description:pick(row,["payment term description"])||null,
           gst_party_type:pick(row,["gst party type"])||null,
           gstin:pick(row,["gstin"])||null,
-          created_at:serverTimestamp(),
         };
-        await addDoc(collection(db,"vendor_master"),record);
-        existingNames.add(name.toLowerCase());
+
+        const existing=byName.get(name.toLowerCase());
+        if(existing){
+          const patch={};
+          for(const [k,v] of Object.entries(fields)){
+            if(v&&!existing[k])patch[k]=v;
+          }
+          if(Object.keys(patch).length>0){
+            await updateDoc(doc(db,"vendor_master",existing.id),{...patch,updated_at:serverTimestamp()});
+            byName.set(name.toLowerCase(),{...existing,...patch});
+            backfilled++;
+          }
+          continue;
+        }
+
+        const record={name,...fields,created_at:serverTimestamp()};
+        const ref=await addDoc(collection(db,"vendor_master"),record);
+        byName.set(name.toLowerCase(),{id:ref.id,...record});
         added++;
       }
-      showToast(added>0?`${added} new vendor${added!==1?"s":""} added`:"No new vendors found — all names already in the master list");
+      const parts=[];
+      if(added>0)parts.push(`${added} new vendor${added!==1?"s":""} added`);
+      if(backfilled>0)parts.push(`${backfilled} existing vendor${backfilled!==1?"s":""} backfilled with missing detail`);
+      showToast(parts.length>0?parts.join(", "):"No new or missing data found — master list already up to date");
     }catch(err){showToast("Import failed: "+err.message,"error");}
     finally{setUploading(false);e.target.value="";}
   }
