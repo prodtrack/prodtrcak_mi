@@ -1395,6 +1395,7 @@ function CustomerMasterAdmin({showToast}){
   const [customers,setCustomers]=useState([]);
   const [search,setSearch]=useState("");
   const [uploading,setUploading]=useState(false);
+  const [editCustomer,setEditCustomer]=useState(null);
 
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomers(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
@@ -1442,9 +1443,25 @@ function CustomerMasterAdmin({showToast}){
     showToast(`${c.name} removed`);
   }
 
+  // Exports ALL customers, ignoring the current search filter — the point
+  // of export is a full backup/round-trip, not "export what I'm looking at".
+  function exportExcel(){
+    const rows=customers.map(c=>({
+      "Customer Name":c.name||"","Address":c.address||"","GSTIN":c.gstin||"","PAN":c.pan||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Customers");
+    XLSX.writeFile(wb,`customer_master_${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
+
   const filtered=search.trim()
     ?customers.filter(c=>c.name?.toLowerCase().includes(search.toLowerCase()))
     :customers;
+
+  if(editCustomer){
+    return <CustomerEditForm customer={editCustomer} showToast={showToast} onClose={()=>setEditCustomer(null)}/>;
+  }
 
   return(
     <div>
@@ -1453,10 +1470,13 @@ function CustomerMasterAdmin({showToast}){
           <div style={{fontSize:14,fontWeight:600}}>{customers.length} customer{customers.length!==1?"s":""}</div>
           <div style={{fontSize:12,color:"#9ca3af",marginTop:2}}>Upload an Excel with Customer Name, Address, GSTIN, PAN columns. New names are merged with the existing list.</div>
         </div>
-        <label className="btn-primary" style={{fontSize:12,padding:"7px 14px",cursor:"pointer"}}>
-          <Icon name="plus" size={12}/>{uploading?"Uploading…":"Upload Excel"}
-          <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={uploading} style={{display:"none"}}/>
-        </label>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>
+          <label className="btn-primary" style={{fontSize:12,padding:"7px 14px",cursor:"pointer"}}>
+            <Icon name="plus" size={12}/>{uploading?"Uploading…":"Upload Excel"}
+            <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={uploading} style={{display:"none"}}/>
+          </label>
+        </div>
       </div>
 
       <input style={{...fieldStyle,marginBottom:16,maxWidth:280}} placeholder="Search customer name…" value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -1478,7 +1498,10 @@ function CustomerMasterAdmin({showToast}){
                       <td style={{padding:"6px 10px",maxWidth:280}}>{c.address||"—"}</td>
                       <td style={{padding:"6px 10px",...S}}>{c.gstin||"—"}</td>
                       <td style={{padding:"6px 10px",...S}}>{c.pan||"—"}</td>
-                      <td style={{padding:"6px 10px"}}><button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeCustomer(c)}><Icon name="trash" size={11}/>Remove</button></td>
+                      <td style={{padding:"6px 10px",whiteSpace:"nowrap"}}>
+                        <button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,marginRight:6}} onClick={()=>setEditCustomer(c)}><Icon name="edit" size={11}/>Edit</button>
+                        <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeCustomer(c)}><Icon name="trash" size={11}/>Remove</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1486,6 +1509,66 @@ function CustomerMasterAdmin({showToast}){
             </div>
           )
       }
+    </div>
+  );
+}
+
+function CustomerEditForm({customer,showToast,onClose}){
+  const [name,setName]=useState(customer.name||"");
+  const [address,setAddress]=useState(customer.address||"");
+  const [gstin,setGstin]=useState(customer.gstin||"");
+  const [pan,setPan]=useState(customer.pan||"");
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+
+  async function save(){
+    if(!name.trim()){setError("Customer name is required");return;}
+    setError("");setSaving(true);
+    try{
+      await updateDoc(doc(db,"customer_master",customer.id),{
+        name:name.trim(),address:address.trim()||null,gstin:gstin.trim()||null,pan:pan.trim()||null,
+        updated_at:serverTimestamp(),
+      });
+      showToast(`${name.trim()} updated`);
+      onClose();
+    }catch(e){setError("Save failed: "+e.message);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Edit Customer</div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{marginBottom:14}}>
+          <label style={labelStyle}>Customer name *</label>
+          <input style={fieldStyle} value={name} onChange={e=>setName(e.target.value)}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          <div>
+            <label style={labelStyle}>GSTIN</label>
+            <input style={fieldStyle} value={gstin} onChange={e=>setGstin(e.target.value.toUpperCase())} maxLength={15}/>
+          </div>
+          <div>
+            <label style={labelStyle}>PAN</label>
+            <input style={fieldStyle} value={pan} onChange={e=>setPan(e.target.value.toUpperCase())} maxLength={10}/>
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Address</label>
+          <textarea style={{...fieldStyle,minHeight:64,resize:"vertical"}} value={address} onChange={e=>setAddress(e.target.value)}/>
+        </div>
+      </div>
+
+      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":"Update Customer"}</button>
+      </div>
     </div>
   );
 }
