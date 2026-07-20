@@ -99,8 +99,8 @@ export function AccessDenied(){
 }
 
 // ─── Shared field styles (form inputs across modules) ──────────────────────────
-export const fieldStyle={background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"9px 13px",color:"#1a1f2e",fontSize:13,width:"100%",outline:"none",fontFamily:"'Roboto',sans-serif"};
-export const labelStyle={fontSize:12,color:"#6b7280",display:"block",marginBottom:6};
+export const fieldStyle={background:"#fff",border:"1px solid #9ca3af",borderRadius:8,padding:"9px 13px",color:"#1a1f2e",fontSize:13,width:"100%",outline:"none",fontFamily:"'Roboto',sans-serif",transition:"border .15s,box-shadow .15s"};
+export const labelStyle={fontSize:12,color:"#374151",fontWeight:600,display:"block",marginBottom:6};
 
 // ─── Fuzzy matching (no external dependency — dedicated to typo/partial
 // tolerance on short-to-medium strings like customer names, not a general
