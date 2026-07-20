@@ -13,6 +13,7 @@ import * as XLSX from "xlsx";
 import {
   S, ROLES, ROLE_LABELS, ROLE_COLORS, getFY, formatDate, isOverdue,
   Icon, useToast, SectionHeader, EmptyState, AccessDenied, fieldStyle, labelStyle, useIsMobile,
+  FuzzyAutocomplete,
 } from "./shared.jsx";
 import PurchaseTab from "./purchase/PurchaseTab.jsx";
 import { COMPANY_LOGO_DATA_URI } from "./purchase/companyLogo.js";
@@ -410,6 +411,8 @@ function OrderForm({profile,existing,showToast,onClose}){
   const [spoolType,setSpoolType]=useState(existing?.spool_type||"");
   const [poNumber,setPoNumber]=useState(existing?.po_number||"");
   const [customer,setCustomer]=useState(existing?.customer_name||"");
+  const [customerMaster,setCustomerMaster]=useState([]);
+  useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
   const [receiptDate,setReceiptDate]=useState(existing?.receipt_date||"");
   const [deliveryDate,setDeliveryDate]=useState(existing?.delivery_date||"");
   const [remarks,setRemarks]=useState(existing?.remarks||"");
@@ -639,8 +642,7 @@ function OrderForm({profile,existing,showToast,onClose}){
           </div>
         </div>
         <div style={{marginBottom:14}}>
-          <label style={labelStyle}>Customer name</label>
-          <input style={fieldStyle} type="text" placeholder="Party name" value={customer} onChange={e=>setCustomer(e.target.value)}/>
+          <FuzzyAutocomplete label="Customer name" value={customer} onChange={setCustomer} options={customerMaster} displayKey="name" placeholder="Party name"/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div>
@@ -862,10 +864,10 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
-  // No dedicated customer master yet — grows organically from company names
-  // already used on past tenders, with a custom-entry fallback via
-  // SelectOrCustom so a brand-new company can still be typed in directly.
-  const companyOptions=[...new Set((tenders||[]).map(t=>t.company).filter(Boolean))].sort();
+  // Real master list now available — replaces the earlier "grow from past
+  // tenders" approach, since Admin can maintain an actual customer master.
+  const [customerMaster,setCustomerMaster]=useState([]);
+  useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
   async function save(){
     if(!tenderNumber.trim()){setError("Tender number is required");return;}
@@ -918,7 +920,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
             <input style={fieldStyle} value={specNumber} onChange={e=>setSpecNumber(e.target.value)} placeholder="e.g. IS 13730"/>
           </div>
           <div>
-            <SelectOrCustom label="Company" value={company} onChange={setCompany} options={companyOptions} placeholder="— Select —"/>
+            <FuzzyAutocomplete label="Company" value={company} onChange={setCompany} options={customerMaster} displayKey="name" placeholder="Start typing…"/>
           </div>
           <div>
             <label style={labelStyle}>Size</label>
@@ -1366,7 +1368,7 @@ function DispatchCard({order,canDispatch,onDispatch}){
 // ─── Admin Tab ────────────────────────────────────────────────────────────────
 function AdminTab({showToast}){
   const [subtab,setSubtab]=useState("users");
-  const tabs=[["users","Users"],["seed","Seed Data"]];
+  const tabs=[["users","Users"],["customers","Customer Master"],["seed","Seed Data"]];
   return(
     <div>
       <div style={{marginBottom:20}}><SectionHeader mono="Admin" title="Admin Panel"/></div>
@@ -1376,7 +1378,114 @@ function AdminTab({showToast}){
         ))}
       </div>
       {subtab==="users"&&<UserManager showToast={showToast}/>}
+      {subtab==="customers"&&<CustomerMasterAdmin showToast={showToast}/>}
       {subtab==="seed"&&<SeedData showToast={showToast}/>}
+    </div>
+  );
+}
+
+// ─── Customer Master List (Admin only) ──────────────────────────────────────
+// Full-record master (Name/Address/GSTIN/PAN) built from an uploaded Excel —
+// new names get merged with what's already there, nothing gets overwritten
+// on re-upload. Feeds FuzzyAutocomplete on Tender's Company field and Work
+// Order's Customer name field. Only `name` is actually displayed/used by
+// those two forms today — address/GSTIN/PAN ride along on the record for
+// whenever those forms grow fields for them.
+function CustomerMasterAdmin({showToast}){
+  const [customers,setCustomers]=useState([]);
+  const [search,setSearch]=useState("");
+  const [uploading,setUploading]=useState(false);
+
+  useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomers(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
+
+  async function handleUpload(e){
+    const file=e.target.files?.[0];
+    if(!file)return;
+    setUploading(true);
+    try{
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+
+      // Flexible header matching — same spirit as MOTRAK's Excel import —
+      // so slightly different column naming in someone's sheet doesn't
+      // silently fail to pick up the data.
+      function pick(row,candidates){
+        for(const key of Object.keys(row)){
+          const norm=key.trim().toLowerCase();
+          if(candidates.some(c=>norm.includes(c)))return String(row[key]||"").trim();
+        }
+        return "";
+      }
+
+      const existingNames=new Set(customers.map(c=>c.name?.toLowerCase()));
+      let added=0;
+      for(const row of rows){
+        const name=pick(row,["customer name","company","name"]);
+        if(!name||existingNames.has(name.toLowerCase()))continue;
+        const address=pick(row,["address"]);
+        const gstin=pick(row,["gstin","gst"]);
+        const pan=pick(row,["pan"]);
+        await addDoc(collection(db,"customer_master"),{name,address:address||null,gstin:gstin||null,pan:pan||null,created_at:serverTimestamp()});
+        existingNames.add(name.toLowerCase());
+        added++;
+      }
+      showToast(added>0?`${added} new customer${added!==1?"s":""} added`:"No new customers found — all names already in the master list");
+    }catch(err){showToast("Import failed: "+err.message,"error");}
+    finally{setUploading(false);e.target.value="";}
+  }
+
+  async function removeCustomer(c){
+    if(!window.confirm(`Remove ${c.name} from the customer master list?`))return;
+    await deleteDoc(doc(db,"customer_master",c.id));
+    showToast(`${c.name} removed`);
+  }
+
+  const filtered=search.trim()
+    ?customers.filter(c=>c.name?.toLowerCase().includes(search.toLowerCase()))
+    :customers;
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:600}}>{customers.length} customer{customers.length!==1?"s":""}</div>
+          <div style={{fontSize:12,color:"#9ca3af",marginTop:2}}>Upload an Excel with Customer Name, Address, GSTIN, PAN columns. New names are merged with the existing list.</div>
+        </div>
+        <label className="btn-primary" style={{fontSize:12,padding:"7px 14px",cursor:"pointer"}}>
+          <Icon name="plus" size={12}/>{uploading?"Uploading…":"Upload Excel"}
+          <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={uploading} style={{display:"none"}}/>
+        </label>
+      </div>
+
+      <input style={{...fieldStyle,marginBottom:16,maxWidth:280}} placeholder="Search customer name…" value={search} onChange={e=>setSearch(e.target.value)}/>
+
+      {customers.length===0
+        ?<EmptyState text="No customers in the master list yet" sub="Upload an Excel to get started"/>
+        :filtered.length===0
+          ?<EmptyState text={`No customers match "${search.trim()}"`}/>
+          :(
+            <div className="card" style={{padding:0,overflow:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
+                  {["Customer Name","Address","GSTIN","PAN","Actions"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:10,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {filtered.map(c=>(
+                    <tr key={c.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                      <td style={{padding:"6px 10px",fontWeight:600}}>{c.name}</td>
+                      <td style={{padding:"6px 10px",maxWidth:280}}>{c.address||"—"}</td>
+                      <td style={{padding:"6px 10px",...S}}>{c.gstin||"—"}</td>
+                      <td style={{padding:"6px 10px",...S}}>{c.pan||"—"}</td>
+                      <td style={{padding:"6px 10px"}}><button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeCustomer(c)}><Icon name="trash" size={11}/>Remove</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      }
     </div>
   );
 }

@@ -101,3 +101,92 @@ export function AccessDenied(){
 // ─── Shared field styles (form inputs across modules) ──────────────────────────
 export const fieldStyle={background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"9px 13px",color:"#1a1f2e",fontSize:13,width:"100%",outline:"none",fontFamily:"'Roboto',sans-serif"};
 export const labelStyle={fontSize:12,color:"#6b7280",display:"block",marginBottom:6};
+
+// ─── Fuzzy matching (no external dependency — dedicated to typo/partial
+// tolerance on short-to-medium strings like customer names, not a general
+// search engine) ──────────────────────────────────────────────────────────────
+export function levenshteinDistance(a,b){
+  a=(a||"").toLowerCase(); b=(b||"").toLowerCase();
+  const m=a.length,n=b.length;
+  if(m===0)return n;
+  if(n===0)return m;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++)dp[i][0]=i;
+  for(let j=0;j<=n;j++)dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+// Ranks `list` against `query` — exact match first, then starts-with, then
+// contains (handles partial typing), then close-edit-distance (handles
+// typos on the full string) — anything not matching any of those is
+// excluded entirely rather than scored low, so the list stays short and
+// relevant instead of showing everything sorted by "how different is it".
+export function fuzzyMatch(query,list,key="name",limit=6){
+  const q=(query||"").trim().toLowerCase();
+  if(!q)return [];
+  const scored=[];
+  for(const item of (list||[])){
+    const text=(typeof item==="string"?item:item?.[key]||"").toLowerCase();
+    if(!text)continue;
+    let score=null;
+    if(text===q)score=0;
+    else if(text.startsWith(q))score=1;
+    else if(text.includes(q))score=2;
+    else{
+      const dist=levenshteinDistance(q,text);
+      const threshold=Math.max(2,Math.floor(q.length*0.4));
+      if(dist<=threshold)score=3+dist;
+    }
+    if(score!==null)scored.push({item,score});
+  }
+  scored.sort((a,b)=>a.score-b.score);
+  return scored.slice(0,limit).map(s=>s.item);
+}
+
+// ─── Fuzzy autocomplete input ────────────────────────────────────────────────
+// Free-text input with a live-filtered suggestions dropdown underneath —
+// typing anything not in `options` is still accepted as-is (this never
+// forces a selection). Clicking a suggestion fills the text field with
+// `record[displayKey]` and, if provided, hands the FULL matched record to
+// onSelect — so a caller can pull extra fields (address/GSTIN/PAN etc.)
+// off a match even though this input itself only ever displays the name.
+export function FuzzyAutocomplete({label,value,onChange,onSelect,options,displayKey="name",placeholder="Start typing…",required=false}){
+  const [open,setOpen]=useState(false);
+  const matches=fuzzyMatch(value,options,displayKey);
+
+  return(
+    <div style={{position:"relative"}}>
+      {label&&<label style={labelStyle}>{label}{required&&" *"}</label>}
+      <input
+        style={fieldStyle}
+        value={value||""}
+        placeholder={placeholder}
+        onChange={e=>{onChange(e.target.value);setOpen(true);}}
+        onFocus={()=>setOpen(true)}
+        onBlur={()=>setTimeout(()=>setOpen(false),150)}
+      />
+      {open&&matches.length>0&&(
+        <div style={{position:"absolute",zIndex:20,top:"100%",left:0,right:0,background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,marginTop:4,boxShadow:"0 4px 12px rgba(0,0,0,.1)",maxHeight:200,overflowY:"auto"}}>
+          {matches.map((m,i)=>{
+            const text=typeof m==="string"?m:m?.[displayKey];
+            return(
+              <div key={i}
+                style={{padding:"8px 12px",cursor:"pointer",fontSize:13,color:"#1a1f2e",borderBottom:i<matches.length-1?"1px solid #f3f4f6":undefined}}
+                onMouseDown={()=>{onChange(text);onSelect&&onSelect(typeof m==="string"?{[displayKey]:m}:m);setOpen(false);}}
+                onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
+                onMouseLeave={e=>e.currentTarget.style.background="#fff"}
+              >
+                {text}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
