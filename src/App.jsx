@@ -269,12 +269,13 @@ function DashboardTab({profile,showToast,onNavigate}){
       <div style={{display:"flex",gap:0,background:"#fff",border:"1px solid #e5e7eb",borderRadius:10,marginBottom:16,overflow:"hidden"}}>
         {stats.map((s,i)=>{
           const isActive=!s.nav&&quickFilter===s.filter;
+          const isAlert=(s.label==="Overdue"||s.label==="Low Stock")&&s.value>0;
           return(
-            <div key={s.label} onClick={()=>s.nav?onNavigate(s.nav):setQuickFilter(s.filter)} style={{flex:1,padding:"10px 0",textAlign:"center",cursor:"pointer",borderRight:i<stats.length-1?"1px solid #f3f4f6":undefined,background:isActive?"#f9fafb":"#fff",transition:"background .12s"}}
-              onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
-              onMouseLeave={e=>e.currentTarget.style.background=isActive?"#f9fafb":"#fff"}>
+            <div key={s.label} onClick={()=>s.nav?onNavigate(s.nav):setQuickFilter(s.filter)} style={{flex:1,padding:"10px 0",textAlign:"center",cursor:"pointer",borderRight:i<stats.length-1?"1px solid #f3f4f6":undefined,background:isAlert?"#fef2f2":(isActive?"#f9fafb":"#fff"),transition:"background .12s"}}
+              onMouseEnter={e=>e.currentTarget.style.background=isAlert?"#fee2e2":"#f9fafb"}
+              onMouseLeave={e=>e.currentTarget.style.background=isAlert?"#fef2f2":(isActive?"#f9fafb":"#fff")}>
               <div style={{...S,fontSize:18,fontWeight:700,color:s.color,lineHeight:1}}>{s.value}</div>
-              <div style={{fontSize:10,color:isActive?"#1a1f2e":"#9ca3af",marginTop:3,whiteSpace:"nowrap",fontWeight:isActive?600:400}}>{s.label}</div>
+              <div style={{fontSize:10,color:isAlert?"#991b1b":(isActive?"#1a1f2e":"#9ca3af"),marginTop:3,whiteSpace:"nowrap",fontWeight:isActive||isAlert?600:400}}>{s.label}</div>
             </div>
           );
         })}
@@ -809,7 +810,7 @@ function TenderTab({profile,showToast}){
         :(
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
+              <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
                 {["Tender No","Tender Date","LOI No.","Spec. No.","Company","Size","Insulation Type","Quantity","UOM","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
@@ -1104,12 +1105,15 @@ function InventoryTab({profile,showToast}){
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
-        {stats.map(s=>(
-          <div key={s.label} className="card" style={{padding:"16px 18px"}}>
-            <div style={{...S,fontSize:26,fontWeight:700,color:s.color}}>{s.value}</div>
-            <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>{s.label}</div>
-          </div>
-        ))}
+        {stats.map(s=>{
+          const isZeroAlert=s.label==="Items at Zero"&&s.value>0;
+          return(
+            <div key={s.label} className="card" style={{padding:"16px 18px",...(isZeroAlert?{border:"1px solid #dc2626",background:"#fef2f2"}:{})}}>
+              <div style={{...S,fontSize:26,fontWeight:700,color:s.color}}>{s.value}</div>
+              <div style={{fontSize:12,color:isZeroAlert?"#991b1b":"#6b7280",marginTop:2}}>{s.label}</div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="card" style={{padding:16,marginBottom:16,display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
@@ -1140,7 +1144,7 @@ function InventoryTab({profile,showToast}){
       )}
 
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:11,color:"#9ca3af",...S,textTransform:"uppercase"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",fontSize:11,color:"#6b7280",...S,textTransform:"uppercase"}}>
           <span style={{width:130,flexShrink:0}}>Item Code</span>
           <span style={{flex:1,minWidth:160}}>Description</span>
           <span style={{width:160,flexShrink:0}}>Vendor</span>
@@ -1488,7 +1492,7 @@ function CustomerMasterAdmin({showToast}){
           :(
             <div className="card" style={{padding:0,overflow:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
+                <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
                   {["Customer Name","Address","GSTIN","PAN","Actions"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:10,whiteSpace:"nowrap",...S}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
@@ -1619,7 +1623,7 @@ function UserManager({showToast}){
         </div>
         <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{borderBottom:"1px solid #e5e7eb"}}>
+          <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
             {["User ID","Name","Role","Purchase Access","PO Approval","WO Access","Inventory Reports","Dispatch Access","Actions"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:10,whiteSpace:"nowrap",...S}}>{h}</th>)}
           </tr></thead>
           <tbody>{users.map((u,i)=>(
