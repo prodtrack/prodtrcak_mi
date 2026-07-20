@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Roboto',sans-serif;background:#ccd1d9;color:#1a1f2e;-webkit-font-smoothing:antialiased;}
+body{font-family:'Roboto',sans-serif;background:#b8c0cc;color:#1a1f2e;-webkit-font-smoothing:antialiased;}
 input,select,textarea,button{font-family:'Roboto',sans-serif;}
 input:focus,select:focus,textarea:focus{outline:none;border-color:#e8c547 !important;box-shadow:0 0 0 3px rgba(232,197,71,.18);}
 .spinner-wrap{display:flex;align-items:center;justify-content:center;height:100vh;}
@@ -18,7 +18,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#e8c547 !impor
 .btn-ghost:hover{background:#f3f4f6;}
 .btn-danger{display:inline-flex;align-items:center;gap:6px;background:transparent;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s;font-family:'Roboto',sans-serif;}
 .btn-danger:hover{background:#fef2f2;}
-.card{background:#fff;border-radius:12px;border:1px solid #9ca3af;}
+.card{background:#fff;border-radius:12px;border:1px solid #d1d5db;}
 .animate-in{animation:animate-in .25s ease both;}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:'Space Mono',monospace;}
 .badge-ok{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;}
