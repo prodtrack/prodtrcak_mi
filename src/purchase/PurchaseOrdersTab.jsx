@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
-import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
+import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
   PLANTS, COMPANY_INFO, UNITS, PO_STATUSES, PO_STATUS_LABELS, PO_STATUS_COLORS,
   generatePONumber, lineAmount, poTotals, emptyLineItem, DEFAULT_GST_RATE,
@@ -411,11 +411,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Vendor *</label>
-            <select style={fieldStyle} value={vendorId} onChange={e=>onSelectVendor(e.target.value)}>
-              <option value="">— Select vendor —</option>
-              {vendors.map(v=><option key={v.id} value={v.id}>{v.vendor_code} — {v.name}</option>)}
-            </select>
+            <FuzzyAutocomplete label="Vendor *" value={vendor?.name||""} onChange={()=>{}} onSelect={m=>onSelectVendor(m.id)} options={vendors} displayKey="name" strict placeholder="— Select vendor —"/>
           </div>
           <div>
             <SelectOrCustom label="GST rate" required value={gstRate} onChange={setGstRate} options={GST_RATE_OPTIONS} suffix="%" placeholder="— Select GST rate —"/>

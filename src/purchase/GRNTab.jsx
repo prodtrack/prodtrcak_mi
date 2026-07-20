@@ -12,7 +12,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
-import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
+import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import { PLANTS, UNITS, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS } from "./purchaseHelpers";
 
 export default function GRNTab({profile,showToast}){
@@ -373,10 +373,7 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
           <div>
             <label style={labelStyle}>Supplier</label>
             {suppliers.length>0
-              ?<select style={fieldStyle} value={suppId} onChange={e=>{setSuppId(e.target.value);setSuppName(suppliers.find(s=>s.id===e.target.value)?.name||"");}}>
-                <option value="">— Select supplier —</option>
-                {suppliers.map(s=><option key={s.id} value={s.id}>{s.vendor_code} — {s.name}</option>)}
-              </select>
+              ?<FuzzyAutocomplete value={suppName} onChange={()=>{}} onSelect={s=>{setSuppId(s.id);setSuppName(s.name);}} options={suppliers} displayKey="name" strict placeholder="— Select supplier —"/>
               :<input style={fieldStyle} placeholder="Supplier name" value={suppName} onChange={e=>setSuppName(e.target.value)}/>
             }
           </div>

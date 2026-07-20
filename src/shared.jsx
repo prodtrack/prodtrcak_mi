@@ -149,26 +149,57 @@ export function fuzzyMatch(query,list,key="name",limit=6){
 }
 
 // ─── Fuzzy autocomplete input ────────────────────────────────────────────────
-// Free-text input with a live-filtered suggestions dropdown underneath —
-// typing anything not in `options` is still accepted as-is (this never
-// forces a selection). Clicking a suggestion fills the text field with
-// `record[displayKey]` and, if provided, hands the FULL matched record to
-// onSelect — so a caller can pull extra fields (address/GSTIN/PAN etc.)
-// off a match even though this input itself only ever displays the name.
-export function FuzzyAutocomplete({label,value,onChange,onSelect,options,displayKey="name",placeholder="Start typing…",required=false}){
+// Free-text input with a live-filtered suggestions dropdown underneath.
+// Two modes:
+//  - Default (strict=false): typing anything not in `options` is still
+//    accepted as-is — used where there's no linked record behind the value
+//    (Tender's Company, WO's Customer name — plain text fields).
+//  - strict=true: the field must resolve to an actual clicked suggestion.
+//    Typing is tracked in a local draft buffer; if the field is left without
+//    picking a real match, it snaps back to the last confirmed value on
+//    blur. Used wherever the selection has to stay linked to a real record
+//    (a vendor_id, not just a name) — PO/GRN/MRP's vendor pickers.
+// Either way, clicking a suggestion hands the FULL matched record to
+// onSelect, not just the display text, so a caller can pull extra fields
+// (address/GSTIN/id etc.) off a match.
+export function FuzzyAutocomplete({label,value,onChange,onSelect,options,displayKey="name",placeholder="Start typing…",required=false,strict=false}){
   const [open,setOpen]=useState(false);
-  const matches=fuzzyMatch(value,options,displayKey);
+  const [draft,setDraft]=useState(value||"");
+
+  useEffect(()=>{ if(strict) setDraft(value||""); },[value,strict]);
+
+  const displayValue=strict?draft:(value||"");
+  const matches=fuzzyMatch(displayValue,options,displayKey);
+
+  function handleTyping(v){
+    if(strict)setDraft(v);
+    else onChange(v);
+    setOpen(true);
+  }
+  function handlePick(m){
+    const text=typeof m==="string"?m:m?.[displayKey];
+    if(strict)setDraft(text);
+    onChange(text);
+    onSelect&&onSelect(typeof m==="string"?{[displayKey]:m}:m);
+    setOpen(false);
+  }
+  function handleBlur(){
+    setTimeout(()=>{
+      setOpen(false);
+      if(strict)setDraft(value||""); // snap back — no real match was confirmed
+    },150);
+  }
 
   return(
     <div style={{position:"relative"}}>
       {label&&<label style={labelStyle}>{label}{required&&" *"}</label>}
       <input
         style={fieldStyle}
-        value={value||""}
+        value={displayValue}
         placeholder={placeholder}
-        onChange={e=>{onChange(e.target.value);setOpen(true);}}
+        onChange={e=>handleTyping(e.target.value)}
         onFocus={()=>setOpen(true)}
-        onBlur={()=>setTimeout(()=>setOpen(false),150)}
+        onBlur={handleBlur}
       />
       {open&&matches.length>0&&(
         <div style={{position:"absolute",zIndex:20,top:"100%",left:0,right:0,background:"#fff",border:"1px solid #e5e7eb",borderRadius:8,marginTop:4,boxShadow:"0 4px 12px rgba(0,0,0,.1)",maxHeight:200,overflowY:"auto"}}>
@@ -177,7 +208,7 @@ export function FuzzyAutocomplete({label,value,onChange,onSelect,options,display
             return(
               <div key={i}
                 style={{padding:"8px 12px",cursor:"pointer",fontSize:13,color:"#1a1f2e",borderBottom:i<matches.length-1?"1px solid #f3f4f6":undefined}}
-                onMouseDown={()=>{onChange(text);onSelect&&onSelect(typeof m==="string"?{[displayKey]:m}:m);setOpen(false);}}
+                onMouseDown={()=>handlePick(m)}
                 onMouseEnter={e=>e.currentTarget.style.background="#f9fafb"}
                 onMouseLeave={e=>e.currentTarget.style.background="#fff"}
               >

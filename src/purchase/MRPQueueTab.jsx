@@ -10,7 +10,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, addDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
-import { S, Icon, EmptyState, fieldStyle, labelStyle } from "../shared.jsx";
+import { S, Icon, EmptyState, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import { PLANTS, generatePONumber, DELIVERY_TERMS_OPTIONS, DELIVERY_MODE_OPTIONS, PAYMENT_TERMS_OPTIONS } from "./purchaseHelpers";
 import SelectOrCustom from "./PurchaseFormControls.jsx";
 
@@ -119,11 +119,7 @@ function MRPGenerateForm({material,suggested,vendors,profile,showToast,onDone}){
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Vendor *</label>
-          <select style={fieldStyle} value={vendorId} onChange={e=>onSelectVendor(e.target.value)}>
-            <option value="">— Select vendor —</option>
-            {vendors.map(v=><option key={v.id} value={v.id}>{v.vendor_code} — {v.name}</option>)}
-          </select>
+          <FuzzyAutocomplete label="Vendor *" value={vendors.find(v=>v.id===vendorId)?.name||""} onChange={()=>{}} onSelect={v=>onSelectVendor(v.id)} options={vendors} displayKey="name" strict placeholder="— Select vendor —"/>
         </div>
         <div>
           <label style={labelStyle}>Part code</label>

@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
-import { S, Icon, EmptyState, fieldStyle, labelStyle } from "../shared.jsx";
+import { S, Icon, EmptyState, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import { generateVendorCode } from "./purchaseHelpers";
 
 export default function PurchaseVendorsTab({profile,showToast}){
@@ -91,6 +91,22 @@ function VendorForm({existing,showToast,onClose}){
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
+  // Vendor Master (from the Party List import) — for fuzzy-suggest auto-fill
+  // only, purely a typing convenience. PAN never comes from here (that
+  // import has no PAN column), always stays manual.
+  const [vendorMaster,setVendorMaster]=useState([]);
+  useEffect(()=>onSnapshot(collection(db,"vendor_master"),snap=>setVendorMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
+
+  function autoFillFromMaster(m){
+    const combinedAddress=[m.address_line1,m.address_line2,m.address_line3,m.city,m.state,m.pincode].filter(Boolean).join(", ");
+    if(m.gstin){setGstin(m.gstin);if(/^\d{2}/.test(m.gstin))setStateCode(m.gstin.slice(0,2));}
+    if(combinedAddress)setAddress(combinedAddress);
+    if(m.phone1)setPhone(m.phone1);
+    if(m.email1)setEmail(m.email1);
+    if(m.payment_term_description)setPaymentTerms(m.payment_term_description);
+    if(m.category)setCategory(m.category);
+  }
+
   async function save(){
     if(!name.trim()){setError("Vendor name is required");return;}
     setError("");setSaving(true);
@@ -124,8 +140,7 @@ function VendorForm({existing,showToast,onClose}){
 
       <div className="card" style={{padding:20,marginBottom:16}}>
         <div style={{marginBottom:14}}>
-          <label style={labelStyle}>Vendor name *</label>
-          <input style={fieldStyle} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sundaram Wires Pvt Ltd"/>
+          <FuzzyAutocomplete label="Vendor name *" value={name} onChange={setName} onSelect={autoFillFromMaster} options={vendorMaster} displayKey="name" placeholder="e.g. Sundaram Wires Pvt Ltd"/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div>

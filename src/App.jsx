@@ -1372,7 +1372,7 @@ function DispatchCard({order,canDispatch,onDispatch}){
 // ─── Admin Tab ────────────────────────────────────────────────────────────────
 function AdminTab({showToast}){
   const [subtab,setSubtab]=useState("users");
-  const tabs=[["users","Users"],["customers","Customer Master"],["seed","Seed Data"]];
+  const tabs=[["users","Users"],["customers","Customer Master"],["vendors","Vendor Master"],["seed","Seed Data"]];
   return(
     <div>
       <div style={{marginBottom:20}}><SectionHeader mono="Admin" title="Admin Panel"/></div>
@@ -1383,6 +1383,7 @@ function AdminTab({showToast}){
       </div>
       {subtab==="users"&&<UserManager showToast={showToast}/>}
       {subtab==="customers"&&<CustomerMasterAdmin showToast={showToast}/>}
+      {subtab==="vendors"&&<VendorMasterAdmin showToast={showToast}/>}
       {subtab==="seed"&&<SeedData showToast={showToast}/>}
     </div>
   );
@@ -1513,6 +1514,272 @@ function CustomerMasterAdmin({showToast}){
             </div>
           )
       }
+    </div>
+  );
+}
+
+// ─── Vendor Master List (Admin only) ────────────────────────────────────────
+// Full-record master built from the uploaded Party List export — every
+// column from that sheet gets stored even where nothing uses it yet.
+// Feeds FuzzyAutocomplete on the Vendor creation form (PurchaseVendorsTab)
+// for auto-fill, and a STRICT variant on PO/GRN/MRP Queue's vendor pickers
+// (sourced from already-onboarded supplier_master vendors, not this raw
+// import — see FuzzyAutocomplete's strict mode in shared.jsx).
+function VendorMasterAdmin({showToast}){
+  const [vendors,setVendors]=useState([]);
+  const [search,setSearch]=useState("");
+  const [uploading,setUploading]=useState(false);
+  const [editVendor,setEditVendor]=useState(null);
+
+  useEffect(()=>onSnapshot(collection(db,"vendor_master"),snap=>setVendors(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
+
+  function combineAddress(v){
+    return [v.address_line1,v.address_line2,v.address_line3,v.city,v.state,v.pincode].filter(Boolean).join(", ");
+  }
+
+  async function handleUpload(e){
+    const file=e.target.files?.[0];
+    if(!file)return;
+    setUploading(true);
+    try{
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+
+      function pick(row,candidates){
+        for(const key of Object.keys(row)){
+          const norm=key.trim().toLowerCase();
+          if(candidates.some(c=>norm.includes(c)))return String(row[key]||"").trim();
+        }
+        return "";
+      }
+
+      const existingNames=new Set(vendors.map(v=>v.name?.toLowerCase()));
+      let added=0;
+      for(const row of rows){
+        const name=pick(row,["party name"]);
+        if(!name||existingNames.has(name.toLowerCase()))continue;
+        const record={
+          name,
+          party_type:pick(row,["party type"])||null,
+          category:pick(row,["category"])||null,
+          currency:pick(row,["currency"])||null,
+          address_type:pick(row,["address type"])||null,
+          address_description:pick(row,["address description"])||null,
+          address_line1:pick(row,["address line1"])||null,
+          address_line2:pick(row,["address line2"])||null,
+          address_line3:pick(row,["address line3"])||null,
+          city:pick(row,["city"])||null,
+          state:pick(row,["state"])||null,
+          country:pick(row,["country"])||null,
+          pincode:pick(row,["pin code","pincode"])||null,
+          contact_person:pick(row,["contact person"])||null,
+          email1:pick(row,["email id1"])||null,
+          email2:pick(row,["email id2"])||null,
+          phone1:pick(row,["phone 1"])||null,
+          phone2:pick(row,["phone 2"])||null,
+          phone3:pick(row,["phone 3"])||null,
+          tax_code:pick(row,["tax code"])||null,
+          tax_description:pick(row,["tax description"])||null,
+          tax_percent:pick(row,["tax %","tax percent"])||null,
+          account_type:pick(row,["a/c type","account type"])||null,
+          site:pick(row,["site"])||null,
+          account_code:pick(row,["account code"])||null,
+          payment_term:pick(row,["payment term"])||null,
+          payment_term_description:pick(row,["payment term description"])||null,
+          gst_party_type:pick(row,["gst party type"])||null,
+          gstin:pick(row,["gstin"])||null,
+          created_at:serverTimestamp(),
+        };
+        await addDoc(collection(db,"vendor_master"),record);
+        existingNames.add(name.toLowerCase());
+        added++;
+      }
+      showToast(added>0?`${added} new vendor${added!==1?"s":""} added`:"No new vendors found — all names already in the master list");
+    }catch(err){showToast("Import failed: "+err.message,"error");}
+    finally{setUploading(false);e.target.value="";}
+  }
+
+  async function removeVendor(v){
+    if(!window.confirm(`Remove ${v.name} from the vendor master list?`))return;
+    await deleteDoc(doc(db,"vendor_master",v.id));
+    showToast(`${v.name} removed`);
+  }
+
+  function exportExcel(){
+    const rows=vendors.map(v=>({
+      "Party Name":v.name||"","Party Type":v.party_type||"","Category":v.category||"","Currency":v.currency||"",
+      "Address Type":v.address_type||"","Address Description":v.address_description||"",
+      "Address Line1":v.address_line1||"","Address Line2":v.address_line2||"","Address Line3":v.address_line3||"",
+      "City":v.city||"","State":v.state||"","Country":v.country||"","Pin Code":v.pincode||"",
+      "Contact Person 1":v.contact_person||"","Email Id1":v.email1||"","Email Id2":v.email2||"",
+      "Phone 1":v.phone1||"","Phone 2":v.phone2||"","Phone 3":v.phone3||"",
+      "Tax Code":v.tax_code||"","Tax Description":v.tax_description||"","Tax %":v.tax_percent||"",
+      "A/C Type":v.account_type||"","Site":v.site||"","Account Code":v.account_code||"",
+      "Payment Term":v.payment_term||"","Payment Term Description":v.payment_term_description||"",
+      "GST Party Type":v.gst_party_type||"","GSTIN No":v.gstin||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Vendors");
+    XLSX.writeFile(wb,`vendor_master_${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
+
+  const filtered=search.trim()
+    ?vendors.filter(v=>v.name?.toLowerCase().includes(search.toLowerCase()))
+    :vendors;
+
+  if(editVendor){
+    return <VendorMasterEditForm vendor={editVendor} showToast={showToast} onClose={()=>setEditVendor(null)}/>;
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:600}}>{vendors.length} vendor{vendors.length!==1?"s":""}</div>
+          <div style={{fontSize:12,color:"#9ca3af",marginTop:2}}>Upload the Party List export. Every column is stored; new names are merged with the existing list.</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>
+          <label className="btn-primary" style={{fontSize:12,padding:"7px 14px",cursor:"pointer"}}>
+            <Icon name="plus" size={12}/>{uploading?"Uploading…":"Upload Excel"}
+            <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={uploading} style={{display:"none"}}/>
+          </label>
+        </div>
+      </div>
+
+      <input style={{...fieldStyle,marginBottom:16,maxWidth:280}} placeholder="Search vendor name…" value={search} onChange={e=>setSearch(e.target.value)}/>
+
+      {vendors.length===0
+        ?<EmptyState text="No vendors in the master list yet" sub="Upload the Party List Excel to get started"/>
+        :filtered.length===0
+          ?<EmptyState text={`No vendors match "${search.trim()}"`}/>
+          :(
+            <div className="card" style={{padding:0,overflow:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
+                  {["Vendor Name","Address","GSTIN","Phone","Email","Category","Actions"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:10,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {filtered.map(v=>(
+                    <tr key={v.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                      <td style={{padding:"6px 10px",fontWeight:600}}>{v.name}</td>
+                      <td style={{padding:"6px 10px",maxWidth:260}}>{combineAddress(v)||"—"}</td>
+                      <td style={{padding:"6px 10px",...S}}>{v.gstin||"—"}</td>
+                      <td style={{padding:"6px 10px",...S}}>{v.phone1||"—"}</td>
+                      <td style={{padding:"6px 10px"}}>{v.email1||"—"}</td>
+                      <td style={{padding:"6px 10px"}}>{v.category||"—"}</td>
+                      <td style={{padding:"6px 10px",whiteSpace:"nowrap"}}>
+                        <button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,marginRight:6}} onClick={()=>setEditVendor(v)}><Icon name="edit" size={11}/>Edit</button>
+                        <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeVendor(v)}><Icon name="trash" size={11}/>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      }
+    </div>
+  );
+}
+
+// Covers the fields someone's actually likely to correct by hand — the rest
+// (tax code, account code, site, currency, etc.) stay stored untouched since
+// updateDoc only overwrites the fields listed here.
+function VendorMasterEditForm({vendor,showToast,onClose}){
+  const [name,setName]=useState(vendor.name||"");
+  const [addressLine1,setAddressLine1]=useState(vendor.address_line1||"");
+  const [city,setCity]=useState(vendor.city||"");
+  const [state,setState]=useState(vendor.state||"");
+  const [pincode,setPincode]=useState(vendor.pincode||"");
+  const [gstin,setGstin]=useState(vendor.gstin||"");
+  const [contactPerson,setContactPerson]=useState(vendor.contact_person||"");
+  const [email1,setEmail1]=useState(vendor.email1||"");
+  const [phone1,setPhone1]=useState(vendor.phone1||"");
+  const [category,setCategory]=useState(vendor.category||"");
+  const [paymentTermDescription,setPaymentTermDescription]=useState(vendor.payment_term_description||"");
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+
+  async function save(){
+    if(!name.trim()){setError("Vendor name is required");return;}
+    setError("");setSaving(true);
+    try{
+      await updateDoc(doc(db,"vendor_master",vendor.id),{
+        name:name.trim(),address_line1:addressLine1.trim()||null,city:city.trim()||null,state:state.trim()||null,pincode:pincode.trim()||null,
+        gstin:gstin.trim()||null,contact_person:contactPerson.trim()||null,email1:email1.trim()||null,phone1:phone1.trim()||null,
+        category:category.trim()||null,payment_term_description:paymentTermDescription.trim()||null,
+        updated_at:serverTimestamp(),
+      });
+      showToast(`${name.trim()} updated`);
+      onClose();
+    }catch(e){setError("Save failed: "+e.message);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Edit Vendor</div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{marginBottom:14}}>
+          <label style={labelStyle}>Vendor name *</label>
+          <input style={fieldStyle} value={name} onChange={e=>setName(e.target.value)}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          <div>
+            <label style={labelStyle}>GSTIN</label>
+            <input style={fieldStyle} value={gstin} onChange={e=>setGstin(e.target.value.toUpperCase())} maxLength={15}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Contact person</label>
+            <input style={fieldStyle} value={contactPerson} onChange={e=>setContactPerson(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Phone</label>
+            <input style={fieldStyle} value={phone1} onChange={e=>setPhone1(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Email</label>
+            <input style={fieldStyle} value={email1} onChange={e=>setEmail1(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <input style={fieldStyle} value={category} onChange={e=>setCategory(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Payment terms</label>
+            <input style={fieldStyle} value={paymentTermDescription} onChange={e=>setPaymentTermDescription(e.target.value)}/>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:14}}>
+          <div>
+            <label style={labelStyle}>Address line 1</label>
+            <input style={fieldStyle} value={addressLine1} onChange={e=>setAddressLine1(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>City</label>
+            <input style={fieldStyle} value={city} onChange={e=>setCity(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>State</label>
+            <input style={fieldStyle} value={state} onChange={e=>setState(e.target.value)}/>
+          </div>
+        </div>
+      </div>
+
+      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":"Update Vendor"}</button>
+      </div>
     </div>
   );
 }
