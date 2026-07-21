@@ -196,6 +196,12 @@ function DashboardTab({profile,showToast,onNavigate}){
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
+  // Holds a stripped-down copy of a source WO's shared fields (material,
+  // conductor type, insulation, customer, PO number, spool type, remarks) —
+  // dimensions/qty/dates/status/stage are deliberately left out so the new
+  // order starts fresh, per the "copy for a different size" request. Not an
+  // edit target — OrderForm's isEdit checks existing.id, which this lacks.
+  const [copySeed,setCopySeed]=useState(null);
   const isAdmin=profile.role==="admin";
   // Create/edit the full order (New Order button, per-row Edit, Edit order in
   // the stage panel) — Production is deliberately excluded from this one,
@@ -249,8 +255,19 @@ function DashboardTab({profile,showToast,onNavigate}){
     setEditingId(null);
   }
   function openEdit(id){setExpandedId(id);setEditingId(id);}
+  // Only the fields that are genuinely shared across sizes of the same
+  // order carry over — dimensions, quantity, packing qty, dates, and
+  // status/stage are deliberately omitted so the copy starts as a true
+  // fresh order (own WO number, own stock deduction, stage 0).
+  function copyOrder(o){
+    setCopySeed({
+      material:o.material,conductor_type:o.conductor_type,product_type:o.product_type,
+      insulation:o.insulation,spool_type:o.spool_type,po_number:o.po_number,
+      customer_name:o.customer_name,remarks:o.remarks,
+    });
+  }
 
-  if(creatingNew)return<OrderForm profile={profile} existing={null} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
+  if(creatingNew||copySeed)return<OrderForm profile={profile} existing={copySeed} showToast={showToast} onClose={()=>{setCreatingNew(false);setCopySeed(null);}}/>;
 
   return(
     <div>
@@ -314,6 +331,7 @@ function DashboardTab({profile,showToast,onNavigate}){
             editing={editingId===o.id}
             onToggle={()=>toggleExpand(o.id)}
             onQuickEdit={()=>openEdit(o.id)}
+            onCopy={()=>copyOrder(o)}
             onEditClick={()=>setEditingId(o.id)}
             onCancelEdit={()=>setEditingId(null)}
             onDelete={async()=>{if(window.confirm(`Delete ${o.wo_number}? This cannot be undone.`)){await deleteDoc(doc(db,"work_orders",o.id));showToast(`${o.wo_number} deleted`);}}}
@@ -325,7 +343,7 @@ function DashboardTab({profile,showToast,onNavigate}){
 }
 
 // ─── Order list item — click to expand inline (stage view or edit form) ───────
-function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,expanded,editing,onToggle,onQuickEdit,onEditClick,onCancelEdit,onDelete}){
+function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,expanded,editing,onToggle,onQuickEdit,onCopy,onEditClick,onCancelEdit,onDelete}){
   const overdue=isOverdue(order.delivery_date)&&order.status!=="dispatched";
   const progress=stageProgress(order.current_stage,order.product_type);
   const statusColors={in_progress:{bg:"#eff6ff",c:"#1d4ed8"},ready_dispatch:{bg:"#f0fdf4",c:"#16a34a"},dispatched:{bg:"#f3f4f6",c:"#6b7280"},on_hold:{bg:"#fffbeb",c:"#b45309"},cancelled:{bg:"#fef2f2",c:"#dc2626"}};
@@ -348,6 +366,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
           {overdue&&<span className="badge badge-danger" style={{flexShrink:0}}>Overdue</span>}
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
             {canUpdate&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11}} onClick={e=>{e.stopPropagation();onQuickEdit();}}><Icon name="edit" size={11}/>Edit</button>}
+            {canUpdate&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11}} onClick={e=>{e.stopPropagation();onCopy();}} title="Copy — same details, new size"><Icon name="clipboard" size={11}/>Copy</button>}
             {isAdmin&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,color:"#dc2626"}} onClick={e=>{e.stopPropagation();onDelete();}} title="Delete order">✕</button>}
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{transform:expanded?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>
           </div>
@@ -397,7 +416,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
 
 // ─── Order Form ───────────────────────────────────────────────────────────────
 function OrderForm({profile,existing,showToast,onClose}){
-  const isEdit=!!existing;
+  const isEdit=!!existing?.id;
   const [material,setMaterial]=useState(existing?.material||"copper");
   const [conductorType,setConductorType]=useState(existing?.conductor_type||"conductor");
   const [productType,setProductType]=useState(existing?.product_type||"conductor");
