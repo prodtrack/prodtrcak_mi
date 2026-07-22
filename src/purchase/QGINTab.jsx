@@ -529,6 +529,7 @@ function QGINForm({profile,existing,showToast,onClose}){
             <div>
               <label style={labelStyle}>Parameter</label>
               <select style={fieldStyle} value={p.parameter} onChange={e=>updateParam(i,"parameter",e.target.value)}>
+                <option value="">— Select —</option>
                 {QGIN_PARAMETERS.map(opt=><option key={opt}>{opt}</option>)}
               </select>
             </div>

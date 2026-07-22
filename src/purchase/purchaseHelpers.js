@@ -200,10 +200,10 @@ export function generateQGINNumber(plant){return nextNumber("QGIN","QGIN",plant)
 export const QUALITY_TYPES = ["Non Destructive Storage","Destructive Testing","Visual Inspection"];
 export const INSPECTION_LOCATIONS = ["Inspection Location 1","Inspection Location 2","Store","Rejection Yard"];
 // Parameter list starts minimal per Shan's instruction — more to be added later.
-export const QGIN_PARAMETERS = ["Size","T.C. Verification"];
+export const QGIN_PARAMETERS = ["Size","T.C. Verification","Quantity (Qty)","Visual","Mechanical and Electrical Tests"];
 
 export function emptyQGINParameter(){
-  return {parameter:QGIN_PARAMETERS[0],parameter_description:"",visual:"",uom:"",standard_value:"",actual_value:""};
+  return {parameter:"",parameter_description:"",visual:"",uom:"",standard_value:"",actual_value:""};
 }
 
 // ─── Line item helpers ──────────────────────────────────────────────────────
