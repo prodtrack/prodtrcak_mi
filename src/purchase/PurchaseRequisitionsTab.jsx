@@ -344,7 +344,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
         vendor_gstin:vendor?.gstin||null, vendor_state_code:vendor?.state_code||null,
         vendor_address:vendor?.address||null, vendor_phone:vendor?.phone||null, vendor_email:vendor?.email||null, vendor_pan:vendor?.pan||null,
         requested_by_code:requestedByCode||null, job_order:jobOrder||null,
-        line_items:cleanLines.map(it=>({...it,qty:parseFloat(it.qty),inventory_qty:parseFloat(it.inventory_qty)||0})),
+        line_items:cleanLines.map(it=>({...it,qty:parseFloat(it.qty),inventory_qty:materials.find(m=>m.id===it.material_id)?.current_stock??0})),
         remarks:remarks||null, comments:comments||null,
         updated_at:serverTimestamp(),
       };
@@ -427,13 +427,9 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
                 <input style={fieldStyle} value={it.item_code||""} onChange={e=>updateLine(i,"item_code",e.target.value)} placeholder="e.g. F361"/>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div>
                 <label style={labelStyle}>Inventory qty</label>
-                <input type="number" style={{...fieldStyle,...(isEdit?{background:"#f9fafb",color:"#6b7280"}:{})}} min="0" step="0.01" value={it.inventory_qty} disabled={isEdit} onChange={e=>updateLine(i,"inventory_qty",e.target.value)}/>
-              </div>
-              <div>
-                <label style={labelStyle}>Current stock</label>
                 <div style={{...fieldStyle,...S,background:"#f9fafb",color:"#6b7280"}}>
                   {it.material_id?`${materials.find(m=>m.id===it.material_id)?.current_stock??0} ${it.unit}`:"—"}
                 </div>
