@@ -836,7 +836,9 @@ function TenderTab({profile,showToast}){
                 {tenders.map(t=>{
                   const overdue=isOverdue(t.due_date);
                   return(
-                    <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                    <tr key={t.id} onClick={()=>canManage&&setEditTender(t)} style={{borderBottom:"1px solid #f3f4f6",cursor:canManage?"pointer":"default"}}
+                      onMouseEnter={e=>canManage&&(e.currentTarget.style.background="#f9fafb")}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <td style={{padding:"10px 12px",...S,fontWeight:600}}>{t.tender_number||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.tender_date?formatDate(t.tender_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.loi_no||"—"}</td>
@@ -851,8 +853,8 @@ function TenderTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S,color:overdue?"#dc2626":"#1a1f2e",fontWeight:overdue?600:400}}>{t.due_date?formatDate(t.due_date):"—"}{overdue&&" ⚠"}</td>
                       <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
                         {canManage&&<>
-                          <button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,marginRight:6}} onClick={()=>setEditTender(t)}><Icon name="edit" size={11}/>Edit</button>
-                          <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeTender(t)}><Icon name="trash" size={11}/>Delete</button>
+                          <button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,marginRight:6}} onClick={e=>{e.stopPropagation();setEditTender(t);}}><Icon name="edit" size={11}/>Edit</button>
+                          <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={e=>{e.stopPropagation();removeTender(t);}}><Icon name="trash" size={11}/>Delete</button>
                         </>}
                       </td>
                     </tr>
