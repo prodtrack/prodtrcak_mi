@@ -322,11 +322,11 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
     if(!m)return;
     const lastRate=lastPORateForMaterial(purchaseOrders,materialId,m.material_name);
     setLineItems(items=>items.map((it,idx)=>idx===i?{
-      // Reversal of the earlier manual-only change — auto-fills from
-      // rm_inventory's live current_stock again, same field MRPQueueTab
-      // already reads. Still a normal editable number field afterward.
+      // Inventory Qty stays manual-only again — the live system figure is
+      // shown separately (read-only "Current Stock") so it's visible as a
+      // reference, but never auto-fills or overwrites what's typed here.
       ...it, material_id:materialId, material_name:m.material_name||it.material_name,
-      unit:m.unit||it.unit, inventory_qty:m.current_stock??0, last_po_rate:lastRate,
+      unit:m.unit||it.unit, current_stock:m.current_stock??0, last_po_rate:lastRate,
     }:it));
   }
 
@@ -427,10 +427,16 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
                 <input style={fieldStyle} value={it.item_code||""} onChange={e=>updateLine(i,"item_code",e.target.value)} placeholder="e.g. F361"/>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div>
                 <label style={labelStyle}>Inventory qty</label>
-                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.inventory_qty} onChange={e=>updateLine(i,"inventory_qty",e.target.value)}/>
+                <input type="number" style={{...fieldStyle,...(isEdit?{background:"#f9fafb",color:"#6b7280"}:{})}} min="0" step="0.01" value={it.inventory_qty} disabled={isEdit} onChange={e=>updateLine(i,"inventory_qty",e.target.value)}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Current stock</label>
+                <div style={{...fieldStyle,...S,background:"#f9fafb",color:"#6b7280"}}>
+                  {it.material_id?`${materials.find(m=>m.id===it.material_id)?.current_stock??0} ${it.unit}`:"—"}
+                </div>
               </div>
               <div>
                 <label style={labelStyle}>Required qty *</label>
