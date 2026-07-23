@@ -322,11 +322,11 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
     if(!m)return;
     const lastRate=lastPORateForMaterial(purchaseOrders,materialId,m.material_name);
     setLineItems(items=>items.map((it,idx)=>idx===i?{
-      // Inventory qty is manual-only now — no longer pre-filled from
-      // rm_inventory's current_stock, since stock counts get verified/typed
-      // in by hand at requisition time rather than trusted from the system.
+      // Reversal of the earlier manual-only change — auto-fills from
+      // rm_inventory's live current_stock again, same field MRPQueueTab
+      // already reads. Still a normal editable number field afterward.
       ...it, material_id:materialId, material_name:m.material_name||it.material_name,
-      unit:m.unit||it.unit, last_po_rate:lastRate,
+      unit:m.unit||it.unit, inventory_qty:m.current_stock??0, last_po_rate:lastRate,
     }:it));
   }
 
