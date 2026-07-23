@@ -718,12 +718,6 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
 
   return(
     <div>
-      {onEdit&&(
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
-          <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>Edit order</button>
-        </div>
-      )}
-
       <div className="card animate-in" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="conductor"?`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`:`Ø ${order.dimensions?.diameter} mm`],["Delivery",formatDate(order.delivery_date)]].map(([k,v])=>(
