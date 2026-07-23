@@ -782,6 +782,7 @@ function TenderTab({profile,showToast}){
   const [tenders,setTenders]=useState([]);
   const [showForm,setShowForm]=useState(false);
   const [editTender,setEditTender]=useState(null);
+  const [viewTender,setViewTender]=useState(null);
 
   useEffect(()=>{
     const q=query(collection(db,"tenders"),orderBy("created_at","desc"));
@@ -803,6 +804,10 @@ function TenderTab({profile,showToast}){
     if(!window.confirm(`Delete tender ${t.tender_number||"(no number)"}? This cannot be undone.`))return;
     await deleteDoc(doc(db,"tenders",t.id));
     showToast("Tender deleted");
+  }
+
+  if(viewTender){
+    return <TenderDetailView tender={viewTender} onBack={()=>setViewTender(null)}/>;
   }
 
   if(showForm||editTender){
@@ -836,10 +841,12 @@ function TenderTab({profile,showToast}){
                 {tenders.map(t=>{
                   const overdue=isOverdue(t.due_date);
                   return(
-                    <tr key={t.id} onClick={()=>canManage&&setEditTender(t)} style={{borderBottom:"1px solid #f3f4f6",cursor:canManage?"pointer":"default"}}
-                      onMouseEnter={e=>canManage&&(e.currentTarget.style.background="#f9fafb")}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <td style={{padding:"10px 12px",...S,fontWeight:600}}>{t.tender_number||"—"}</td>
+                    <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                      <td onClick={()=>setViewTender(t)} style={{padding:"10px 12px",...S,fontWeight:600,color:"#2563eb",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}}
+                        onMouseEnter={e=>e.currentTarget.style.textDecorationColor="#2563eb"}
+                        onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>
+                        {t.tender_number||"—"}
+                      </td>
                       <td style={{padding:"10px 12px",...S}}>{t.tender_date?formatDate(t.tender_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.loi_no||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.specification_number||"—"}</td>
@@ -865,6 +872,45 @@ function TenderTab({profile,showToast}){
           </div>
         )
       }
+    </div>
+  );
+}
+
+// ─── Tender read-only detail view ───────────────────────────────────────────
+// Opened by clicking the Tender No cell — pure display, no inputs, no
+// Update/Cancel/Delete. Editing still only happens via the row's own Edit
+// button, which opens the existing TenderForm exactly as before.
+function TenderDetailView({tender:t,onBack}){
+  const overdue=isOverdue(t.due_date);
+  const Field=({label,value})=>(
+    <div>
+      <div style={{fontSize:11,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".04em",marginBottom:4}}>{label}</div>
+      <div style={{fontSize:14,color:"#1a1f2e"}}>{value||"—"}</div>
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{t.tender_number||"Tender"}</div>
+      </div>
+
+      <div className="card" style={{padding:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,marginBottom:20}}>
+          <Field label="Tender Number" value={t.tender_number}/>
+          <Field label="Tender Date" value={t.tender_date?formatDate(t.tender_date):null}/>
+          <Field label="LOI No." value={t.loi_no}/>
+          <Field label="Specification No." value={t.specification_number}/>
+          <Field label="Company" value={t.company}/>
+          <Field label="Size" value={t.size}/>
+          <Field label="Insulation Type" value={t.insulation_type}/>
+          <Field label="Quantity" value={t.quantity!=null?`${t.quantity}${t.uom?` ${t.uom}`:""}`:null}/>
+          <Field label="Fabrication Rate" value={t.fabrication_rate}/>
+          <Field label="BME/Copper Price" value={t.bme_copper_price}/>
+          <Field label="Bid Due Date" value={t.due_date?<span style={{color:overdue?"#dc2626":"#1a1f2e",fontWeight:overdue?600:400}}>{formatDate(t.due_date)}{overdue&&" ⚠"}</span>:null}/>
+        </div>
+      </div>
     </div>
   );
 }
