@@ -1159,7 +1159,7 @@ function InventoryTab({profile,showToast}){
   };
 
   return(
-    <div style={{maxWidth:900}}>
+    <div style={{maxWidth:900,margin:"0 auto"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <SectionHeader mono="Store" title="RM Inventory" sub="Raw material stock levels"/>
         {isAdmin&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Item</button>}
