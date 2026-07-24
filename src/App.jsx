@@ -1204,9 +1204,7 @@ function InventoryTab({profile,showToast}){
         </div>
       )}
 
-      <div className="card" style={{padding:0,overflow:"hidden",maxWidth:900}}>
-       <div style={{overflowX:"auto"}}>
-        <div style={{minWidth:1050}}>
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",fontSize:11,color:"#6b7280",...S,textTransform:"uppercase"}}>
           <span style={{width:130,flexShrink:0}}>Item Code</span>
           <span style={{flex:1,minWidth:160}}>Description</span>
@@ -1256,8 +1254,6 @@ function InventoryTab({profile,showToast}){
             );
           })
         }
-        </div>
-       </div>
       </div>
     </div>
   );
