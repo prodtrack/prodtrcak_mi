@@ -433,7 +433,7 @@ function OrderForm({profile,existing,showToast,onClose}){
   const [customer,setCustomer]=useState(existing?.customer_name||"");
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
-  const [receiptDate,setReceiptDate]=useState(existing?.receipt_date||"");
+  const [poDate,setPoDate]=useState(existing?.po_date||existing?.receipt_date||"");
   const [deliveryDate,setDeliveryDate]=useState(existing?.delivery_date||"");
   const [remarks,setRemarks]=useState(existing?.remarks||"");
   const [saving,setSaving]=useState(false);
@@ -470,7 +470,7 @@ function OrderForm({profile,existing,showToast,onClose}){
     setSaving(true);
     try{
       const stages=stagesFor(productType);
-      const payload={material,conductor_type:conductorType,product_type:productType,dimensions:dims,insulation,quantity:parseFloat(qty),quantity_unit:qtyUnit,packing_qty:packQty?parseFloat(packQty):null,spool_type:spoolType||null,po_number:poNumber,customer_name:customer,receipt_date:receiptDate||null,delivery_date:deliveryDate,remarks:remarks||null,status:existing?.status||"in_progress",current_stage:existing?.current_stage||stages[0],stage_index:existing?.stage_index??0};
+      const payload={material,conductor_type:conductorType,product_type:productType,dimensions:dims,insulation,quantity:parseFloat(qty),quantity_unit:qtyUnit,packing_qty:packQty?parseFloat(packQty):null,spool_type:spoolType||null,po_number:poNumber,customer_name:customer,po_date:poDate||null,delivery_date:deliveryDate,remarks:remarks||null,status:existing?.status||"in_progress",current_stage:existing?.current_stage||stages[0],stage_index:existing?.stage_index??0};
       if(isEdit){
         await updateDoc(doc(db,"work_orders",existing.id),{...payload,updated_at:serverTimestamp()});
         showToast("Work order updated");
@@ -666,8 +666,8 @@ function OrderForm({profile,existing,showToast,onClose}){
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div>
-            <label style={labelStyle}>Receipt date</label>
-            <input style={fieldStyle} type="date" value={receiptDate} onChange={e=>setReceiptDate(e.target.value)}/>
+            <label style={labelStyle}>PO date</label>
+            <input style={fieldStyle} type="date" value={poDate} onChange={e=>setPoDate(e.target.value)}/>
           </div>
           <div>
             <label style={labelStyle}>Delivery date</label>
@@ -728,7 +728,7 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
     <div>
       <div className="card animate-in" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="conductor"?`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`:`Ø ${order.dimensions?.diameter} mm`],["Delivery",formatDate(order.delivery_date)],["Specification No.",order.insulation?.map(ins=>ins.spec).filter(Boolean).join(", ")||"—"],["PO Date",order.po_date?formatDate(order.po_date):"—"]].map(([k,v])=>(
+          {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="conductor"?`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`:`Ø ${order.dimensions?.diameter} mm`],["Delivery",formatDate(order.delivery_date)],["Specification No.",order.insulation?.map(ins=>ins.spec).filter(Boolean).join(", ")||"—"],["PO Date",(order.po_date||order.receipt_date)?formatDate(order.po_date||order.receipt_date):"—"]].map(([k,v])=>(
             <div key={k}><div style={{fontSize:11,color:"#9ca3af",marginBottom:2}}>{k}</div><div style={{fontSize:13,fontWeight:500}}>{v}</div></div>
           ))}
         </div>
