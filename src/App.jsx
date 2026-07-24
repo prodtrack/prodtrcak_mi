@@ -5,7 +5,7 @@ import {
 } from "firebase/auth";
 import {
   collection, doc, getDoc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, runTransaction, serverTimestamp, where,
+  onSnapshot, query, orderBy, runTransaction, serverTimestamp, where, arrayUnion,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import "./App.css";
@@ -700,18 +700,26 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
   const stages=stagesFor(order.product_type);
   const [saving,setSaving]=useState(false);
   const [remarks,setRemarks]=useState("");
+  const [scrapQty,setScrapQty]=useState("");
   const currentIdx=order.stage_index??0;
+  const history=order.stage_history||[];
+  const unit=order.quantity_unit||"kg";
+  const totalScrap=history.reduce((sum,h)=>sum+(parseFloat(h.scrap_qty)||0),0);
 
   async function advance(){
     const nextIdx=currentIdx+1;if(nextIdx>=stages.length)return;
+    if(scrapQty===""||isNaN(parseFloat(scrapQty))||parseFloat(scrapQty)<0){showToast("Scrap generated is required","error");return;}
     setSaving(true);
     try{
       const nextStage=stages[nextIdx];
       const isLast=nextIdx===stages.length-1;
-      await updateDoc(doc(db,"work_orders",order.id),{current_stage:nextStage,stage_index:nextIdx,status:isLast?"ready_dispatch":"in_progress",updated_at:serverTimestamp()});
+      const completedDate=new Date().toISOString().split("T")[0];
+      const historyEntry={stage:order.current_stage||stages[currentIdx],scrap_qty:parseFloat(scrapQty),scrap_unit:unit,completed_date:completedDate,remarks:remarks||null,operator_name:profile.name||auth.currentUser.email};
+      await updateDoc(doc(db,"work_orders",order.id),{current_stage:nextStage,stage_index:nextIdx,status:isLast?"ready_dispatch":"in_progress",updated_at:serverTimestamp(),stage_history:arrayUnion(historyEntry)});
       await addDoc(collection(db,"stage_logs"),{wo_id:order.id,wo_number:order.wo_number,stage:nextStage,status:"completed",operator_uid:auth.currentUser.uid,operator_name:profile.name||auth.currentUser.email,remarks:remarks||null,timestamp:serverTimestamp()});
       showToast(`Stage updated: ${nextStage}`);
       setRemarks("");
+      setScrapQty("");
     }catch(e){showToast("Update failed: "+e.message,"error");}
     finally{setSaving(false);}
   }
@@ -727,9 +735,13 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
       </div>
 
       <div className="card animate-in" style={{padding:20,marginBottom:16,background:"#fff"}}>
-        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Stage progress</div>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Stage progress</span>
+          {history.length>0&&<span style={{...S,fontSize:11,color:"#374151",textTransform:"none",letterSpacing:0}}>Total scrap so far: {totalScrap} {unit}</span>}
+        </div>
         {stages.map((s,i)=>{
           const done=i<currentIdx,current=i===currentIdx,next=i===currentIdx+1;
+          const hist=history.find(h=>h.stage===s);
           return(
             <div key={s} style={{display:"flex",alignItems:"center",gap:14,padding:"10px 0",borderBottom:i<stages.length-1?"1px solid #f3f4f6":undefined}}>
               <div style={{width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:done?"#f0fdf4":current?"#e8c547":"#f3f4f6",border:next?"2px dashed #d1d5db":"none"}}>
@@ -738,7 +750,12 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
               </div>
               <span style={{fontSize:14,fontWeight:current?600:400,color:done?"#9ca3af":"#1a1f2e"}}>{s}</span>
               {current&&<span className="badge badge-gold" style={{marginLeft:"auto"}}>Current</span>}
-              {done&&<span style={{...S,fontSize:10,color:"#16a34a",marginLeft:"auto"}}>✓ Done</span>}
+              {done&&(
+                <span style={{marginLeft:"auto",textAlign:"right"}}>
+                  <span style={{...S,fontSize:10,color:"#16a34a",display:"block"}}>✓ Done{hist?.completed_date?` · ${formatDate(hist.completed_date)}`:""}</span>
+                  {hist&&<span style={{fontSize:11,color:"#6b7280"}}>Scrap: {hist.scrap_qty} {hist.scrap_unit}</span>}
+                </span>
+              )}
             </div>
           );
         })}
@@ -747,6 +764,10 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
       {canUpdate&&currentIdx<stages.length-1&&(
         <div className="card animate-in" style={{padding:20,background:"#fff"}}>
           <div style={{fontSize:14,fontWeight:600,marginBottom:12}}>Complete current stage</div>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>Scrap generated ({unit}) <span style={{color:"#dc2626"}}>*</span></label>
+            <input type="number" min="0" step="0.01" style={{background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"9px 13px",fontSize:13,width:"100%",outline:"none"}} placeholder="0" value={scrapQty} onChange={e=>setScrapQty(e.target.value)}/>
+          </div>
           <div style={{marginBottom:14}}>
             <label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:6}}>Remarks (optional)</label>
             <textarea style={{background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"9px 13px",fontSize:13,width:"100%",minHeight:72,resize:"vertical",outline:"none"}} placeholder="Notes for this stage..." value={remarks} onChange={e=>setRemarks(e.target.value)}/>
