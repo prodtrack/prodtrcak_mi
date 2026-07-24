@@ -1159,7 +1159,7 @@ function InventoryTab({profile,showToast}){
   };
 
   return(
-    <div>
+    <div style={{maxWidth:900}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <SectionHeader mono="Store" title="RM Inventory" sub="Raw material stock levels"/>
         {isAdmin&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Item</button>}
@@ -1204,7 +1204,7 @@ function InventoryTab({profile,showToast}){
         </div>
       )}
 
-      <div className="card" style={{padding:0,overflow:"hidden",maxWidth:900}}>
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
        <div style={{overflowX:"auto"}}>
         <div style={{minWidth:1050}}>
         <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",fontSize:11,color:"#6b7280",...S,textTransform:"uppercase"}}>
