@@ -144,7 +144,7 @@ function MainApp({user,profile}){
   const [tab,setTab]=useState(()=>TABS[0]?.id);
 
   const isMobile=useIsMobile();
-  const shellWidth=isMobile?"100%":(["inventory","admin"].includes(tab)?1400:900);
+  const shellWidth=isMobile?"100%":900;
   const shellPadding=isMobile?"0 12px":"0 20px";
 
   return(
