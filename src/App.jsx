@@ -720,7 +720,7 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
     <div>
       <div className="card animate-in" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="conductor"?`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`:`Ø ${order.dimensions?.diameter} mm`],["Delivery",formatDate(order.delivery_date)]].map(([k,v])=>(
+          {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="conductor"?`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`:`Ø ${order.dimensions?.diameter} mm`],["Delivery",formatDate(order.delivery_date)],["Specification No.",order.insulation?.map(ins=>ins.spec).filter(Boolean).join(", ")||"—"],["PO Date",order.po_date?formatDate(order.po_date):"—"]].map(([k,v])=>(
             <div key={k}><div style={{fontSize:11,color:"#9ca3af",marginBottom:2}}>{k}</div><div style={{fontSize:13,fontWeight:500}}>{v}</div></div>
           ))}
         </div>
