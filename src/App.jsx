@@ -18,6 +18,7 @@ import {
 import PurchaseTab from "./purchase/PurchaseTab.jsx";
 import { COMPANY_LOGO_DATA_URI } from "./purchase/companyLogo.js";
 import { printWorkOrder } from "./WOPrintView.jsx";
+import { printEnquiry } from "./EnquiryPrintView.jsx";
 import SelectOrCustom from "./purchase/PurchaseFormControls.jsx";
 
 // ─── Constants (work order specific) ───────────────────────────────────────────
@@ -1167,6 +1168,8 @@ function EnquiryTab({profile,showToast}){
 // and a running list of every WO already generated from this enquiry.
 function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
   const [converting,setConverting]=useState(false);
+  const isAdmin=profile.role==="admin";
+  const canManage=isAdmin||profile.role==="sales";
   const Field=({label,value})=>(
     <div>
       <div style={{fontSize:11,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".04em",marginBottom:4}}>{label}</div>
@@ -1205,7 +1208,8 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
         <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
         <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{e.enq_number||"Enquiry"}</div>
-        <button className="btn-primary" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order from this Enquiry</button>
+        {canManage&&<button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>printEnquiry(e)}><Icon name="printer" size={12}/>Print</button>}
+        <button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order from this Enquiry</button>
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
