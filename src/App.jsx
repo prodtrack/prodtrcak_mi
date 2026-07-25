@@ -52,6 +52,18 @@ async function generateWONumber(){
   });
 }
 
+// Enquiry numbering: a single global counter (no financial-year segment,
+// unlike WO/PO) — just ENQ00001, ENQ00002, ... incrementing forever.
+async function generateEnqNumber(){
+  const ref=doc(db,"counters","ENQ-global");
+  return runTransaction(db,async tx=>{
+    const snap=await tx.get(ref);
+    const next=(snap.exists()?snap.data().last:0)+1;
+    tx.set(ref,{last:next});
+    return `ENQ${String(next).padStart(5,"0")}`;
+  });
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────────
 export default function App(){
   const [user,setUser]=useState(null);
@@ -125,11 +137,13 @@ function MainApp({user,profile}){
   // off in the Add User form, so it's opt-in for them as intended.
   const canWO=isAdmin||profile.wo_access!==false;
   const canTender=isAdmin||profile.role==="sales";
+  const canEnquiry=isAdmin||profile.role==="sales";
   const canInventory=isAdmin||profile.inventory_access!==false;
   const canDispatch=isAdmin||["sales"].includes(profile.role)||profile.dispatch_access!==false;
 
   const TABS=[
     ...(canWO?[{id:"dashboard",label:"Work Orders"}]:[]),
+    ...(canEnquiry?[{id:"enquiry",label:"Enquiry"}]:[]),
     ...(canTender?[{id:"tender",label:"Tender"}]:[]),
     ...(canPurchase?[{id:"purchase",label:"Purchase"}]:[]),
     ...(canInventory?[{id:"inventory",label:"Inventory"}]:[]),
@@ -177,6 +191,7 @@ function MainApp({user,profile}){
       <div style={{maxWidth:shellWidth,margin:"0 auto",padding:isMobile?"20px 12px":"28px 20px",transition:"max-width .15s"}}>
         {tab==="dashboard"    && (canWO?<DashboardTab profile={profile} showToast={showToast} onNavigate={setTab}/>:<AccessDenied/>)}
         {tab==="tender"       && (canTender?<TenderTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
+        {tab==="enquiry"      && (canEnquiry?<EnquiryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="purchase"     && (canPurchase?<PurchaseTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="inventory"    && (canInventory?<InventoryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
         {tab==="dispatch"     && (canDispatch?<DispatchTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
@@ -417,7 +432,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
 
 
 // ─── Order Form ───────────────────────────────────────────────────────────────
-function OrderForm({profile,existing,showToast,onClose}){
+function OrderForm({profile,existing,showToast,onClose,onSaved}){
   const isEdit=!!existing?.id;
   const [material,setMaterial]=useState(existing?.material||"copper");
   const [conductorType,setConductorType]=useState(existing?.conductor_type||"conductor");
@@ -506,6 +521,7 @@ function OrderForm({profile,existing,showToast,onClose}){
         });
 
         showToast("Work order created");
+        if(onSaved)onSaved({id:woRef.id,wo_number:woNumber});
         const negatives=deductions.filter(d=>d.newStock<0);
         if(negatives.length>0){
           showToast(`⚠ Stock now negative: ${negatives.map(d=>`${d.name} (${d.newStock} ${d.unit})`).join(", ")}`,"error");
@@ -1049,6 +1065,304 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Tender":"Save Tender"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Enquiry Tab ────────────────────────────────────────────────────────────
+// Separate from Tender — its own collection, own numbering (ENQ00001... —
+// a single global counter, no financial-year segment), same admin/sales
+// access as Tender. An enquiry can be converted into one or more Work
+// Orders (different sizes from the same enquiry are common), tracked via
+// linked_wos on the enquiry document. Conversion reuses OrderForm exactly
+// as-is — the resulting WO is a completely normal, fully-editable WO.
+function EnquiryTab({profile,showToast}){
+  const isAdmin=profile.role==="admin";
+  const canManage=isAdmin||profile.role==="sales";
+  const [enquiries,setEnquiries]=useState([]);
+  const [showForm,setShowForm]=useState(false);
+  const [editEnquiry,setEditEnquiry]=useState(null);
+  const [viewEnquiry,setViewEnquiry]=useState(null);
+
+  useEffect(()=>{
+    const q=query(collection(db,"enquiries"),orderBy("created_at","desc"));
+    return onSnapshot(q,snap=>setEnquiries(snap.docs.map(d=>({id:d.id,...d.data()}))));
+  },[]);
+
+  async function removeEnquiry(e){
+    if(!window.confirm(`Delete enquiry ${e.enq_number||"(no number)"}? This cannot be undone.`))return;
+    await deleteDoc(doc(db,"enquiries",e.id));
+    showToast("Enquiry deleted");
+  }
+
+  if(viewEnquiry){
+    // Re-read the latest copy from state so linked_wos stays fresh after a conversion.
+    const live=enquiries.find(x=>x.id===viewEnquiry.id)||viewEnquiry;
+    return <EnquiryDetailView enquiry={live} profile={profile} showToast={showToast} onBack={()=>setViewEnquiry(null)}/>;
+  }
+
+  if(showForm||editEnquiry){
+    return <EnquiryForm existing={editEnquiry} profile={profile} showToast={showToast} onClose={()=>{setShowForm(false);setEditEnquiry(null);}}/>;
+  }
+
+  return(
+    <div>
+      <div style={{marginBottom:16}}><SectionHeader mono="Sales" title="Enquiry" sub="Enquiry tracking — manual entry"/></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:600}}>{enquiries.length} enquir{enquiries.length!==1?"ies":"y"}</div>
+        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Enquiry</button>}
+      </div>
+
+      {enquiries.length===0
+        ?<EmptyState text="No enquiries yet" sub={canManage?"Click 'New Enquiry' to add one":undefined}/>
+        :(
+          <div className="card" style={{padding:0,overflow:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
+                {["Enq No","Enq Date","Spec. No.","Company","Size","Insulation Type","Covering (mm)","Quantity","UOM","Fabrication Rate","BME/Copper Price","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {enquiries.map(e=>{
+                  const linkedCount=(e.linked_wos||[]).length;
+                  return(
+                    <tr key={e.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                      <td onClick={()=>setViewEnquiry(e)} style={{padding:"10px 12px",...S,fontWeight:600,color:"#2563eb",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}}
+                        onMouseEnter={ev=>ev.currentTarget.style.textDecorationColor="#2563eb"}
+                        onMouseLeave={ev=>ev.currentTarget.style.textDecorationColor="transparent"}>
+                        {e.enq_number||"—"}
+                      </td>
+                      <td style={{padding:"10px 12px",...S}}>{e.enq_date?formatDate(e.enq_date):"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.specification_number||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{e.company||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.size||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{e.insulation_type||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.covering||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.quantity||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.uom||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.fabrication_rate||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.bme_copper_price||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"—"}</td>
+                      <td style={{padding:"10px 12px",...S,textAlign:"center"}}>{linkedCount>0?linkedCount:"—"}</td>
+                      <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
+                        {canManage&&<>
+                          <button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,marginRight:6}} onClick={ev=>{ev.stopPropagation();setEditEnquiry(e);}}><Icon name="edit" size={11}/>Edit</button>
+                          <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={ev=>{ev.stopPropagation();removeEnquiry(e);}}><Icon name="trash" size={11}/>Delete</button>
+                        </>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+// ─── Enquiry read-only detail view ─────────────────────────────────────────
+// Same read-only pattern as TenderDetailView, plus the WO-conversion action
+// and a running list of every WO already generated from this enquiry.
+function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
+  const [converting,setConverting]=useState(false);
+  const Field=({label,value})=>(
+    <div>
+      <div style={{fontSize:11,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".04em",marginBottom:4}}>{label}</div>
+      <div style={{fontSize:14,color:"#1a1f2e"}}>{value||"—"}</div>
+    </div>
+  );
+
+  if(converting){
+    // Pre-fill a brand-new WO (no id → OrderForm treats this as "New Work
+    // Order", generating its own WO number) from what the enquiry already
+    // has. Dimensions, product/conductor type, PO number, and delivery date
+    // aren't captured on an enquiry, so they're left blank for the user to
+    // fill in here — this is the review/confirm step, not a silent auto-create.
+    const prefill={
+      customer_name:e.company||"",
+      quantity:e.quantity||"",
+      quantity_unit:e.uom&&["kg","nos"].includes(e.uom)?e.uom:"kg",
+      insulation:[{scheme:e.insulation_type||"",thermal:"",tempIndex:"",covering:e.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
+      remarks:`From Enquiry ${e.enq_number||""}`.trim(),
+    };
+    return <OrderForm
+      profile={profile}
+      existing={prefill}
+      showToast={showToast}
+      onClose={()=>setConverting(false)}
+      onSaved={async({id,wo_number})=>{
+        await updateDoc(doc(db,"enquiries",e.id),{
+          linked_wos:arrayUnion({wo_id:id,wo_number,created_at:new Date().toISOString()}),
+        });
+      }}
+    />;
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{e.enq_number||"Enquiry"}</div>
+        <button className="btn-primary" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order from this Enquiry</button>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,marginBottom:20}}>
+          <Field label="Enq Number" value={e.enq_number}/>
+          <Field label="Enq Date" value={e.enq_date?formatDate(e.enq_date):null}/>
+          <Field label="Specification No." value={e.specification_number}/>
+          <Field label="Company" value={e.company}/>
+          <Field label="Size" value={e.size}/>
+          <Field label="Insulation Type" value={e.insulation_type}/>
+          <Field label="Covering (mm)" value={e.covering}/>
+          <Field label="Quantity" value={e.quantity!=null?`${e.quantity}${e.uom?` ${e.uom}`:""}`:null}/>
+          <Field label="Fabrication Rate" value={e.fabrication_rate}/>
+          <Field label="BME/Copper Price" value={e.bme_copper_price}/>
+          <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:20}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Work orders generated from this enquiry</div>
+        {(e.linked_wos||[]).length===0
+          ?<div style={{fontSize:13,color:"#9ca3af"}}>None yet — use "Create Work Order from this Enquiry" above.</div>
+          :(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {e.linked_wos.map((w,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0",borderBottom:i<e.linked_wos.length-1?"1px solid #f3f4f6":undefined}}>
+                  <span style={{fontWeight:600,color:"#1a1f2e"}}>{w.wo_number}</span>
+                  <span style={{color:"#9ca3af"}}>{w.created_at?formatDate(w.created_at):"—"}</span>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      </div>
+    </div>
+  );
+}
+
+function EnquiryForm({existing,profile,showToast,onClose}){
+  const isEdit=!!existing;
+  const [enqDate,setEnqDate]=useState(existing?.enq_date||"");
+  const [specNumber,setSpecNumber]=useState(existing?.specification_number||"");
+  const [company,setCompany]=useState(existing?.company||"");
+  const [size,setSize]=useState(existing?.size||"");
+  const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
+  const [covering,setCovering]=useState(existing?.covering||"");
+  const [quantity,setQuantity]=useState(existing?.quantity||"");
+  const [uom,setUom]=useState(existing?.uom||"");
+  const [fabricationRate,setFabricationRate]=useState(existing?.fabrication_rate||"");
+  const [bmeCopperPrice,setBmeCopperPrice]=useState(existing?.bme_copper_price||"");
+  const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
+  const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+
+  const [customerMaster,setCustomerMaster]=useState([]);
+  useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
+
+  async function save(){
+    setError("");setSaving(true);
+    try{
+      const payload={
+        enq_date:enqDate||null,
+        specification_number:specNumber.trim()||null,company:company.trim()||null,size:size.trim()||null,
+        insulation_type:insulationType||null,covering:covering||null,quantity:quantity||null,uom:uom||null,
+        fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,
+        validity_date:validityDate||null,validity_time:validityTime||null,
+        updated_at:serverTimestamp(),
+      };
+      if(isEdit){
+        await updateDoc(doc(db,"enquiries",existing.id),payload);
+        showToast("Enquiry updated");
+      }else{
+        const enqNumber=await generateEnqNumber();
+        await addDoc(collection(db,"enquiries"),{
+          ...payload,enq_number:enqNumber,created_by:profile.name||auth.currentUser.email,created_at:serverTimestamp(),
+        });
+        showToast("Enquiry created");
+      }
+      onClose();
+    }catch(e){setError("Save failed: "+e.message);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{isEdit?"Edit Enquiry":"New Enquiry"}</div>
+      </div>
+
+      {!isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#1d4ed8",marginBottom:20}}>Auto-generated Enq No. on save</div>}
+      {isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#92400e",marginBottom:20}}>{existing.enq_number}</div>}
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          <div>
+            <label style={labelStyle}>Enq date</label>
+            <input style={fieldStyle} type="date" value={enqDate} onChange={e=>setEnqDate(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Specification number</label>
+            <input style={fieldStyle} value={specNumber} onChange={e=>setSpecNumber(e.target.value)} placeholder="e.g. IS 13730"/>
+          </div>
+          <div>
+            <FuzzyAutocomplete label="Company" value={company} onChange={setCompany} options={customerMaster} displayKey="name" placeholder="Start typing…"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Size</label>
+            <input style={fieldStyle} value={size} onChange={e=>setSize(e.target.value)} placeholder="e.g. 10x8mm"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Insulation type</label>
+            <select style={fieldStyle} value={insulationType} onChange={e=>setInsulationType(e.target.value)}>
+              <option value="">— Select —</option>
+              {INSULATION_SCHEMES.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Covering (mm)</label>
+            <input style={fieldStyle} type="number" min="0" step="0.001" value={covering} onChange={e=>setCovering(e.target.value)} placeholder="e.g. 0.250"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Quantity</label>
+            <input style={fieldStyle} type="number" min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)} placeholder="0"/>
+          </div>
+          <div>
+            <label style={labelStyle}>UOM</label>
+            <select style={fieldStyle} value={uom} onChange={e=>setUom(e.target.value)}>
+              <option value="">— Select —</option>
+              <option>kg</option><option>pcs</option><option>mtr</option><option>ltr</option><option>rolls</option><option>nos</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Fabrication rate</label>
+            <input style={fieldStyle} value={fabricationRate} onChange={e=>setFabricationRate(e.target.value)} placeholder="Fabrication rate"/>
+          </div>
+          <div>
+            <label style={labelStyle}>BME/Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
+            <input style={fieldStyle} value={bmeCopperPrice} onChange={e=>setBmeCopperPrice(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Validity date</label>
+            <input style={fieldStyle} type="date" value={validityDate} onChange={e=>setValidityDate(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Validity time <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
+            <input style={fieldStyle} type="time" value={validityTime} onChange={e=>setValidityTime(e.target.value)}/>
+          </div>
+        </div>
+      </div>
+
+      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Enquiry":"Save Enquiry"}</button>
       </div>
     </div>
   );
