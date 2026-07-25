@@ -37,6 +37,12 @@ function finalPrice(it){
   if(isNaN(f)&&isNaN(c))return null;
   return (isNaN(f)?0:f)+(isNaN(c)?0:c);
 }
+function itemSizeLabel(it){
+  if(!it)return"";
+  if(it.conductor_type==="wire")return it.diameter?`Ø ${it.diameter} mm`:"";
+  if(!it.width&&!it.thickness)return"";
+  return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, R${it.corner_radius}`:""}`;
+}
 
 export function printEnquiry(enquiry){
   const company=COMPANY_INFO.Bidadi||{};
@@ -47,7 +53,7 @@ export function printEnquiry(enquiry){
     const fp=finalPrice(it);
     const rows=[
       ["Description",it.description],
-      ["Size",it.size],
+      ["Size",itemSizeLabel(it)],
       ["Covering",it.covering?`${it.covering}mm`:null],
       ["Packing",enquiry.packing],
       ["Delivery",enquiry.delivery_terms],

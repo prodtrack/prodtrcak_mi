@@ -38,6 +38,19 @@ const TEMP_INDEX_LIST    = ["155°C","180°C","200°C","240°C"];
 const CONDUCTOR_STAGES   = ["Wire Drawing","Flattening","Annealing","Insulation — Pass 1","Insulation — Pass 2","QC / Inspection","Ready for Dispatch"];
 const COIL_STAGES        = ["Wire Drawing","Flattening","Annealing","Insulation — Pass 1","Insulation — Pass 2","Looping","Spreading","Taping","QC / Inspection","Ready for Dispatch"];
 
+// Enquiry-specific dropdown options — deliberately a separate, independent
+// list from Purchase's PAYMENT_TERMS_OPTIONS/DELIVERY_TERMS_OPTIONS/
+// GST_RATE_OPTIONS in purchaseHelpers.js. Same values today, but editing one
+// list has no effect on the other — Purchase and Enquiry are unrelated
+// contexts and should be tunable independently.
+const ENQ_PAYMENT_TERMS_OPTIONS = [
+  "Payment against delivery","100% Advance","30 Days from date of Invoice",
+  "45 Days from date of Invoice","60 Days from date of Invoice",
+  "50% Advance, 50% on Delivery","Against Bank Guarantee",
+];
+const ENQ_FREIGHT_OPTIONS = ["FOR (freight paid by you)","FOB","CIF","Ex-Works","DAP","DDP","CPT","CIP"];
+const ENQ_GST_OPTIONS = ["Extra 0%","Extra 5%","Extra 12%","Extra 18%","Extra 28%"];
+
 // ─── Helpers (work order specific) ─────────────────────────────────────────────
 function stagesFor(type){return type==="coil"?COIL_STAGES:CONDUCTOR_STAGES;}
 function stageProgress(stage,type){const s=stagesFor(type);const i=s.indexOf(stage);return i<0?0:Math.round(((i+1)/s.length)*100);}
@@ -63,6 +76,15 @@ async function generateEnqNumber(){
     tx.set(ref,{last:next});
     return `ENQ${String(next).padStart(5,"0")}`;
   });
+}
+
+// Formats an enquiry item's dimensions the same way WO cards do —
+// "W × T mm" (+ corner R) for rectangular strip, "Ø D mm" for round wire.
+function itemSizeLabel(it){
+  if(!it)return"";
+  if(it.conductor_type==="wire")return it.diameter?`Ø ${it.diameter} mm`:"";
+  if(!it.width&&!it.thickness)return"";
+  return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, R${it.corner_radius}`:""}`;
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
@@ -1137,7 +1159,7 @@ function EnquiryTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S}}>{e.enq_date?formatDate(e.enq_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.specification_number||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{e.company||"—"}</td>
-                      <td style={{padding:"10px 12px"}}>{items.length?items.map(it=>it.size||"—").join(", "):"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{items.length?items.map(it=>itemSizeLabel(it)||"—").join(", "):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"—"}</td>
                       <td style={{padding:"10px 12px",...S,textAlign:"center"}}>{linkedCount>0?linkedCount:"—"}</td>
                       <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
@@ -1180,14 +1202,20 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
 
   if(convertingItem!=null){
     // Pre-fill a brand-new WO (no id → OrderForm treats this as "New Work
-    // Order", generating its own WO number) from the selected item. Product/
-    // conductor type, structured dimensions, PO number, and delivery date
-    // aren't captured on an enquiry item, so they're left blank for the user
-    // to fill in here — this is the review/confirm step, not a silent
-    // auto-create.
+    // Order", generating its own WO number) from the selected item. Now that
+    // items carry structured dimensions (matching WO's own conductor_type/
+    // product_type/dimensions shape), those auto-fill directly — only PO
+    // number and delivery date are left blank for the user to fill in here,
+    // this being the review/confirm step, not a silent auto-create.
     const it=items[convertingItem];
+    const dims=it.conductor_type==="wire"
+      ?{diameter:it.diameter||""}
+      :{width:it.width||"",thickness:it.thickness||"",cornerRadius:it.corner_radius||""};
     const prefill={
       customer_name:e.company||"",
+      conductor_type:it.conductor_type||"conductor",
+      product_type:it.product_type||"conductor",
+      dimensions:dims,
       quantity:it.quantity||"",
       quantity_unit:it.uom&&["kg","nos"].includes(it.uom)?it.uom:"kg",
       insulation:[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
@@ -1200,7 +1228,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
       onClose={()=>setConvertingItem(null)}
       onSaved={async({id,wo_number})=>{
         await updateDoc(doc(db,"enquiries",e.id),{
-          linked_wos:arrayUnion({wo_id:id,wo_number,item_size:it.size||null,created_at:new Date().toISOString()}),
+          linked_wos:arrayUnion({wo_id:id,wo_number,item_size:itemSizeLabel(it)||null,created_at:new Date().toISOString()}),
         });
       }}
     />;
@@ -1243,7 +1271,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   {canManage&&<button className="btn-primary" style={{fontSize:11,padding:"5px 12px",flexShrink:0}} onClick={()=>setConvertingItem(i)}><Icon name="plus" size={11}/>Create Work Order</button>}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-                  <Field label="Size" value={it.size}/>
+                  <Field label="Size" value={itemSizeLabel(it)}/>
                   <Field label="Insulation Type" value={it.insulation_type}/>
                   <Field label="Covering (mm)" value={it.covering}/>
                   <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
@@ -1290,14 +1318,14 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",size:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",size:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);}
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
@@ -1361,20 +1389,17 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <input style={fieldStyle} value={deliveryTerms} onChange={e=>setDeliveryTerms(e.target.value)} placeholder="e.g. 3 weeks"/>
           </div>
           <div>
-            <label style={labelStyle}>Payment</label>
-            <input style={fieldStyle} value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} placeholder="e.g. 100% Advance"/>
+            <SelectOrCustom label="Payment" value={paymentTerms} onChange={setPaymentTerms} options={ENQ_PAYMENT_TERMS_OPTIONS} placeholder="— Select payment terms —"/>
           </div>
           <div>
             <label style={labelStyle}>Tolerance</label>
             <input style={fieldStyle} value={tolerance} onChange={e=>setTolerance(e.target.value)} placeholder="e.g. ±2%"/>
           </div>
           <div>
-            <label style={labelStyle}>Freight</label>
-            <input style={fieldStyle} value={freight} onChange={e=>setFreight(e.target.value)} placeholder="e.g. ex-works"/>
+            <SelectOrCustom label="Freight" value={freight} onChange={setFreight} options={ENQ_FREIGHT_OPTIONS} placeholder="— Select freight terms —"/>
           </div>
           <div>
-            <label style={labelStyle}>GST</label>
-            <input style={fieldStyle} value={gst} onChange={e=>setGst(e.target.value)} placeholder="e.g. Extra 18%"/>
+            <SelectOrCustom label="GST" value={gst} onChange={setGst} options={ENQ_GST_OPTIONS} placeholder="— Select GST —"/>
           </div>
           <div>
             <label style={labelStyle}>Validity date</label>
@@ -1402,11 +1427,43 @@ function EnquiryForm({existing,profile,showToast,onClose}){
               <label style={labelStyle}>Description</label>
               <input style={fieldStyle} value={it.description} onChange={e=>updateItem(i,"description",e.target.value)} placeholder="e.g. 1 layer 66% overlap Kapton covered copper conductor"/>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <div>
-                <label style={labelStyle}>Size</label>
-                <input style={fieldStyle} value={it.size} onChange={e=>updateItem(i,"size",e.target.value)} placeholder="e.g. 7.58 x 1.13 mm"/>
+
+            {/* Conductor type — same toggle set as the WO form, so this
+                data lines up 1:1 with WO dimensions on conversion. */}
+            <div style={{marginBottom:12}}>
+              <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:it.conductor_type==="conductor"?10:0}}>
+                {[["conductor","Rectangular strip"],["wire","Round wire"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.conductor_type===v?"#fff":"#f3f4f6",color:it.conductor_type===v?"#1a1f2e":"#6b7280",fontWeight:it.conductor_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{updateItem(i,"conductor_type",v);if(v==="wire")updateItem(i,"product_type","wire");}}>{l}</button>)}
               </div>
+              {it.conductor_type==="conductor"&&(
+                <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
+                  {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.product_type===v?"#fff":"#f3f4f6",color:it.product_type===v?"#1a1f2e":"#6b7280",fontWeight:it.product_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>updateItem(i,"product_type",v)}>{l}</button>)}
+                </div>
+              )}
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              {it.conductor_type==="conductor"&&(
+                <>
+                  <div>
+                    <label style={labelStyle}>Width (mm)</label>
+                    <input style={fieldStyle} type="number" min="0" step="0.01" value={it.width} onChange={e=>updateItem(i,"width",e.target.value)} placeholder="0.00"/>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Thickness (mm)</label>
+                    <input style={fieldStyle} type="number" min="0" step="0.01" value={it.thickness} onChange={e=>updateItem(i,"thickness",e.target.value)} placeholder="0.00"/>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Corner R (mm)</label>
+                    <input style={fieldStyle} type="number" min="0" step="0.01" value={it.corner_radius} onChange={e=>updateItem(i,"corner_radius",e.target.value)} placeholder="0.00"/>
+                  </div>
+                </>
+              )}
+              {it.conductor_type==="wire"&&(
+                <div>
+                  <label style={labelStyle}>Diameter (mm)</label>
+                  <input style={fieldStyle} type="number" min="0" step="0.01" value={it.diameter} onChange={e=>updateItem(i,"diameter",e.target.value)} placeholder="0.00"/>
+                </div>
+              )}
               <div>
                 <label style={labelStyle}>Insulation type</label>
                 <select style={fieldStyle} value={it.insulation_type} onChange={e=>updateItem(i,"insulation_type",e.target.value)}>
