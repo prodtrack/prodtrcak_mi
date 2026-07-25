@@ -1121,11 +1121,12 @@ function EnquiryTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
-                {["Enq No","Enq Date","Spec. No.","Company","Size","Insulation Type","Covering (mm)","Quantity","UOM","Fabrication Rate","Copper Price","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                {["Enq No","Enq Date","Spec. No.","Company","Items","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {enquiries.map(e=>{
                   const linkedCount=(e.linked_wos||[]).length;
+                  const items=e.items||[];
                   return(
                     <tr key={e.id} style={{borderBottom:"1px solid #f3f4f6"}}>
                       <td onClick={()=>setViewEnquiry(e)} style={{padding:"10px 12px",...S,fontWeight:600,color:"#2563eb",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}}
@@ -1136,13 +1137,7 @@ function EnquiryTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S}}>{e.enq_date?formatDate(e.enq_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.specification_number||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{e.company||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.size||"—"}</td>
-                      <td style={{padding:"10px 12px"}}>{e.insulation_type||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.covering||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.quantity||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.uom||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.fabrication_rate||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.bme_copper_price||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{items.length?items.map(it=>it.size||"—").join(", "):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"—"}</td>
                       <td style={{padding:"10px 12px",...S,textAlign:"center"}}>{linkedCount>0?linkedCount:"—"}</td>
                       <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
@@ -1167,37 +1162,45 @@ function EnquiryTab({profile,showToast}){
 // Same read-only pattern as TenderDetailView, plus the WO-conversion action
 // and a running list of every WO already generated from this enquiry.
 function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
-  const [converting,setConverting]=useState(false);
+  const [convertingItem,setConvertingItem]=useState(null); // index of item being converted, or null
   const isAdmin=profile.role==="admin";
   const canManage=isAdmin||profile.role==="sales";
+  const items=e.items||[];
   const Field=({label,value})=>(
     <div>
       <div style={{fontSize:11,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".04em",marginBottom:4}}>{label}</div>
       <div style={{fontSize:14,color:"#1a1f2e"}}>{value||"—"}</div>
     </div>
   );
+  function finalPrice(it){
+    const f=parseFloat(it.fabrication_rate),c=parseFloat(it.copper_price);
+    if(isNaN(f)&&isNaN(c))return null;
+    return (( isNaN(f)?0:f)+(isNaN(c)?0:c));
+  }
 
-  if(converting){
+  if(convertingItem!=null){
     // Pre-fill a brand-new WO (no id → OrderForm treats this as "New Work
-    // Order", generating its own WO number) from what the enquiry already
-    // has. Dimensions, product/conductor type, PO number, and delivery date
-    // aren't captured on an enquiry, so they're left blank for the user to
-    // fill in here — this is the review/confirm step, not a silent auto-create.
+    // Order", generating its own WO number) from the selected item. Product/
+    // conductor type, structured dimensions, PO number, and delivery date
+    // aren't captured on an enquiry item, so they're left blank for the user
+    // to fill in here — this is the review/confirm step, not a silent
+    // auto-create.
+    const it=items[convertingItem];
     const prefill={
       customer_name:e.company||"",
-      quantity:e.quantity||"",
-      quantity_unit:e.uom&&["kg","nos"].includes(e.uom)?e.uom:"kg",
-      insulation:[{scheme:e.insulation_type||"",thermal:"",tempIndex:"",covering:e.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
-      remarks:`From Enquiry ${e.enq_number||""}`.trim(),
+      quantity:it.quantity||"",
+      quantity_unit:it.uom&&["kg","nos"].includes(it.uom)?it.uom:"kg",
+      insulation:[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
+      remarks:`From Enquiry ${e.enq_number||""}${it.description?` — ${it.description}`:""}`.trim(),
     };
     return <OrderForm
       profile={profile}
       existing={prefill}
       showToast={showToast}
-      onClose={()=>setConverting(false)}
+      onClose={()=>setConvertingItem(null)}
       onSaved={async({id,wo_number})=>{
         await updateDoc(doc(db,"enquiries",e.id),{
-          linked_wos:arrayUnion({wo_id:id,wo_number,created_at:new Date().toISOString()}),
+          linked_wos:arrayUnion({wo_id:id,wo_number,item_size:it.size||null,created_at:new Date().toISOString()}),
         });
       }}
     />;
@@ -1209,34 +1212,60 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
         <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
         <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{e.enq_number||"Enquiry"}</div>
         {canManage&&<button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>printEnquiry(e)}><Icon name="printer" size={12}/>Print</button>}
-        <button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order from this Enquiry</button>
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,marginBottom:20}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Enquiry details</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
           <Field label="Enq Number" value={e.enq_number}/>
           <Field label="Enq Date" value={e.enq_date?formatDate(e.enq_date):null}/>
           <Field label="Specification No." value={e.specification_number}/>
           <Field label="Company" value={e.company}/>
-          <Field label="Size" value={e.size}/>
-          <Field label="Insulation Type" value={e.insulation_type}/>
-          <Field label="Covering (mm)" value={e.covering}/>
-          <Field label="Quantity" value={e.quantity!=null?`${e.quantity}${e.uom?` ${e.uom}`:""}`:null}/>
-          <Field label="Fabrication Rate" value={e.fabrication_rate}/>
-          <Field label="Copper Price" value={e.bme_copper_price}/>
+          <Field label="Packing" value={e.packing}/>
+          <Field label="Delivery" value={e.delivery_terms}/>
+          <Field label="Payment" value={e.payment_terms}/>
+          <Field label="Tolerance" value={e.tolerance}/>
+          <Field label="Freight" value={e.freight}/>
+          <Field label="GST" value={e.gst}/>
           <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Items</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {items.map((it,i)=>{
+            const fp=finalPrice(it);
+            return(
+              <div key={i} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+                  <div style={{fontSize:14,fontWeight:600,color:"#1a1f2e"}}>{it.description||`Item ${i+1}`}</div>
+                  {canManage&&<button className="btn-primary" style={{fontSize:11,padding:"5px 12px",flexShrink:0}} onClick={()=>setConvertingItem(i)}><Icon name="plus" size={11}/>Create Work Order</button>}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+                  <Field label="Size" value={it.size}/>
+                  <Field label="Insulation Type" value={it.insulation_type}/>
+                  <Field label="Covering (mm)" value={it.covering}/>
+                  <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
+                  <Field label="Fabrication Rate" value={it.fabrication_rate}/>
+                  <Field label="Copper Price" value={it.copper_price}/>
+                  <Field label="Final Price" value={fp!=null?`₹${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="card" style={{padding:20}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Work orders generated from this enquiry</div>
         {(e.linked_wos||[]).length===0
-          ?<div style={{fontSize:13,color:"#9ca3af"}}>None yet — use "Create Work Order from this Enquiry" above.</div>
+          ?<div style={{fontSize:13,color:"#9ca3af"}}>None yet — use "Create Work Order" on an item above.</div>
           :(
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {e.linked_wos.map((w,i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0",borderBottom:i<e.linked_wos.length-1?"1px solid #f3f4f6":undefined}}>
-                  <span style={{fontWeight:600,color:"#1a1f2e"}}>{w.wo_number}</span>
+                  <span style={{fontWeight:600,color:"#1a1f2e"}}>{w.wo_number}{w.item_size?` (${w.item_size})`:""}</span>
                   <span style={{color:"#9ca3af"}}>{w.created_at?formatDate(w.created_at):"—"}</span>
                 </div>
               ))}
@@ -1253,30 +1282,35 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [enqDate,setEnqDate]=useState(existing?.enq_date||"");
   const [specNumber,setSpecNumber]=useState(existing?.specification_number||"");
   const [company,setCompany]=useState(existing?.company||"");
-  const [size,setSize]=useState(existing?.size||"");
-  const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
-  const [covering,setCovering]=useState(existing?.covering||"");
-  const [quantity,setQuantity]=useState(existing?.quantity||"");
-  const [uom,setUom]=useState(existing?.uom||"");
-  const [fabricationRate,setFabricationRate]=useState(existing?.fabrication_rate||"");
-  const [bmeCopperPrice,setBmeCopperPrice]=useState(existing?.bme_copper_price||"");
+  const [packing,setPacking]=useState(existing?.packing||"");
+  const [deliveryTerms,setDeliveryTerms]=useState(existing?.delivery_terms||"");
+  const [paymentTerms,setPaymentTerms]=useState(existing?.payment_terms||"");
+  const [tolerance,setTolerance]=useState(existing?.tolerance||"");
+  const [freight,setFreight]=useState(existing?.freight||"");
+  const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",size:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
+  function addItem(){setItems(i=>[...i,{description:"",size:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);}
+  function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
+  function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
+
   async function save(){
     setError("");setSaving(true);
     try{
       const payload={
         enq_date:enqDate||null,
-        specification_number:specNumber.trim()||null,company:company.trim()||null,size:size.trim()||null,
-        insulation_type:insulationType||null,covering:covering||null,quantity:quantity||null,uom:uom||null,
-        fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,
+        specification_number:specNumber.trim()||null,company:company.trim()||null,
+        packing:packing.trim()||null,delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
+        tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
+        items,
         updated_at:serverTimestamp(),
       };
       if(isEdit){
@@ -1305,51 +1339,42 @@ function EnquiryForm({existing,profile,showToast,onClose}){
       {isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#92400e",marginBottom:20}}>{existing.enq_number}</div>}
 
       <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Enquiry details</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div>
-            <label style={labelStyle}>Enq date</label>
+            <label style={labelStyle}>Enquiry date</label>
             <input style={fieldStyle} type="date" value={enqDate} onChange={e=>setEnqDate(e.target.value)}/>
           </div>
           <div>
-            <label style={labelStyle}>Specification number</label>
+            <label style={labelStyle}>Specification Number</label>
             <input style={fieldStyle} value={specNumber} onChange={e=>setSpecNumber(e.target.value)} placeholder="e.g. IS 13730"/>
           </div>
           <div>
             <FuzzyAutocomplete label="Company" value={company} onChange={setCompany} options={customerMaster} displayKey="name" placeholder="Start typing…"/>
           </div>
           <div>
-            <label style={labelStyle}>Size</label>
-            <input style={fieldStyle} value={size} onChange={e=>setSize(e.target.value)} placeholder="e.g. 10x8mm"/>
+            <label style={labelStyle}>Packing</label>
+            <input style={fieldStyle} value={packing} onChange={e=>setPacking(e.target.value)} placeholder="e.g. Please confirm"/>
           </div>
           <div>
-            <label style={labelStyle}>Insulation type</label>
-            <select style={fieldStyle} value={insulationType} onChange={e=>setInsulationType(e.target.value)}>
-              <option value="">— Select —</option>
-              {INSULATION_SCHEMES.map(s=><option key={s}>{s}</option>)}
-            </select>
+            <label style={labelStyle}>Delivery</label>
+            <input style={fieldStyle} value={deliveryTerms} onChange={e=>setDeliveryTerms(e.target.value)} placeholder="e.g. 3 weeks"/>
           </div>
           <div>
-            <label style={labelStyle}>Covering (mm)</label>
-            <input style={fieldStyle} type="number" min="0" step="0.001" value={covering} onChange={e=>setCovering(e.target.value)} placeholder="e.g. 0.250"/>
+            <label style={labelStyle}>Payment</label>
+            <input style={fieldStyle} value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} placeholder="e.g. 100% Advance"/>
           </div>
           <div>
-            <label style={labelStyle}>Quantity</label>
-            <input style={fieldStyle} type="number" min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)} placeholder="0"/>
+            <label style={labelStyle}>Tolerance</label>
+            <input style={fieldStyle} value={tolerance} onChange={e=>setTolerance(e.target.value)} placeholder="e.g. ±2%"/>
           </div>
           <div>
-            <label style={labelStyle}>UOM</label>
-            <select style={fieldStyle} value={uom} onChange={e=>setUom(e.target.value)}>
-              <option value="">— Select —</option>
-              <option>kg</option><option>pcs</option><option>mtr</option><option>ltr</option><option>rolls</option><option>nos</option>
-            </select>
+            <label style={labelStyle}>Freight</label>
+            <input style={fieldStyle} value={freight} onChange={e=>setFreight(e.target.value)} placeholder="e.g. ex-works"/>
           </div>
           <div>
-            <label style={labelStyle}>Fabrication rate</label>
-            <input style={fieldStyle} value={fabricationRate} onChange={e=>setFabricationRate(e.target.value)} placeholder="Fabrication rate"/>
-          </div>
-          <div>
-            <label style={labelStyle}>Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
-            <input style={fieldStyle} value={bmeCopperPrice} onChange={e=>setBmeCopperPrice(e.target.value)}/>
+            <label style={labelStyle}>GST</label>
+            <input style={fieldStyle} value={gst} onChange={e=>setGst(e.target.value)} placeholder="e.g. Extra 18%"/>
           </div>
           <div>
             <label style={labelStyle}>Validity date</label>
@@ -1360,6 +1385,62 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <input style={fieldStyle} type="time" value={validityTime} onChange={e=>setValidityTime(e.target.value)}/>
           </div>
         </div>
+      </div>
+
+      {/* Items — repeatable, one per size/description. Add another for a
+          second size under the same enquiry (same Enq No.), e.g. when an
+          offer quotes multiple sizes at once. */}
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em"}}>Items</div>
+        </div>
+        {items.map((it,i)=>(
+          <div key={i} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:16,marginBottom:12,position:"relative"}}>
+            {items.length>1&&<button className="btn-ghost" style={{position:"absolute",top:10,right:10,padding:"3px 8px",fontSize:11,color:"#dc2626"}} onClick={()=>removeItem(i)}><Icon name="trash" size={11}/></button>}
+            <div style={{fontSize:12,fontWeight:600,color:"#6b7280",marginBottom:12}}>Item {i+1}</div>
+            <div style={{marginBottom:12}}>
+              <label style={labelStyle}>Description</label>
+              <input style={fieldStyle} value={it.description} onChange={e=>updateItem(i,"description",e.target.value)} placeholder="e.g. 1 layer 66% overlap Kapton covered copper conductor"/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div>
+                <label style={labelStyle}>Size</label>
+                <input style={fieldStyle} value={it.size} onChange={e=>updateItem(i,"size",e.target.value)} placeholder="e.g. 7.58 x 1.13 mm"/>
+              </div>
+              <div>
+                <label style={labelStyle}>Insulation type</label>
+                <select style={fieldStyle} value={it.insulation_type} onChange={e=>updateItem(i,"insulation_type",e.target.value)}>
+                  <option value="">— Select —</option>
+                  {INSULATION_SCHEMES.map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Covering (mm)</label>
+                <input style={fieldStyle} type="number" min="0" step="0.001" value={it.covering} onChange={e=>updateItem(i,"covering",e.target.value)} placeholder="e.g. 0.250"/>
+              </div>
+              <div>
+                <label style={labelStyle}>Quantity</label>
+                <input style={fieldStyle} type="number" min="0" step="0.01" value={it.quantity} onChange={e=>updateItem(i,"quantity",e.target.value)} placeholder="0"/>
+              </div>
+              <div>
+                <label style={labelStyle}>UOM</label>
+                <select style={fieldStyle} value={it.uom} onChange={e=>updateItem(i,"uom",e.target.value)}>
+                  <option value="">— Select —</option>
+                  <option>kg</option><option>pcs</option><option>mtr</option><option>ltr</option><option>rolls</option><option>nos</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Fabrication rate</label>
+                <input style={fieldStyle} value={it.fabrication_rate} onChange={e=>updateItem(i,"fabrication_rate",e.target.value)} placeholder="Fabrication rate"/>
+              </div>
+              <div>
+                <label style={labelStyle}>Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
+                <input style={fieldStyle} value={it.copper_price} onChange={e=>updateItem(i,"copper_price",e.target.value)}/>
+              </div>
+            </div>
+          </div>
+        ))}
+        <button className="btn-ghost" style={{padding:"6px 14px",fontSize:12,borderStyle:"dashed"}} onClick={addItem}><Icon name="plus" size={12}/>Add item</button>
       </div>
 
       {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
