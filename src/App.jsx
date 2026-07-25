@@ -1121,7 +1121,7 @@ function EnquiryTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
-                {["Enq No","Enq Date","Spec. No.","Company","Size","Insulation Type","Covering (mm)","Quantity","UOM","Fabrication Rate","BME/Copper Price","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                {["Enq No","Enq Date","Spec. No.","Company","Size","Insulation Type","Covering (mm)","Quantity","UOM","Fabrication Rate","Copper Price","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {enquiries.map(e=>{
@@ -1223,7 +1223,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
           <Field label="Covering (mm)" value={e.covering}/>
           <Field label="Quantity" value={e.quantity!=null?`${e.quantity}${e.uom?` ${e.uom}`:""}`:null}/>
           <Field label="Fabrication Rate" value={e.fabrication_rate}/>
-          <Field label="BME/Copper Price" value={e.bme_copper_price}/>
+          <Field label="Copper Price" value={e.bme_copper_price}/>
           <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
         </div>
       </div>
@@ -1348,7 +1348,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <input style={fieldStyle} value={fabricationRate} onChange={e=>setFabricationRate(e.target.value)} placeholder="Fabrication rate"/>
           </div>
           <div>
-            <label style={labelStyle}>BME/Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
+            <label style={labelStyle}>Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
             <input style={fieldStyle} value={bmeCopperPrice} onChange={e=>setBmeCopperPrice(e.target.value)}/>
           </div>
           <div>
