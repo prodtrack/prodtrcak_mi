@@ -17,6 +17,7 @@ import {
 } from "./shared.jsx";
 import PurchaseTab from "./purchase/PurchaseTab.jsx";
 import { COMPANY_LOGO_DATA_URI } from "./purchase/companyLogo.js";
+import { printWorkOrder } from "./WOPrintView.jsx";
 import SelectOrCustom from "./purchase/PurchaseFormControls.jsx";
 
 // ─── Constants (work order specific) ───────────────────────────────────────────
@@ -367,6 +368,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
             {canUpdate&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11}} onClick={e=>{e.stopPropagation();onQuickEdit();}}><Icon name="edit" size={11}/>Edit</button>}
             {canUpdate&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11}} onClick={e=>{e.stopPropagation();onCopy();}} title="Copy — same details, new size"><Icon name="clipboard" size={11}/>Copy</button>}
+            {canUpdate&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11}} onClick={e=>{e.stopPropagation();printWorkOrder(order);}} title="Print work order"><Icon name="printer" size={11}/>Print</button>}
             {isAdmin&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,color:"#dc2626"}} onClick={e=>{e.stopPropagation();onDelete();}} title="Delete order">✕</button>}
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{transform:expanded?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>
           </div>
