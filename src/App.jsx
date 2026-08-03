@@ -1695,7 +1695,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                   </div>
                   <div>
                     <label style={labelStyle}>No. of Paper</label>
-                    <input style={fieldStyle} type="number" min="0" step="1" value={it.no_of_paper} onChange={e=>updateItem(i,"no_of_paper",e.target.value)} placeholder="0"/>
+                    <input style={fieldStyle} value={it.no_of_paper} onChange={e=>updateItem(i,"no_of_paper",e.target.value)} placeholder="e.g. 2"/>
                   </div>
                   <div>
                     <label style={labelStyle}>No. of Conductors/Strands</label>
