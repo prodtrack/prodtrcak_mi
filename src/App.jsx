@@ -1304,8 +1304,8 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   <Field label="Insulation Type" value={it.insulation_type}/>
                   <Field label="Covering (mm)" value={it.covering}/>
                   <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
-                  {it.show_breakdown&&<Field label="Fabrication Rate" value={it.fabrication_rate}/>}
-                  {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price}/>}
+                  {it.show_breakdown&&<Field label="Fabrication Rate" value={it.fabrication_rate?`₹ ${it.fabrication_rate}${it.uom?` / ${it.uom}`:""}`:null}/>}
+                  {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price?`₹ ${it.copper_price}${it.uom?` / ${it.uom}`:""}`:null}/>}
                   <Field label="Final Price" value={fp!=null?`₹ ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
                   <Field label="Packing" value={it.packing}/>
                 </div>
