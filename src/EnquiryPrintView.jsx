@@ -67,9 +67,9 @@ export function printEnquiry(enquiry){
     return `
     <div class="item-block">
       ${listHtml}
-      ${fp!=null?`<div class="final-price">The final price is Rs.${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
+      ${fp!=null?`<div class="final-price">The final price is ₹${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
     </div>`;
-  }).join(`<div class="item-sep"></div>`);
+  }).join("");
 
   const html=`<!DOCTYPE html>
 <html>
@@ -85,12 +85,13 @@ export function printEnquiry(enquiry){
   .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:8px;}
   .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .item-block{padding:16px 20px 8px;}
+  .item-block{padding:16px 20px;border-bottom:1px solid #e5e7eb;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:90px;flex-shrink:0;font-weight:600;}
   .final-price{padding:10px 0 4px 20px;font-size:13px;font-weight:700;}
-  .item-sep{height:1px;background:#e5e7eb;margin:16px 20px;}
+  .enq-no-line{padding:12px 20px 0;font-size:12px;font-weight:600;}
+  .offer-intro{padding:8px 20px 4px;font-size:13px;font-weight:600;}
   @media print{
     .print-btn{display:none;}
     body{padding:0;}
@@ -116,6 +117,9 @@ export function printEnquiry(enquiry){
     <span>PAN : ${esc(company.pan)}</span>
     <span></span>
   </div>
+
+  <div class="enq-no-line">Enquiry No : ${esc(enquiry.enq_number||"-")}</div>
+  <div class="offer-intro">Please find our offer as follows</div>
 
   ${itemBlocks||`<div class="item-block">No items on this enquiry yet.</div>`}
 

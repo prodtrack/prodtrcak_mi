@@ -1119,6 +1119,33 @@ function EnquiryTab({profile,showToast}){
     showToast("Enquiry deleted");
   }
 
+  function exportExcel(){
+    const rows=[];
+    enquiries.forEach(e=>{
+      const items=e.items?.length?e.items:[{}];
+      items.forEach(it=>{
+        const f=parseFloat(it.fabrication_rate),c=parseFloat(it.copper_price);
+        const fp=(isNaN(f)&&isNaN(c))?null:(isNaN(f)?0:f)+(isNaN(c)?0:c);
+        rows.push({
+          "Enq No":e.enq_number||"","Enq Date":e.enq_date?formatDate(e.enq_date):"",
+          "Spec No":e.specification_number||"","Company":e.company||"",
+          "Description":it.description||"","Size":itemSizeLabel(it),"Covering (mm)":it.covering||"",
+          "Quantity":it.quantity??"","UOM":it.uom||"","Fabrication Rate":it.fabrication_rate||"",
+          "Copper Price":it.copper_price||"","Final Price":fp??"",
+          "Packing":e.packing||"","Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
+          "Tolerance":e.tolerance||"","Freight":e.freight||"","GST":e.gst||"",
+          "Validity":e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"",
+          "WOs Generated":(e.linked_wos||[]).length||"",
+        });
+      });
+    });
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Enquiries");
+    XLSX.writeFile(wb,`Enquiries_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(viewEnquiry){
     // Re-read the latest copy from state so linked_wos stays fresh after a conversion.
     const live=enquiries.find(x=>x.id===viewEnquiry.id)||viewEnquiry;
@@ -1134,7 +1161,10 @@ function EnquiryTab({profile,showToast}){
       <div style={{marginBottom:16}}><SectionHeader mono="Sales" title="Enquiry" sub="Enquiry tracking — manual entry"/></div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:600}}>{enquiries.length} enquir{enquiries.length!==1?"ies":"y"}</div>
-        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Enquiry</button>}
+        <div style={{display:"flex",gap:10}}>
+          {enquiries.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Enquiry</button>}
+        </div>
       </div>
 
       {enquiries.length===0
