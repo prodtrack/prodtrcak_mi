@@ -55,15 +55,20 @@ export function printEnquiry(enquiry){
       ["Description",it.description],
       ["Size",itemSizeLabel(it)],
       ["Covering",it.covering?`${it.covering}mm`:null],
-      ["Packing",enquiry.packing],
+      ["Packing",it.packing],
       ["Delivery",enquiry.delivery_terms],
       ["Payment",enquiry.payment_terms],
       ["Tolerance",enquiry.tolerance],
       ["Freight",enquiry.freight],
       ["GST",enquiry.gst],
       ["Validity",validity],
+      ["Remarks",it.remarks],
     ].filter(([,v])=>v);
-    const listHtml=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`).join("");
+    const listRows=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`);
+    const half=Math.ceil(listRows.length/2);
+    const col1=listRows.slice(0,half).join("");
+    const col2=listRows.slice(half).join("");
+    const listHtml=`<div class="offer-cols"><div class="offer-col">${col1}</div><div class="offer-col">${col2}</div></div>`;
     return `
     <div class="item-block">
       ${listHtml}
@@ -86,6 +91,8 @@ export function printEnquiry(enquiry){
   .addr{font-size:11px;margin-top:8px;}
   .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
   .item-block{padding:16px 20px;border-bottom:1px solid #9ca3af;}
+  .offer-cols{display:flex;gap:40px;}
+  .offer-col{flex:1;min-width:0;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:90px;flex-shrink:0;font-weight:600;}

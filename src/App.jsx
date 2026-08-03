@@ -1131,8 +1131,8 @@ function EnquiryTab({profile,showToast}){
           "Spec No":e.specification_number||"","Company":e.company||"",
           "Description":it.description||"","Size":itemSizeLabel(it),"Covering (mm)":it.covering||"",
           "Quantity":it.quantity??"","UOM":it.uom||"","Fabrication Rate":it.fabrication_rate||"",
-          "Copper Price":it.copper_price||"","Final Price":fp??"",
-          "Packing":e.packing||"","Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
+          "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"",
+          "Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
           "Tolerance":e.tolerance||"","Freight":e.freight||"","GST":e.gst||"",
           "Validity":e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"",
           "WOs Generated":(e.linked_wos||[]).length||"",
@@ -1279,7 +1279,6 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
           <Field label="Enq Date" value={e.enq_date?formatDate(e.enq_date):null}/>
           <Field label="Specification No." value={e.specification_number}/>
           <Field label="Company" value={e.company}/>
-          <Field label="Packing" value={e.packing}/>
           <Field label="Delivery" value={e.delivery_terms}/>
           <Field label="Payment" value={e.payment_terms}/>
           <Field label="Tolerance" value={e.tolerance}/>
@@ -1308,7 +1307,13 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   <Field label="Fabrication Rate" value={it.fabrication_rate}/>
                   <Field label="Copper Price" value={it.copper_price}/>
                   <Field label="Final Price" value={fp!=null?`₹${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
+                  <Field label="Packing" value={it.packing}/>
                 </div>
+                {it.remarks&&(
+                  <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #f3f4f6"}}>
+                    <Field label="Remarks" value={it.remarks}/>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1340,7 +1345,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [enqDate,setEnqDate]=useState(existing?.enq_date||"");
   const [specNumber,setSpecNumber]=useState(existing?.specification_number||"");
   const [company,setCompany]=useState(existing?.company||"");
-  const [packing,setPacking]=useState(existing?.packing||"");
   const [deliveryTerms,setDeliveryTerms]=useState(existing?.delivery_terms||"");
   const [paymentTerms,setPaymentTerms]=useState(existing?.payment_terms||"");
   const [tolerance,setTolerance]=useState(existing?.tolerance||"");
@@ -1348,14 +1352,14 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);}
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
@@ -1365,7 +1369,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
       const payload={
         enq_date:enqDate||null,
         specification_number:specNumber.trim()||null,company:company.trim()||null,
-        packing:packing.trim()||null,delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
+        delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
         items,
@@ -1409,10 +1413,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
           </div>
           <div>
             <FuzzyAutocomplete label="Company" value={company} onChange={setCompany} options={customerMaster} displayKey="name" placeholder="Start typing…"/>
-          </div>
-          <div>
-            <label style={labelStyle}>Packing</label>
-            <input style={fieldStyle} value={packing} onChange={e=>setPacking(e.target.value)} placeholder="e.g. Please confirm"/>
           </div>
           <div>
             <label style={labelStyle}>Delivery</label>
@@ -1524,6 +1524,14 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                 <label style={labelStyle}>Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
                 <input style={fieldStyle} value={it.copper_price} onChange={e=>updateItem(i,"copper_price",e.target.value)}/>
               </div>
+              <div>
+                <label style={labelStyle}>Packing</label>
+                <input style={fieldStyle} value={it.packing} onChange={e=>updateItem(i,"packing",e.target.value)} placeholder="e.g. Please confirm"/>
+              </div>
+            </div>
+            <div style={{marginTop:12}}>
+              <label style={labelStyle}>Remarks</label>
+              <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={it.remarks} onChange={e=>updateItem(i,"remarks",e.target.value)} placeholder="Notes for this item…"/>
             </div>
           </div>
         ))}
