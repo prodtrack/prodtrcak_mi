@@ -54,7 +54,9 @@ export function printEnquiry(enquiry){
     const rows=[
       ["Description",it.description],
       ["Size",itemSizeLabel(it)],
-      ["Covering",it.covering?`${it.covering}mm`:null],
+      ...(it.conductor_type==="ctc"
+        ?[["Covering 1",it.covering_1?`${it.covering_1}mm`:null],["Covering 2",it.covering_2?`${it.covering_2}mm`:null]]
+        :[["Covering",it.covering?`${it.covering}mm`:null]]),
       ["Packing",it.packing],
       ["Delivery",enquiry.delivery_terms],
       ["Payment",enquiry.payment_terms],

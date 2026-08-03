@@ -1129,7 +1129,10 @@ function EnquiryTab({profile,showToast}){
         rows.push({
           "Enq No":e.enq_number||"","Enq Date":e.enq_date?formatDate(e.enq_date):"",
           "Spec No":e.specification_number||"","Company":e.company||"",
-          "Description":it.description||"","Size":itemSizeLabel(it),"Covering (mm)":it.covering||"",
+          "Description":it.description||"","Size":itemSizeLabel(it),
+          "Covering (mm)":it.conductor_type==="ctc"?"":(it.covering||""),
+          "Covering 1 (mm)":it.conductor_type==="ctc"?(it.covering_1||""):"",
+          "Covering 2 (mm)":it.conductor_type==="ctc"?(it.covering_2||""):"",
           "Quantity":it.quantity??"","UOM":it.uom||"","Fabrication Rate":it.fabrication_rate||"",
           "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"",
           "Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
@@ -1248,7 +1251,10 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
       dimensions:dims,
       quantity:it.quantity||"",
       quantity_unit:it.uom&&["kg","nos"].includes(it.uom)?it.uom:"kg",
-      insulation:[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
+      insulation:it.conductor_type==="ctc"
+        ?[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_1||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""},
+          {scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_2||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}]
+        :[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
       remarks:`From Enquiry ${e.enq_number||""}${it.description?` — ${it.description}`:""}`.trim(),
     };
     return <OrderForm
@@ -1302,7 +1308,14 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
                   <Field label="Size" value={itemSizeLabel(it)}/>
                   <Field label="Insulation Type" value={it.insulation_type}/>
-                  <Field label="Covering (mm)" value={it.covering}/>
+                  {it.conductor_type==="ctc"?(
+                    <>
+                      <Field label="Covering 1 (mm)" value={it.covering_1}/>
+                      <Field label="Covering 2 (mm)" value={it.covering_2}/>
+                    </>
+                  ):(
+                    <Field label="Covering (mm)" value={it.covering}/>
+                  )}
                   <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
                   {it.show_breakdown&&<Field label="Fabrication Rate" value={it.fabrication_rate?`₹ ${it.fabrication_rate}${it.uom?` / ${it.uom}`:""}`:null}/>}
                   {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price?`₹ ${it.copper_price}${it.uom?` / ${it.uom}`:""}`:null}/>}
@@ -1352,14 +1365,14 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);}
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
@@ -1461,10 +1474,10 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             {/* Conductor type — same toggle set as the WO form, so this
                 data lines up 1:1 with WO dimensions on conversion. */}
             <div style={{marginBottom:12}}>
-              <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:it.conductor_type==="conductor"?10:0}}>
-                {[["conductor","Rectangular strip"],["wire","Round wire"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.conductor_type===v?"#fff":"#f3f4f6",color:it.conductor_type===v?"#1a1f2e":"#6b7280",fontWeight:it.conductor_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{updateItem(i,"conductor_type",v);if(v==="wire")updateItem(i,"product_type","wire");}}>{l}</button>)}
+              <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:it.conductor_type!=="wire"?10:0}}>
+                {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.conductor_type===v?"#fff":"#f3f4f6",color:it.conductor_type===v?"#1a1f2e":"#6b7280",fontWeight:it.conductor_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{updateItem(i,"conductor_type",v);if(v==="wire")updateItem(i,"product_type","wire");else if(v==="ctc")updateItem(i,"product_type","conductor");}}>{l}</button>)}
               </div>
-              {it.conductor_type==="conductor"&&(
+              {it.conductor_type!=="wire"&&(
                 <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
                   {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.product_type===v?"#fff":"#f3f4f6",color:it.product_type===v?"#1a1f2e":"#6b7280",fontWeight:it.product_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>updateItem(i,"product_type",v)}>{l}</button>)}
                 </div>
@@ -1472,7 +1485,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             </div>
 
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              {it.conductor_type==="conductor"&&(
+              {it.conductor_type!=="wire"&&(
                 <>
                   <div>
                     <label style={labelStyle}>Width (mm)</label>
@@ -1501,10 +1514,23 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                   {INSULATION_SCHEMES.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={labelStyle}>Covering (mm)</label>
-                <input style={fieldStyle} type="number" min="0" step="0.001" value={it.covering} onChange={e=>updateItem(i,"covering",e.target.value)} placeholder="e.g. 0.250"/>
-              </div>
+              {it.conductor_type==="ctc"?(
+                <>
+                  <div>
+                    <label style={labelStyle}>Covering 1 (mm)</label>
+                    <input style={fieldStyle} type="number" min="0" step="0.001" value={it.covering_1} onChange={e=>updateItem(i,"covering_1",e.target.value)} placeholder="e.g. 0.250"/>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Covering 2 (mm)</label>
+                    <input style={fieldStyle} type="number" min="0" step="0.001" value={it.covering_2} onChange={e=>updateItem(i,"covering_2",e.target.value)} placeholder="e.g. 0.250"/>
+                  </div>
+                </>
+              ):(
+                <div>
+                  <label style={labelStyle}>Covering (mm)</label>
+                  <input style={fieldStyle} type="number" min="0" step="0.001" value={it.covering} onChange={e=>updateItem(i,"covering",e.target.value)} placeholder="e.g. 0.250"/>
+                </div>
+              )}
               <div>
                 <label style={labelStyle}>Quantity</label>
                 <input style={fieldStyle} type="number" min="0" step="0.01" value={it.quantity} onChange={e=>updateItem(i,"quantity",e.target.value)} placeholder="0"/>
