@@ -74,9 +74,7 @@ export function printEnquiry(enquiry){
       ]:[]),
     ].filter(([,v])=>v);
     const listRows=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`);
-    const perCol=Math.ceil(listRows.length/4);
-    const cols=[0,1,2,3].map(c=>listRows.slice(c*perCol,(c+1)*perCol).join(""));
-    const listHtml=`<div class="offer-cols">${cols.map(c=>`<div class="offer-col">${c}</div>`).join("")}</div>`;
+    const listHtml=listRows.join("");
     return `
     <div class="item-block">
       ${listHtml}
@@ -100,11 +98,9 @@ export function printEnquiry(enquiry){
   .addr{font-size:11px;margin-top:8px;}
   .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
   .item-block{padding:16px 20px;border-bottom:1px solid #9ca3af;}
-  .offer-cols{display:flex;gap:16px;}
-  .offer-col{flex:1;min-width:0;}
-  .offer-row{display:flex;gap:6px;padding:2px 0;font-size:11px;}
-  .offer-no{width:16px;flex-shrink:0;color:#555;}
-  .offer-label{width:80px;flex-shrink:0;font-weight:600;}
+  .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
+  .offer-no{width:20px;flex-shrink:0;color:#555;}
+  .offer-label{width:90px;flex-shrink:0;font-weight:600;}
   .final-price{padding:10px 0 4px 20px;font-size:13px;font-weight:700;}
   .item-remarks{padding:8px 0 0 20px;font-size:12px;}
   .enq-no-line{padding:12px 20px 0;font-size:12px;font-weight:600;}
