@@ -41,7 +41,7 @@ function itemSizeLabel(it){
   if(!it)return"";
   if(it.conductor_type==="wire")return it.diameter?`Ø ${it.diameter} mm`:"";
   if(!it.width&&!it.thickness)return"";
-  return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, R${it.corner_radius}`:""}`;
+  return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, CR ${it.corner_radius}`:""}`;
 }
 
 export function printEnquiry(enquiry){
@@ -72,7 +72,7 @@ export function printEnquiry(enquiry){
     return `
     <div class="item-block">
       ${listHtml}
-      ${fp!=null?`<div class="final-price">The final price is ₹${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
+      ${fp!=null?`<div class="final-price">The final price is ₹ ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
     </div>`;
   }).join("");
 

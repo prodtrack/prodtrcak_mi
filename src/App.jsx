@@ -84,7 +84,7 @@ function itemSizeLabel(it){
   if(!it)return"";
   if(it.conductor_type==="wire")return it.diameter?`Ø ${it.diameter} mm`:"";
   if(!it.width&&!it.thickness)return"";
-  return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, R${it.corner_radius}`:""}`;
+  return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, CR ${it.corner_radius}`:""}`;
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
@@ -1306,7 +1306,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
                   <Field label="Fabrication Rate" value={it.fabrication_rate}/>
                   <Field label="Copper Price" value={it.copper_price}/>
-                  <Field label="Final Price" value={fp!=null?`₹${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
+                  <Field label="Final Price" value={fp!=null?`₹ ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
                   <Field label="Packing" value={it.packing}/>
                 </div>
                 {it.remarks&&(
