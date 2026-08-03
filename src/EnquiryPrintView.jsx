@@ -72,7 +72,6 @@ export function printEnquiry(enquiry){
         ["Fabrication Rate",it.fabrication_rate?`₹ ${it.fabrication_rate}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
         ["Copper Price",it.copper_price?`₹ ${it.copper_price}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
       ]:[]),
-      ["Remarks",it.remarks],
     ].filter(([,v])=>v);
     const listRows=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`);
     const perCol=Math.ceil(listRows.length/4);
@@ -81,6 +80,7 @@ export function printEnquiry(enquiry){
     return `
     <div class="item-block">
       ${listHtml}
+      ${it.remarks?`<div class="item-remarks"><b>Remarks:</b> ${esc(it.remarks)}</div>`:""}
       ${fp!=null?`<div class="final-price">The final price is ₹ ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
     </div>`;
   }).join("");
@@ -106,6 +106,7 @@ export function printEnquiry(enquiry){
   .offer-no{width:16px;flex-shrink:0;color:#555;}
   .offer-label{width:80px;flex-shrink:0;font-weight:600;}
   .final-price{padding:10px 0 4px 20px;font-size:13px;font-weight:700;}
+  .item-remarks{padding:8px 0 0 20px;font-size:12px;}
   .enq-no-line{padding:12px 20px 0;font-size:12px;font-weight:600;}
   .offer-intro{padding:8px 20px 4px;font-size:13px;font-weight:600;}
   @media print{
