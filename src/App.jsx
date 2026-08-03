@@ -863,7 +863,8 @@ function TenderTab({profile,showToast}){
   }
 
   if(viewTender){
-    return <TenderDetailView tender={viewTender} onBack={()=>setViewTender(null)}/>;
+    const live=tenders.find(x=>x.id===viewTender.id)||viewTender;
+    return <TenderDetailView tender={live} profile={profile} showToast={showToast} onBack={()=>setViewTender(null)}/>;
   }
 
   if(showForm||editTender){
@@ -936,8 +937,10 @@ function TenderTab({profile,showToast}){
 // Opened by clicking the Tender No cell — pure display, no inputs, no
 // Update/Cancel/Delete. Editing still only happens via the row's own Edit
 // button, which opens the existing TenderForm exactly as before.
-function TenderDetailView({tender:t,onBack}){
+function TenderDetailView({tender:t,profile,showToast,onBack}){
   const overdue=isOverdue(t.due_date);
+  const canManage=profile.role==="admin"||profile.role==="sales";
+  const [converting,setConverting]=useState(false);
   const Field=({label,value})=>(
     <div>
       <div style={{fontSize:11,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".04em",marginBottom:4}}>{label}</div>
@@ -945,14 +948,42 @@ function TenderDetailView({tender:t,onBack}){
     </div>
   );
 
+  if(converting){
+    // Pre-fill a brand-new WO (no id → OrderForm treats this as "New Work
+    // Order", generating its own WO number) from what the tender already
+    // has. Tender's Size stays free text (not restructured), so dimensions
+    // aren't auto-filled — quantity and delivery date are both fully
+    // editable here regardless, same as any WO. Repeatable: converting more
+    // than once just adds another entry to linked_wos.
+    const prefill={
+      customer_name:t.company||"",
+      quantity:t.quantity||"",
+      quantity_unit:t.uom&&["kg","nos"].includes(t.uom)?t.uom:"kg",
+      insulation:[{scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""}],
+      remarks:`From Tender ${t.tender_number||""}${t.size?` — ${t.size}`:""}`.trim(),
+    };
+    return <OrderForm
+      profile={profile}
+      existing={prefill}
+      showToast={showToast}
+      onClose={()=>setConverting(false)}
+      onSaved={async({id,wo_number})=>{
+        await updateDoc(doc(db,"tenders",t.id),{
+          linked_wos:arrayUnion({wo_id:id,wo_number,created_at:new Date().toISOString()}),
+        });
+      }}
+    />;
+  }
+
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
         <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
         <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{t.tender_number||"Tender"}</div>
+        {canManage&&<button className="btn-primary" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order</button>}
       </div>
 
-      <div className="card" style={{padding:20}}>
+      <div className="card" style={{padding:20,marginBottom:16}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,marginBottom:20}}>
           <Field label="Tender Number" value={t.tender_number}/>
           <Field label="Tender Date" value={t.tender_date?formatDate(t.tender_date):null}/>
@@ -966,6 +997,23 @@ function TenderDetailView({tender:t,onBack}){
           <Field label="BME/Copper Price" value={t.bme_copper_price}/>
           <Field label="Bid Due Date" value={t.due_date?<span style={{color:overdue?"#dc2626":"#1a1f2e",fontWeight:overdue?600:400}}>{formatDate(t.due_date)}{overdue&&" ⚠"}</span>:null}/>
         </div>
+      </div>
+
+      <div className="card" style={{padding:20}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Work orders generated from this tender</div>
+        {(t.linked_wos||[]).length===0
+          ?<div style={{fontSize:13,color:"#9ca3af"}}>None yet — use "Create Work Order" above.</div>
+          :(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {t.linked_wos.map((w,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0",borderBottom:i<t.linked_wos.length-1?"1px solid #f3f4f6":undefined}}>
+                  <span style={{fontWeight:600,color:"#1a1f2e"}}>{w.wo_number}</span>
+                  <span style={{color:"#9ca3af"}}>{w.created_at?formatDate(w.created_at):"—"}</span>
+                </div>
+              ))}
+            </div>
+          )
+        }
       </div>
     </div>
   );
