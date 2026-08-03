@@ -62,6 +62,7 @@ export function printEnquiry(enquiry){
       ["Freight",enquiry.freight],
       ["GST",enquiry.gst],
       ["Validity",validity],
+      ...(it.show_breakdown?[["Fabrication Rate",it.fabrication_rate],["Copper Price",it.copper_price]]:[]),
       ["Remarks",it.remarks],
     ].filter(([,v])=>v);
     const listRows=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`);

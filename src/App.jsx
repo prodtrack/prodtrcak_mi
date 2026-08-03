@@ -1304,8 +1304,8 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   <Field label="Insulation Type" value={it.insulation_type}/>
                   <Field label="Covering (mm)" value={it.covering}/>
                   <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
-                  <Field label="Fabrication Rate" value={it.fabrication_rate}/>
-                  <Field label="Copper Price" value={it.copper_price}/>
+                  {it.show_breakdown&&<Field label="Fabrication Rate" value={it.fabrication_rate}/>}
+                  {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price}/>}
                   <Field label="Final Price" value={fp!=null?`₹ ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
                   <Field label="Packing" value={it.packing}/>
                 </div>
@@ -1352,14 +1352,14 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:""}]);}
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
@@ -1523,6 +1523,10 @@ function EnquiryForm({existing,profile,showToast,onClose}){
               <div>
                 <label style={labelStyle}>Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
                 <input style={fieldStyle} value={it.copper_price} onChange={e=>updateItem(i,"copper_price",e.target.value)}/>
+              </div>
+              <div style={{gridColumn:"1 / -1",display:"flex",alignItems:"center",gap:8,paddingTop:2}}>
+                <input type="checkbox" id={`show-breakdown-${i}`} checked={!!it.show_breakdown} onChange={e=>updateItem(i,"show_breakdown",e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+                <label htmlFor={`show-breakdown-${i}`} style={{fontSize:12,color:"#374151",cursor:"pointer"}}>Show Fabrication rate and Copper price separately <span style={{color:"#9ca3af"}}>(otherwise only the combined Final Price is shown)</span></label>
               </div>
               <div>
                 <label style={labelStyle}>Packing</label>
