@@ -19,6 +19,7 @@ import PurchaseTab from "./purchase/PurchaseTab.jsx";
 import { COMPANY_LOGO_DATA_URI } from "./purchase/companyLogo.js";
 import { printWorkOrder } from "./WOPrintView.jsx";
 import { printEnquiry } from "./EnquiryPrintView.jsx";
+import { printTender } from "./TenderPrintView.jsx";
 import SelectOrCustom from "./purchase/PurchaseFormControls.jsx";
 
 // ─── Constants (work order specific) ───────────────────────────────────────────
@@ -862,6 +863,26 @@ function TenderTab({profile,showToast}){
     showToast("Tender deleted");
   }
 
+  function exportExcel(){
+    const rows=tenders.map(t=>({
+      "Tender No":t.tender_number||"","Tender Date":t.tender_date?formatDate(t.tender_date):"",
+      "LOI No":t.loi_no||"","Spec No":t.specification_number||"","Company":t.company||"",
+      "Size":itemSizeLabel(t)||t.size||"",
+      "Covering (mm)":t.conductor_type==="ctc"?"":(t.covering||""),
+      "Covering 1 (mm)":t.conductor_type==="ctc"?(t.covering_1||""):"",
+      "Covering 2 (mm)":t.conductor_type==="ctc"?(t.covering_2||""):"",
+      "Insulation Type":t.insulation_type||"","Quantity":t.quantity??"","UOM":t.uom||"",
+      "Fabrication Rate":t.fabrication_rate||"","BME/Copper Price":t.bme_copper_price||"",
+      "Bid Due Date":t.due_date?formatDate(t.due_date):"",
+      "WOs Generated":(t.linked_wos||[]).length||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Tenders");
+    XLSX.writeFile(wb,`Tenders_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(viewTender){
     const live=tenders.find(x=>x.id===viewTender.id)||viewTender;
     return <TenderDetailView tender={live} profile={profile} showToast={showToast} onBack={()=>setViewTender(null)}/>;
@@ -876,7 +897,10 @@ function TenderTab({profile,showToast}){
       <div style={{marginBottom:16}}><SectionHeader mono="Sales" title="Tender" sub="Tender tracking — manual entry"/></div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div style={{fontSize:14,fontWeight:600}}>{tenders.length} tender{tenders.length!==1?"s":""}</div>
-        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Tender</button>}
+        <div style={{display:"flex",gap:10}}>
+          {tenders.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Tender</button>}
+        </div>
       </div>
 
       {dueSoon.length>0&&(
@@ -991,7 +1015,8 @@ function TenderDetailView({tender:t,profile,showToast,onBack}){
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
         <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
         <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{t.tender_number||"Tender"}</div>
-        {canManage&&<button className="btn-primary" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order</button>}
+        {canManage&&<button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"7px 14px"}} onClick={()=>printTender(t)}><Icon name="printer" size={12}/>Print</button>}
+        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setConverting(true)}><Icon name="plus" size={12}/>Create Work Order</button>}
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
