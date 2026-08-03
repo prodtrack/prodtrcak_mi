@@ -51,10 +51,7 @@ export function printTender(tender){
   ].filter(([,v])=>v);
 
   const listRows=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`);
-  const half=Math.ceil(listRows.length/2);
-  const col1=listRows.slice(0,half).join("");
-  const col2=listRows.slice(half).join("");
-  const listHtml=`<div class="offer-cols"><div class="offer-col">${col1}</div><div class="offer-col">${col2}</div></div>`;
+  const listHtml=listRows.join("");
 
   const html=`<!DOCTYPE html>
 <html>
@@ -72,8 +69,6 @@ export function printTender(tender){
   .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
   .tender-no-line{padding:12px 20px 0;font-size:12px;font-weight:600;}
   .item-block{padding:16px 20px;}
-  .offer-cols{display:flex;gap:40px;}
-  .offer-col{flex:1;min-width:0;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:120px;flex-shrink:0;font-weight:600;}
