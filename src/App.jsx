@@ -1296,6 +1296,7 @@ function EnquiryTab({profile,showToast}){
           "No. of Conductors/Strands":it.conductor_type==="ctc"?(it.no_of_conductors||""):"",
           "Type of Interleaving Paper":it.conductor_type==="ctc"?(it.interleaving_paper_type||""):"",
           "Thick. of Interleaving Paper (mm)":it.conductor_type==="ctc"?(it.interleaving_paper_thickness||""):"",
+          "Paper Type":it.conductor_type==="ctc"?(it.paper_type||""):"",
           "Quantity":it.quantity??"","UOM":it.uom||"","Fabrication Rate":it.fabrication_rate||"",
           "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"",
           "Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
@@ -1479,6 +1480,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                       <Field label="No. of Conductors/Strands" value={it.no_of_conductors}/>
                       <Field label="Type of Interleaving Paper" value={it.interleaving_paper_type}/>
                       <Field label="Thick. of Interleaving Paper (mm)" value={it.interleaving_paper_thickness}/>
+                      <Field label="Paper Type" value={it.paper_type}/>
                     </>
                   ):(
                     <Field label="Covering (mm)" value={it.covering}/>
@@ -1532,14 +1534,14 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);}
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
@@ -1706,6 +1708,10 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                   <div>
                     <label style={labelStyle}>Thick. of Interleaving Paper (mm)</label>
                     <input style={fieldStyle} type="number" min="0" step="0.001" value={it.interleaving_paper_thickness} onChange={e=>updateItem(i,"interleaving_paper_thickness",e.target.value)} placeholder="e.g. 0.100"/>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Paper Type</label>
+                    <input style={fieldStyle} value={it.paper_type} onChange={e=>updateItem(i,"paper_type",e.target.value)} placeholder="Paper type"/>
                   </div>
                 </>
               ):(
