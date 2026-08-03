@@ -80,7 +80,7 @@ export function printEnquiry(enquiry){
     return `
     <div class="item-block">
       ${listHtml}
-      ${it.remarks?`<div class="item-remarks"><b>Remarks:</b> ${esc(it.remarks)}</div>`:""}
+      ${it.remarks&&it.remarks.trim()?`<div class="item-remarks"><b>Remarks:</b> ${esc(it.remarks)}</div>`:""}
       ${fp!=null?`<div class="final-price">The final price is ₹ ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
     </div>`;
   }).join("");
