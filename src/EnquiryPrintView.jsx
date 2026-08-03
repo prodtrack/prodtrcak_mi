@@ -57,8 +57,8 @@ export function printEnquiry(enquiry){
       ...(it.conductor_type==="ctc"
         ?[["Covering 1",it.covering_1?`${it.covering_1}mm`:null],["Covering 2",it.covering_2?`${it.covering_2}mm`:null],
           ["No. of Paper",it.no_of_paper],["No. of Conductors/Strands",it.no_of_conductors],
-          ["Type of Interleaving Paper",it.interleaving_paper_type],
-          ["Thick. of Interleaving Paper",it.interleaving_paper_thickness?`${it.interleaving_paper_thickness}mm`:null],
+          ["Type of Insulation Paper",it.interleaving_paper_type],
+          ["Thick. of Insulation Paper",it.interleaving_paper_thickness?`${it.interleaving_paper_thickness}mm`:null],
           ["Paper Type",it.paper_type]]
         :[["Covering",it.covering?`${it.covering}mm`:null]]),
       ["Packing",it.packing],

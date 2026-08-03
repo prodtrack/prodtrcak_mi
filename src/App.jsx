@@ -1294,8 +1294,8 @@ function EnquiryTab({profile,showToast}){
           "Covering 2 (mm)":it.conductor_type==="ctc"?(it.covering_2||""):"",
           "No. of Paper":it.conductor_type==="ctc"?(it.no_of_paper||""):"",
           "No. of Conductors/Strands":it.conductor_type==="ctc"?(it.no_of_conductors||""):"",
-          "Type of Interleaving Paper":it.conductor_type==="ctc"?(it.interleaving_paper_type||""):"",
-          "Thick. of Interleaving Paper (mm)":it.conductor_type==="ctc"?(it.interleaving_paper_thickness||""):"",
+          "Type of Insulation Paper":it.conductor_type==="ctc"?(it.interleaving_paper_type||""):"",
+          "Thick. of Insulation Paper (mm)":it.conductor_type==="ctc"?(it.interleaving_paper_thickness||""):"",
           "Paper Type":it.conductor_type==="ctc"?(it.paper_type||""):"",
           "Quantity":it.quantity??"","UOM":it.uom||"","Fabrication Rate":it.fabrication_rate||"",
           "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"",
@@ -1478,8 +1478,8 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                       <Field label="Covering 2 (mm)" value={it.covering_2}/>
                       <Field label="No. of Paper" value={it.no_of_paper}/>
                       <Field label="No. of Conductors/Strands" value={it.no_of_conductors}/>
-                      <Field label="Type of Interleaving Paper" value={it.interleaving_paper_type}/>
-                      <Field label="Thick. of Interleaving Paper (mm)" value={it.interleaving_paper_thickness}/>
+                      <Field label="Type of Insulation Paper" value={it.interleaving_paper_type}/>
+                      <Field label="Thick. of Insulation Paper (mm)" value={it.interleaving_paper_thickness}/>
                       <Field label="Paper Type" value={it.paper_type}/>
                     </>
                   ):(
@@ -1702,11 +1702,11 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                     <input style={fieldStyle} type="number" min="0" step="1" value={it.no_of_conductors} onChange={e=>updateItem(i,"no_of_conductors",e.target.value)} placeholder="0"/>
                   </div>
                   <div>
-                    <label style={labelStyle}>Type of Interleaving Paper</label>
+                    <label style={labelStyle}>Type of Insulation Paper</label>
                     <input style={fieldStyle} value={it.interleaving_paper_type} onChange={e=>updateItem(i,"interleaving_paper_type",e.target.value)} placeholder="e.g. Crepe paper"/>
                   </div>
                   <div>
-                    <label style={labelStyle}>Thick. of Interleaving Paper (mm)</label>
+                    <label style={labelStyle}>Thick. of Insulation Paper (mm)</label>
                     <input style={fieldStyle} type="number" min="0" step="0.001" value={it.interleaving_paper_thickness} onChange={e=>updateItem(i,"interleaving_paper_thickness",e.target.value)} placeholder="e.g. 0.100"/>
                   </div>
                   <div>
