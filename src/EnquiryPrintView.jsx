@@ -85,7 +85,7 @@ export function printEnquiry(enquiry){
   .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:8px;}
   .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .item-block{padding:16px 20px;border-bottom:1px solid #e5e7eb;}
+  .item-block{padding:16px 20px;border-bottom:1px solid #9ca3af;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:90px;flex-shrink:0;font-weight:600;}
