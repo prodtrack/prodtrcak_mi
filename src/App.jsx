@@ -165,9 +165,9 @@ function MainApp({user,profile}){
   const canDispatch=isAdmin||["sales"].includes(profile.role)||profile.dispatch_access!==false;
 
   const TABS=[
-    ...(canWO?[{id:"dashboard",label:"Work Orders"}]:[]),
     ...(canEnquiry?[{id:"enquiry",label:"Enquiry"}]:[]),
     ...(canTender?[{id:"tender",label:"Tender"}]:[]),
+    ...(canWO?[{id:"dashboard",label:"Work Orders"}]:[]),
     ...(canPurchase?[{id:"purchase",label:"Purchase"}]:[]),
     ...(canInventory?[{id:"inventory",label:"Inventory"}]:[]),
     ...(canDispatch?[{id:"dispatch",label:"Dispatch"}]:[]),
