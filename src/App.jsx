@@ -389,7 +389,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
   const statusColors={in_progress:{bg:"#eff6ff",c:"#1d4ed8"},ready_dispatch:{bg:"#f0fdf4",c:"#16a34a"},dispatched:{bg:"#f3f4f6",c:"#6b7280"},on_hold:{bg:"#fffbeb",c:"#b45309"},cancelled:{bg:"#fef2f2",c:"#dc2626"}};
   const sc=statusColors[order.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const dims=order.conductor_type==="conductor"
-    ?`${order.dimensions?.width}×${order.dimensions?.thickness}mm${order.dimensions?.cornerRadius?` R${order.dimensions.cornerRadius}`:""}`
+    ?`${order.dimensions?.width}×${order.dimensions?.thickness}mm${order.dimensions?.cornerRadius?`, CR ${order.dimensions.cornerRadius}`:""}`
     :`Ø${order.dimensions?.diameter}mm`;
   const insLabels=order.insulation?.map(ins=>`${ins.scheme}·${ins.tempIndex}`).join("  ");
   return(
@@ -601,7 +601,7 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
                 </div>
               ))}
             </div>
-            {dims.width&&dims.thickness&&<div style={{...S,fontSize:11,color:"#6b7280",marginTop:8}}>{dims.width} × {dims.thickness} mm{dims.cornerRadius?`, R${dims.cornerRadius}`:""}</div>}
+            {dims.width&&dims.thickness&&<div style={{...S,fontSize:11,color:"#6b7280",marginTop:8}}>{dims.width} × {dims.thickness} mm{dims.cornerRadius?`, CR ${dims.cornerRadius}`:""}</div>}
           </>
         )}
         {conductorType==="wire"&&(
