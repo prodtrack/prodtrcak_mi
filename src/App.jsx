@@ -908,7 +908,7 @@ function TenderTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S}}>{t.loi_no||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.specification_number||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.company||"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{t.size||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{itemSizeLabel(t)||t.size||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{t.insulation_type||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.quantity||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.uom||"—"}</td>
@@ -950,17 +950,28 @@ function TenderDetailView({tender:t,profile,showToast,onBack}){
 
   if(converting){
     // Pre-fill a brand-new WO (no id → OrderForm treats this as "New Work
-    // Order", generating its own WO number) from what the tender already
-    // has. Tender's Size stays free text (not restructured), so dimensions
-    // aren't auto-filled — quantity and delivery date are both fully
-    // editable here regardless, same as any WO. Repeatable: converting more
-    // than once just adds another entry to linked_wos.
+    // Order", generating its own WO number) from what the tender has.
+    // Structured dimensions (width/thickness/diameter/covering) now
+    // auto-fill for tenders created after the Size restructure; older
+    // tenders that only have the legacy free-text `size` fall back to
+    // showing it in the remarks note instead, with dimensions left blank
+    // for manual entry. Quantity and delivery date are both fully editable
+    // here regardless. Repeatable: converting more than once just adds
+    // another entry to linked_wos.
+    const hasStructuredDims=t.conductor_type&&(t.width||t.thickness||t.diameter);
+    const dims=t.conductor_type==="wire"
+      ?{diameter:t.diameter||""}
+      :{width:t.width||"",thickness:t.thickness||"",cornerRadius:t.corner_radius||""};
     const prefill={
       customer_name:t.company||"",
+      ...(hasStructuredDims?{conductor_type:t.conductor_type||"conductor",product_type:t.product_type||"conductor",dimensions:dims}:{}),
       quantity:t.quantity||"",
       quantity_unit:t.uom&&["kg","nos"].includes(t.uom)?t.uom:"kg",
-      insulation:[{scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""}],
-      remarks:`From Tender ${t.tender_number||""}${t.size?` — ${t.size}`:""}`.trim(),
+      insulation:t.conductor_type==="ctc"
+        ?[{scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:t.covering_1||"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""},
+          {scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:t.covering_2||"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""}]
+        :[{scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:t.covering||"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""}],
+      remarks:`From Tender ${t.tender_number||""}${!hasStructuredDims&&t.size?` — ${t.size}`:""}`.trim(),
     };
     return <OrderForm
       profile={profile}
@@ -990,7 +1001,15 @@ function TenderDetailView({tender:t,profile,showToast,onBack}){
           <Field label="LOI No." value={t.loi_no}/>
           <Field label="Specification No." value={t.specification_number}/>
           <Field label="Company" value={t.company}/>
-          <Field label="Size" value={t.size}/>
+          <Field label="Size" value={itemSizeLabel(t)||t.size}/>
+          {t.conductor_type==="ctc"?(
+            <>
+              <Field label="Covering 1 (mm)" value={t.covering_1}/>
+              <Field label="Covering 2 (mm)" value={t.covering_2}/>
+            </>
+          ):(
+            <Field label="Covering (mm)" value={t.covering}/>
+          )}
           <Field label="Insulation Type" value={t.insulation_type}/>
           <Field label="Quantity" value={t.quantity!=null?`${t.quantity}${t.uom?` ${t.uom}`:""}`:null}/>
           <Field label="Fabrication Rate" value={t.fabrication_rate}/>
@@ -1026,7 +1045,15 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
   const [loiNo,setLoiNo]=useState(existing?.loi_no||"");
   const [specNumber,setSpecNumber]=useState(existing?.specification_number||"");
   const [company,setCompany]=useState(existing?.company||"");
-  const [size,setSize]=useState(existing?.size||"");
+  const [conductorType,setConductorType]=useState(existing?.conductor_type||"conductor");
+  const [productType,setProductType]=useState(existing?.product_type||"conductor");
+  const [width,setWidth]=useState(existing?.width||"");
+  const [thickness,setThickness]=useState(existing?.thickness||"");
+  const [cornerRadius,setCornerRadius]=useState(existing?.corner_radius||"");
+  const [diameter,setDiameter]=useState(existing?.diameter||"");
+  const [covering,setCovering]=useState(existing?.covering||"");
+  const [covering1,setCovering1]=useState(existing?.covering_1||"");
+  const [covering2,setCovering2]=useState(existing?.covering_2||"");
   const [insulationType,setInsulationType]=useState(existing?.insulation_type||"");
   const [quantity,setQuantity]=useState(existing?.quantity||"");
   const [uom,setUom]=useState(existing?.uom||"");
@@ -1047,7 +1074,12 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
     try{
       const payload={
         tender_number:tenderNumber.trim(),tender_date:tenderDate||null,loi_no:loiNo.trim()||null,
-        specification_number:specNumber.trim()||null,company:company.trim()||null,size:size.trim()||null,
+        specification_number:specNumber.trim()||null,company:company.trim()||null,
+        conductor_type:conductorType||null,product_type:productType||null,
+        width:width||null,thickness:thickness||null,corner_radius:cornerRadius||null,diameter:diameter||null,
+        covering:conductorType==="ctc"?null:(covering||null),
+        covering_1:conductorType==="ctc"?(covering1||null):null,
+        covering_2:conductorType==="ctc"?(covering2||null):null,
         insulation_type:insulationType||null,quantity:quantity||null,uom:uom||null,
         fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,due_date:dueDate||null,
         updated_at:serverTimestamp(),
@@ -1094,10 +1126,64 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
           <div>
             <FuzzyAutocomplete label="Company" value={company} onChange={setCompany} options={customerMaster} displayKey="name" placeholder="Start typing…"/>
           </div>
-          <div>
-            <label style={labelStyle}>Size</label>
-            <input style={fieldStyle} value={size} onChange={e=>setSize(e.target.value)} placeholder="e.g. 10x8mm"/>
+        </div>
+
+        {/* Conductor type — same toggle set as WO/Enquiry, so this data
+            lines up 1:1 with WO dimensions on conversion. */}
+        <div style={{marginBottom:14}}>
+          <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:conductorType!=="wire"?10:0}}>
+            {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:conductorType===v?"#fff":"#f3f4f6",color:conductorType===v?"#1a1f2e":"#6b7280",fontWeight:conductorType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{setConductorType(v);if(v==="wire")setProductType("wire");else if(v==="ctc")setProductType("conductor");}}>{l}</button>)}
           </div>
+          {conductorType!=="wire"&&(
+            <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
+              {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:productType===v?"#fff":"#f3f4f6",color:productType===v?"#1a1f2e":"#6b7280",fontWeight:productType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>setProductType(v)}>{l}</button>)}
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          {conductorType!=="wire"&&(
+            <>
+              <div>
+                <label style={labelStyle}>Width (mm)</label>
+                <input style={fieldStyle} type="number" min="0" step="0.01" value={width} onChange={e=>setWidth(e.target.value)} placeholder="0.00"/>
+              </div>
+              <div>
+                <label style={labelStyle}>Thickness (mm)</label>
+                <input style={fieldStyle} type="number" min="0" step="0.01" value={thickness} onChange={e=>setThickness(e.target.value)} placeholder="0.00"/>
+              </div>
+              <div>
+                <label style={labelStyle}>Corner R (mm)</label>
+                <input style={fieldStyle} type="number" min="0" step="0.01" value={cornerRadius} onChange={e=>setCornerRadius(e.target.value)} placeholder="0.00"/>
+              </div>
+            </>
+          )}
+          {conductorType==="wire"&&(
+            <div>
+              <label style={labelStyle}>Diameter (mm)</label>
+              <input style={fieldStyle} type="number" min="0" step="0.01" value={diameter} onChange={e=>setDiameter(e.target.value)} placeholder="0.00"/>
+            </div>
+          )}
+          {conductorType==="ctc"?(
+            <>
+              <div>
+                <label style={labelStyle}>Covering 1 (mm)</label>
+                <input style={fieldStyle} type="number" min="0" step="0.001" value={covering1} onChange={e=>setCovering1(e.target.value)} placeholder="e.g. 0.250"/>
+              </div>
+              <div>
+                <label style={labelStyle}>Covering 2 (mm)</label>
+                <input style={fieldStyle} type="number" min="0" step="0.001" value={covering2} onChange={e=>setCovering2(e.target.value)} placeholder="e.g. 0.250"/>
+              </div>
+            </>
+          ):(
+            <div>
+              <label style={labelStyle}>Covering (mm)</label>
+              <input style={fieldStyle} type="number" min="0" step="0.001" value={covering} onChange={e=>setCovering(e.target.value)} placeholder="e.g. 0.250"/>
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div>
             <label style={labelStyle}>Insulation type</label>
             <select style={fieldStyle} value={insulationType} onChange={e=>setInsulationType(e.target.value)}>
