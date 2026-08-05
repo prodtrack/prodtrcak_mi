@@ -43,6 +43,7 @@ function itemSizeLabel(it){
   if(!it.width&&!it.thickness)return"";
   return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, CR ${it.corner_radius}`:""}`;
 }
+const CURRENCY_SYMBOLS={INR:"₹",USD:"$",EUR:"€"};
 
 export function printEnquiry(enquiry){
   const company=COMPANY_INFO.Bidadi||{};
@@ -69,8 +70,8 @@ export function printEnquiry(enquiry){
       ["GST",enquiry.gst],
       ["Validity",validity],
       ...(it.show_breakdown?[
-        ["Fabrication Rate",it.fabrication_rate?`₹ ${it.fabrication_rate}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
-        ["Copper Price",it.copper_price?`₹ ${it.copper_price}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
+        ["Fabrication Rate",it.fabrication_rate?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${it.fabrication_rate}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
+        ["Copper Price",it.copper_price?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${it.copper_price}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
       ]:[]),
     ].filter(([,v])=>v);
     const listRows=rows.map(([k,v],idx)=>`<div class="offer-row"><span class="offer-no">${idx+1}.</span><span class="offer-label">${esc(k)}:</span><span>${esc(v)}</span></div>`);
@@ -79,7 +80,7 @@ export function printEnquiry(enquiry){
     <div class="item-block">
       ${listHtml}
       ${it.remarks&&it.remarks.trim()?`<div class="item-remarks"><b>Remarks:</b> ${esc(it.remarks)}</div>`:""}
-      ${fp!=null?`<div class="final-price">The final price is ₹ ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
+      ${fp!=null?`<div class="final-price">The final price is ${CURRENCY_SYMBOLS[it.currency||"INR"]} ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
     </div>`;
   }).join("");
 

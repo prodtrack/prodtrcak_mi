@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged,
 } from "firebase/auth";
 import {
-  collection, doc, getDoc, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDoc, addDoc, updateDoc, deleteDoc, setDoc,
   onSnapshot, query, orderBy, runTransaction, serverTimestamp, where, arrayUnion,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -86,6 +86,22 @@ function itemSizeLabel(it){
   if(it.conductor_type==="wire")return it.diameter?`Ø ${it.diameter} mm`:"";
   if(!it.width&&!it.thickness)return"";
   return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, CR ${it.corner_radius}`:""}`;
+}
+
+const CURRENCY_SYMBOLS={INR:"₹",USD:"$",EUR:"€"};
+// Converts an amount from one currency to another via INR as the pivot,
+// using the admin/sales-set rates ({usd_to_inr, eur_to_inr}). Always uses
+// whatever rate is passed in — callers pass the current rate, never a
+// historical one.
+function convertCurrency(amount,fromCur,toCur,rates){
+  const n=parseFloat(amount);
+  if(isNaN(n))return"";
+  if(fromCur===toCur)return amount;
+  const usd=rates?.usd_to_inr||1,eur=rates?.eur_to_inr||1;
+  const toINR={INR:1,USD:usd,EUR:eur};
+  const inINR=n*(toINR[fromCur]||1);
+  const converted=inINR/(toINR[toCur]||1);
+  return String(Math.round(converted*100)/100);
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
@@ -1259,6 +1275,48 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
 // Orders (different sizes from the same enquiry are common), tracked via
 // linked_wos on the enquiry document. Conversion reuses OrderForm exactly
 // as-is — the resulting WO is a completely normal, fully-editable WO.
+// Small popup for setting the USD/EUR-to-INR exchange rates used to
+// convert Enquiry item prices. Accessible to the same admin/sales users
+// who can manage Enquiry — not Admin-only. Stored once in Firestore
+// (settings/exchange_rates), shared by every enquiry; always read as the
+// current rate at conversion time, never locked to a historical value.
+function RatesModal({rates,profile,showToast,onClose}){
+  const [usd,setUsd]=useState(rates?.usd_to_inr||"");
+  const [eur,setEur]=useState(rates?.eur_to_inr||"");
+  const [saving,setSaving]=useState(false);
+
+  async function save(){
+    setSaving(true);
+    try{
+      await setDoc(doc(db,"settings","exchange_rates"),{
+        usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,
+        updated_at:serverTimestamp(),updated_by:profile.name||auth.currentUser.email,
+      },{merge:true});
+      showToast("Exchange rates saved");
+      onClose();
+    }catch(e){showToast("Save failed: "+e.message,"error");}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={onClose}>
+      <div className="card" style={{padding:20,width:320}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontSize:14,fontWeight:600}}>Exchange rates</div>
+          <button className="btn-ghost" style={{padding:"3px 8px"}} onClick={onClose}><Icon name="x" size={14}/></button>
+        </div>
+        <label style={labelStyle}>1 USD =</label>
+        <input style={{...fieldStyle,marginBottom:12}} type="number" min="0" step="0.01" value={usd} onChange={e=>setUsd(e.target.value)} placeholder="e.g. 83.00"/>
+        <label style={labelStyle}>1 EUR =</label>
+        <input style={{...fieldStyle,marginBottom:6}} type="number" min="0" step="0.01" value={eur} onChange={e=>setEur(e.target.value)} placeholder="e.g. 90.00"/>
+        {rates?.updated_at&&<div style={{fontSize:11,color:"#9ca3af",marginBottom:14}}>Last updated: {formatDate(rates.updated_at?.toDate?rates.updated_at.toDate():rates.updated_at)}</div>}
+        <button className="btn-primary" style={{width:"100%",justifyContent:"center",marginTop:8}} disabled={saving} onClick={save}>{saving?"Saving…":"Save rates"}</button>
+      </div>
+    </div>
+  );
+}
+
+
 function EnquiryTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
   const canManage=isAdmin||profile.role==="sales";
@@ -1266,11 +1324,15 @@ function EnquiryTab({profile,showToast}){
   const [showForm,setShowForm]=useState(false);
   const [editEnquiry,setEditEnquiry]=useState(null);
   const [viewEnquiry,setViewEnquiry]=useState(null);
+  const [rates,setRates]=useState(null);
+  const [showRates,setShowRates]=useState(false);
 
   useEffect(()=>{
     const q=query(collection(db,"enquiries"),orderBy("created_at","desc"));
     return onSnapshot(q,snap=>setEnquiries(snap.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
+
+  useEffect(()=>onSnapshot(doc(db,"settings","exchange_rates"),snap=>setRates(snap.exists()?snap.data():null)),[]);
 
   async function removeEnquiry(e){
     if(!window.confirm(`Delete enquiry ${e.enq_number||"(no number)"}? This cannot be undone.`))return;
@@ -1297,7 +1359,7 @@ function EnquiryTab({profile,showToast}){
           "Type of Insulation Paper":it.conductor_type==="ctc"?(it.interleaving_paper_type||""):"",
           "Thick. of Insulation Paper (mm)":it.conductor_type==="ctc"?(it.interleaving_paper_thickness||""):"",
           "Paper Type":it.conductor_type==="ctc"?(it.paper_type||""):"",
-          "Quantity":it.quantity??"","UOM":it.uom||"","Fabrication Rate":it.fabrication_rate||"",
+          "Quantity":it.quantity??"","UOM":it.uom||"","Currency":it.currency||"INR","Fabrication Rate":it.fabrication_rate||"",
           "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"",
           "Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
           "Tolerance":e.tolerance||"","Freight":e.freight||"","GST":e.gst||"",
@@ -1330,9 +1392,12 @@ function EnquiryTab({profile,showToast}){
         <div style={{fontSize:14,fontWeight:600}}>{enquiries.length} enquir{enquiries.length!==1?"ies":"y"}</div>
         <div style={{display:"flex",gap:10}}>
           {enquiries.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canManage&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowRates(true)}><Icon name="clipboard" size={12}/>Rates</button>}
           {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Enquiry</button>}
         </div>
       </div>
+
+      {showRates&&<RatesModal rates={rates} profile={profile} showToast={showToast} onClose={()=>setShowRates(false)}/>}
 
       {enquiries.length===0
         ?<EmptyState text="No enquiries yet" sub={canManage?"Click 'New Enquiry' to add one":undefined}/>
@@ -1485,10 +1550,11 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   ):(
                     <Field label="Covering (mm)" value={it.covering}/>
                   )}
+                  <Field label="Currency" value={it.currency||"INR"}/>
                   <Field label="Quantity" value={it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${it.uom}`:""}`:null}/>
-                  {it.show_breakdown&&<Field label="Fabrication Rate" value={it.fabrication_rate?`₹ ${it.fabrication_rate}${it.uom?` / ${it.uom}`:""}`:null}/>}
-                  {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price?`₹ ${it.copper_price}${it.uom?` / ${it.uom}`:""}`:null}/>}
-                  <Field label="Final Price" value={fp!=null?`₹ ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
+                  {it.show_breakdown&&<Field label="Fabrication Rate" value={it.fabrication_rate?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${it.fabrication_rate}${it.uom?` / ${it.uom}`:""}`:null}/>}
+                  {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${it.copper_price}${it.uom?` / ${it.uom}`:""}`:null}/>}
+                  <Field label="Final Price" value={fp!=null?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
                   <Field label="Packing" value={it.packing}/>
                 </div>
                 {it.remarks&&(
@@ -1534,16 +1600,30 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",show_breakdown:false}]);}
+  const [rates,setRates]=useState(null);
+  useEffect(()=>onSnapshot(doc(db,"settings","exchange_rates"),snap=>setRates(snap.exists()?snap.data():null)),[]);
+
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
+  // Switching currency converts the already-entered Fabrication rate and
+  // Copper price using the current admin/sales-set rate, rather than
+  // blanking them or leaving stale numbers in the wrong currency.
+  function changeItemCurrency(i,newCur){
+    setItems(its=>its.map((r,idx)=>{
+      if(idx!==i)return r;
+      return {...r,currency:newCur,
+        fabrication_rate:convertCurrency(r.fabrication_rate,r.currency,newCur,rates),
+        copper_price:convertCurrency(r.copper_price,r.currency,newCur,rates)};
+    }));
+  }
 
   async function save(){
     setError("");setSaving(true);
@@ -1732,11 +1812,19 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Fabrication rate</label>
+                <label style={labelStyle}>Currency</label>
+                <select style={fieldStyle} value={it.currency||"INR"} onChange={e=>changeItemCurrency(i,e.target.value)}>
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Fabrication rate ({CURRENCY_SYMBOLS[it.currency||"INR"]})</label>
                 <input style={fieldStyle} value={it.fabrication_rate} onChange={e=>updateItem(i,"fabrication_rate",e.target.value)} placeholder="Fabrication rate"/>
               </div>
               <div>
-                <label style={labelStyle}>Copper price <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
+                <label style={labelStyle}>Copper price ({CURRENCY_SYMBOLS[it.currency||"INR"]}) <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
                 <input style={fieldStyle} value={it.copper_price} onChange={e=>updateItem(i,"copper_price",e.target.value)}/>
               </div>
               <div style={{gridColumn:"1 / -1",display:"flex",alignItems:"center",gap:8,paddingTop:2}}>
