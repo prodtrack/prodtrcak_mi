@@ -2101,7 +2101,6 @@ function InventoryTab({profile,showToast}){
           <span style={{width:70,flexShrink:0,textAlign:"right"}}>Actions</span>
         </div>
 
-        <div style={{maxHeight:280,overflowY:"auto"}}>
         {materials.length===0
           ?<EmptyState text="No materials configured" sub="Click 'New Item' to add one"/>
           :filtered.length===0
@@ -2139,7 +2138,6 @@ function InventoryTab({profile,showToast}){
             );
           })
         }
-        </div>
         </div>
        </div>
       </div>
