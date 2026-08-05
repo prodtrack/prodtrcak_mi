@@ -1288,10 +1288,17 @@ function RatesModal({rates,profile,showToast,onClose}){
   async function save(){
     setSaving(true);
     try{
+      const changedBy=profile.name||auth.currentUser.email;
       await setDoc(doc(db,"settings","exchange_rates"),{
         usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,
-        updated_at:serverTimestamp(),updated_by:profile.name||auth.currentUser.email,
+        updated_at:serverTimestamp(),updated_by:changedBy,
       },{merge:true});
+      // Every save is logged permanently — the running timeline of what the
+      // rate was set to and when, visible to everyone with Enquiry access.
+      await addDoc(collection(db,"rate_history"),{
+        usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,
+        changed_at:serverTimestamp(),changed_by:changedBy,
+      });
       showToast("Exchange rates saved");
       onClose();
     }catch(e){showToast("Save failed: "+e.message,"error");}
@@ -1317,6 +1324,50 @@ function RatesModal({rates,profile,showToast,onClose}){
 }
 
 
+// Full-page list of every rate change ever saved, most recent first.
+// Visible to everyone with Enquiry access (admin + sales) — not admin-only.
+// Every entry is kept, unbounded.
+function RateHistoryView({onBack}){
+  const [history,setHistory]=useState([]);
+  useEffect(()=>{
+    const q=query(collection(db,"rate_history"),orderBy("changed_at","desc"));
+    return onSnapshot(q,snap=>setHistory(snap.docs.map(d=>({id:d.id,...d.data()}))));
+  },[]);
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Rate history</div>
+      </div>
+
+      {history.length===0
+        ?<EmptyState text="No rate changes logged yet" sub="Use 'Rates' to set the exchange rate — every save is recorded here"/>
+        :(
+          <div className="card" style={{padding:0,overflow:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
+                {["Date","1 USD =","1 EUR =","Changed by"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {history.map(h=>(
+                  <tr key={h.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                    <td style={{padding:"10px 12px",...S}}>{h.changed_at?formatDate(h.changed_at?.toDate?h.changed_at.toDate():h.changed_at):"—"}</td>
+                    <td style={{padding:"10px 12px",...S}}>₹ {h.usd_to_inr}</td>
+                    <td style={{padding:"10px 12px",...S}}>₹ {h.eur_to_inr}</td>
+                    <td style={{padding:"10px 12px"}}>{h.changed_by||"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+
 function EnquiryTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
   const canManage=isAdmin||profile.role==="sales";
@@ -1326,6 +1377,7 @@ function EnquiryTab({profile,showToast}){
   const [viewEnquiry,setViewEnquiry]=useState(null);
   const [rates,setRates]=useState(null);
   const [showRates,setShowRates]=useState(false);
+  const [showHistory,setShowHistory]=useState(false);
 
   useEffect(()=>{
     const q=query(collection(db,"enquiries"),orderBy("created_at","desc"));
@@ -1381,6 +1433,10 @@ function EnquiryTab({profile,showToast}){
     return <EnquiryDetailView enquiry={live} profile={profile} showToast={showToast} onBack={()=>setViewEnquiry(null)}/>;
   }
 
+  if(showHistory){
+    return <RateHistoryView onBack={()=>setShowHistory(false)}/>;
+  }
+
   if(showForm||editEnquiry){
     return <EnquiryForm existing={editEnquiry} profile={profile} showToast={showToast} onClose={()=>{setShowForm(false);setEditEnquiry(null);}}/>;
   }
@@ -1393,6 +1449,7 @@ function EnquiryTab({profile,showToast}){
         <div style={{display:"flex",gap:10}}>
           {enquiries.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
           {canManage&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowRates(true)}><Icon name="clipboard" size={12}/>Rates</button>}
+          <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowHistory(true)}><Icon name="clipboard" size={12}/>Rate History</button>
           {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Enquiry</button>}
         </div>
       </div>
