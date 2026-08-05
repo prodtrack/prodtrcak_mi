@@ -131,6 +131,7 @@ export default function GRNTab({profile,showToast}){
             ))}
           </div>
         )}
+        <div style={{maxHeight:280,overflowY:"auto"}}>
         {filtered.length===0
           ?<EmptyState text="No receipts yet"/>
           :filtered.map((e,i)=>(
@@ -146,6 +147,7 @@ export default function GRNTab({profile,showToast}){
             </div>
           ))
         }
+        </div>
         </div>
         </div>
       </div>
