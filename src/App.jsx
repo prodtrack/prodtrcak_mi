@@ -415,7 +415,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
 
         {/* Row 1: WO# + badges + Edit + chevron */}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap",rowGap:6}}>
           <span style={{...S,fontSize:13,fontWeight:700,color:"#1a1f2e",flexShrink:0}}>{order.wo_number}</span>
           <span style={{...S,background:order.material==="copper"?"#fffbeb":"#eff6ff",color:order.material==="copper"?"#92400e":"#1e3a5f",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,flexShrink:0}}>{order.material}</span>
           <span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,textTransform:"capitalize",flexShrink:0}}>{(order.status||"").replace(/_/g," ")}</span>
@@ -609,7 +609,7 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
             <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:14}}>
               {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} style={segStyle(productType===v)} onClick={()=>setProductType(v)}>{l}</button>)}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
               {[["Width (mm)","width"],["Thickness (mm)","thickness"],["Corner R (mm)","cornerRadius"]].map(([label,key])=>(
                 <div key={key}>
                   <label style={labelStyle}>{label}</label>
@@ -911,9 +911,9 @@ function TenderTab({profile,showToast}){
   return(
     <div>
       <div style={{marginBottom:16}}><SectionHeader mono="Sales" title="Tender" sub="Tender tracking — manual entry"/></div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{tenders.length} tender{tenders.length!==1?"s":""}</div>
-        <div style={{display:"flex",gap:10}}>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
           {tenders.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
           {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Tender</button>}
         </div>
@@ -1036,7 +1036,7 @@ function TenderDetailView({tender:t,profile,showToast,onBack}){
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,marginBottom:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:20,marginBottom:20}}>
           <Field label="Tender Number" value={t.tender_number}/>
           <Field label="Tender Date" value={t.tender_date?formatDate(t.tender_date):null}/>
           <Field label="LOI No." value={t.loi_no}/>
@@ -1444,9 +1444,9 @@ function EnquiryTab({profile,showToast}){
   return(
     <div>
       <div style={{marginBottom:16}}><SectionHeader mono="Sales" title="Enquiry" sub="Enquiry tracking — manual entry"/></div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{enquiries.length} enquir{enquiries.length!==1?"ies":"y"}</div>
-        <div style={{display:"flex",gap:10}}>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
           {enquiries.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
           {canManage&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowRates(true)}><Icon name="clipboard" size={12}/>Rates</button>}
           <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowHistory(true)}><Icon name="clipboard" size={12}/>Rate History</button>
@@ -1566,7 +1566,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
 
       <div className="card" style={{padding:20,marginBottom:16}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Enquiry details</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:20}}>
           <Field label="Enq Number" value={e.enq_number}/>
           <Field label="Enq Date" value={e.enq_date?formatDate(e.enq_date):null}/>
           <Field label="Specification No." value={e.specification_number}/>
@@ -1591,7 +1591,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   <div style={{fontSize:14,fontWeight:600,color:"#1a1f2e"}}>{it.description||`Item ${i+1}`}</div>
                   {canManage&&<button className="btn-primary" style={{fontSize:11,padding:"5px 12px",flexShrink:0}} onClick={()=>setConvertingItem(i)}><Icon name="plus" size={11}/>Create Work Order</button>}
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14}}>
                   <Field label="Size" value={itemSizeLabel(it)}/>
                   <Field label="Insulation Type" value={it.insulation_type}/>
                   {it.conductor_type==="ctc"?(
@@ -2047,7 +2047,7 @@ function InventoryTab({profile,showToast}){
         {canAddMaterial&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Item</button>}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:20}}>
         {stats.map(s=>{
           const isZeroAlert=s.label==="Items at Zero"&&s.value>0;
           return(
@@ -2214,7 +2214,7 @@ function MaterialForm({existing,vendors,showToast,onClose}){
             <input style={fieldStyle} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Copper rod / wire"/>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14,marginBottom:14}}>
           <div>
             <label style={labelStyle}>Category</label>
             <input style={fieldStyle} value={category} onChange={e=>setCategory(e.target.value)} placeholder="e.g. Copper"/>
@@ -2233,7 +2233,7 @@ function MaterialForm({existing,vendors,showToast,onClose}){
             </select>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14}}>
           <div>
             <label style={labelStyle}>Qty in stock</label>
             <input type="number" style={fieldStyle} min="0" step="0.01" value={currentStock} onChange={e=>setCurrentStock(e.target.value)}/>

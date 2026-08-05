@@ -118,10 +118,12 @@ export default function GRNTab({profile,showToast}){
 
       {/* History */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f3f4f6"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f3f4f6",flexWrap:"wrap"}}>
           <span style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",flex:1}}>Receipt History</span>
           <input style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 11px",fontSize:12,outline:"none",width:200}} placeholder="Search material / supplier / PO…" value={search} onChange={e=>setSearch(e.target.value)}/>
         </div>
+        <div style={{overflowX:"auto"}}>
+        <div style={{minWidth:560}}>
         {filtered.length>0&&(
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6"}}>
             {[["DATE",80],["MATERIAL","1"],["SUPPLIER",110],["QTY",70],["PO #",90],["BY",90]].map(([l,w])=>(
@@ -144,6 +146,8 @@ export default function GRNTab({profile,showToast}){
             </div>
           ))
         }
+        </div>
+        </div>
       </div>
     </div>
   );
