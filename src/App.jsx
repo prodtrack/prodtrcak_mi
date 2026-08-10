@@ -306,6 +306,31 @@ function DashboardTab({profile,showToast,onNavigate}){
   }
   const filtered=orders.filter(matchesFilter);
 
+  function exportExcel(){
+    const rows=filtered.map(o=>{
+      const size=o.conductor_type==="wire"
+        ?(o.dimensions?.diameter?`Ø ${o.dimensions.diameter} mm`:"")
+        :`${o.dimensions?.width||"-"} × ${o.dimensions?.thickness||"-"} mm${o.dimensions?.cornerRadius?`, CR ${o.dimensions.cornerRadius}`:""}`;
+      const totalScrap=(o.stage_history||[]).reduce((sum,h)=>sum+(parseFloat(h.scrap_qty)||0),0);
+      return{
+        "WO Number":o.wo_number||"","PO Number":o.po_number||"",
+        "PO Date":(o.po_date||o.receipt_date)?formatDate(o.po_date||o.receipt_date):"",
+        "Customer":o.customer_name||"","Material":o.material||"",
+        "Conductor Type":o.conductor_type||"","Product Type":o.product_type||"","Size":size,
+        "Specification No.":o.insulation?.map(ins=>ins.spec).filter(Boolean).join(", ")||"",
+        "Quantity":o.quantity??"","Unit":o.quantity_unit||"","Packing Qty":o.packing_qty??"",
+        "Spool Type":o.spool_type||"","Current Stage":o.current_stage||"","Status":o.status||"",
+        "Delivery Date":o.delivery_date?formatDate(o.delivery_date):"",
+        "Total Scrap":totalScrap||"","Remarks":o.remarks||"",
+      };
+    });
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Work Orders");
+    XLSX.writeFile(wb,`Work_Orders_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   function toggleExpand(id){
     setExpandedId(prev=>prev===id?null:id);
     setEditingId(null);
@@ -328,14 +353,17 @@ function DashboardTab({profile,showToast,onNavigate}){
   return(
     <div>
       {/* Header row */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:10}}>
         <div style={{display:"flex",alignItems:"baseline",gap:10}}>
           <span style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Work Orders</span>
           <span style={{fontSize:12,color:"#9ca3af"}}>{now.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</span>
         </div>
-        {canUpdate&&(
-          <button className="btn-primary" style={{fontSize:12,padding:"6px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Order</button>
-        )}
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {filtered.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canUpdate&&(
+            <button className="btn-primary" style={{fontSize:12,padding:"6px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Order</button>
+          )}
+        </div>
       </div>
 
       {/* Compact stat bar — click to filter the list below, Low Stock jumps to Inventory */}
