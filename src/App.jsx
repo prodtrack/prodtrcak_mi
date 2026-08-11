@@ -1438,7 +1438,7 @@ function WorksheetUpload({worksheet,onChange,showToast}){
 
   return(
     <div>
-      <label style={labelStyle}>Worksheet <span style={{color:"#9ca3af",fontWeight:400}}>(PDF, image, or Excel — one file per enquiry)</span></label>
+      <label style={labelStyle}>Worksheet <span style={{color:"#9ca3af",fontWeight:400}}>(PDF, image, or Excel — one file per item)</span></label>
       {!worksheet?(
         <div style={{border:"1px dashed #d1d5db",borderRadius:8,padding:"16px",textAlign:"center"}}>
           <input type="file" id="worksheet-file-input" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg" style={{display:"none"}} onChange={handleFile}/>
@@ -1985,13 +1985,13 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                 <label style={labelStyle}>Packing</label>
                 <input style={fieldStyle} value={it.packing} onChange={e=>updateItem(i,"packing",e.target.value)} placeholder="e.g. Please confirm"/>
               </div>
+              <div>
+                <WorksheetUpload worksheet={it.worksheet} onChange={w=>updateItem(i,"worksheet",w)} showToast={showToast}/>
+              </div>
             </div>
             <div style={{marginTop:12}}>
               <label style={labelStyle}>Remarks</label>
               <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={it.remarks} onChange={e=>updateItem(i,"remarks",e.target.value)} placeholder="Notes for this item…"/>
-            </div>
-            <div style={{marginTop:12}}>
-              <WorksheetUpload worksheet={it.worksheet} onChange={w=>updateItem(i,"worksheet",w)} showToast={showToast}/>
             </div>
           </div>
         ))}
