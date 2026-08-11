@@ -1669,7 +1669,6 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
           <Field label="Freight" value={e.freight}/>
           <Field label="GST" value={e.gst}/>
           <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
-          <Field label="Worksheet" value={e.worksheet?<a href={e.worksheet.url} target="_blank" rel="noopener noreferrer" style={{color:"#2563eb"}}>{e.worksheet.name}</a>:null}/>
         </div>
       </div>
 
@@ -1706,6 +1705,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${it.copper_price}${it.uom?` / ${it.uom}`:""}`:null}/>}
                   <Field label="Final Price" value={fp!=null?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
                   <Field label="Packing" value={it.packing}/>
+                  <Field label="Worksheet" value={it.worksheet?<a href={it.worksheet.url} target="_blank" rel="noopener noreferrer" style={{color:"#2563eb"}}>{it.worksheet.name}</a>:null}/>
                 </div>
                 {it.remarks&&(
                   <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #f3f4f6"}}>
@@ -1750,8 +1750,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [worksheet,setWorksheet]=useState(existing?.worksheet||null);
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
@@ -1761,7 +1760,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [rates,setRates]=useState(null);
   useEffect(()=>onSnapshot(doc(db,"settings","exchange_rates"),snap=>setRates(snap.exists()?snap.data():null)),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);}
+  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
   // Switching currency converts the already-entered Fabrication rate and
@@ -1785,7 +1784,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
-        worksheet:worksheet||null,
         items,
         updated_at:serverTimestamp(),
       };
@@ -1852,9 +1850,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
           <div>
             <label style={labelStyle}>Validity time <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
             <input style={fieldStyle} type="time" value={validityTime} onChange={e=>setValidityTime(e.target.value)}/>
-          </div>
-          <div>
-            <WorksheetUpload worksheet={worksheet} onChange={setWorksheet} showToast={showToast}/>
           </div>
         </div>
       </div>
@@ -1994,6 +1989,9 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <div style={{marginTop:12}}>
               <label style={labelStyle}>Remarks</label>
               <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={it.remarks} onChange={e=>updateItem(i,"remarks",e.target.value)} placeholder="Notes for this item…"/>
+            </div>
+            <div style={{marginTop:12}}>
+              <WorksheetUpload worksheet={it.worksheet} onChange={w=>updateItem(i,"worksheet",w)} showToast={showToast}/>
             </div>
           </div>
         ))}
