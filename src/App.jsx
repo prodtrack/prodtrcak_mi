@@ -8,6 +8,7 @@ import {
   onSnapshot, query, orderBy, runTransaction, serverTimestamp, where, arrayUnion,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import "./App.css";
 import * as XLSX from "xlsx";
 import {
@@ -1396,6 +1397,69 @@ function RateHistoryView({onBack}){
 }
 
 
+// Single-slot worksheet attachment for an Enquiry — PDF, image, or Excel.
+// One file per enquiry (not per item); re-uploading replaces the existing
+// one. Uploads immediately to Firebase Storage on file select — the
+// resulting {url,name,type,size,uploaded_at} is handed up via onChange for
+// the parent form to include in its save payload, same pattern as any
+// other form field.
+function WorksheetUpload({worksheet,onChange,showToast}){
+  const [uploading,setUploading]=useState(false);
+
+  async function handleFile(e){
+    const file=e.target.files[0];
+    e.target.value="";
+    if(!file)return;
+    setUploading(true);
+    try{
+      const storage=getStorage();
+      const path=`enquiry_worksheets/${Date.now()}_${file.name}`;
+      const fileRef=storageRef(storage,path);
+      await uploadBytes(fileRef,file);
+      const url=await getDownloadURL(fileRef);
+      // Replacing an existing worksheet — delete the old file from Storage
+      // so orphaned files don't pile up.
+      if(worksheet?.path){
+        deleteObject(storageRef(storage,worksheet.path)).catch(()=>{});
+      }
+      onChange({url,path,name:file.name,size:file.size,uploaded_at:new Date().toISOString()});
+      showToast("Worksheet uploaded");
+    }catch(err){showToast("Upload failed: "+err.message,"error");}
+    finally{setUploading(false);}
+  }
+
+  async function handleRemove(){
+    if(!window.confirm("Remove this worksheet?"))return;
+    if(worksheet?.path){
+      try{await deleteObject(storageRef(getStorage(),worksheet.path));}catch(err){}
+    }
+    onChange(null);
+  }
+
+  return(
+    <div>
+      <label style={labelStyle}>Worksheet <span style={{color:"#9ca3af",fontWeight:400}}>(PDF, image, or Excel — one file per enquiry)</span></label>
+      {!worksheet?(
+        <div style={{border:"1px dashed #d1d5db",borderRadius:8,padding:"16px",textAlign:"center"}}>
+          <input type="file" id="worksheet-file-input" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg" style={{display:"none"}} onChange={handleFile}/>
+          <button type="button" className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} disabled={uploading} onClick={()=>document.getElementById("worksheet-file-input").click()}>
+            <Icon name="plus" size={12}/>{uploading?"Uploading…":"Upload worksheet"}
+          </button>
+        </div>
+      ):(
+        <div style={{display:"flex",alignItems:"center",gap:10,border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 13px"}}>
+          <Icon name="file" size={16}/>
+          <a href={worksheet.url} target="_blank" rel="noopener noreferrer" style={{flex:1,fontSize:13,color:"#2563eb",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{worksheet.name}</a>
+          <input type="file" id="worksheet-file-input" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg" style={{display:"none"}} onChange={handleFile}/>
+          <button type="button" className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} disabled={uploading} onClick={()=>document.getElementById("worksheet-file-input").click()}>{uploading?"Uploading…":"Replace"}</button>
+          <button type="button" className="btn-ghost" style={{fontSize:11,padding:"4px 10px",color:"#dc2626"}} onClick={handleRemove}><Icon name="trash" size={11}/></button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function EnquiryTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
   const canManage=isAdmin||profile.role==="sales";
@@ -1605,6 +1669,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
           <Field label="Freight" value={e.freight}/>
           <Field label="GST" value={e.gst}/>
           <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
+          <Field label="Worksheet" value={e.worksheet?<a href={e.worksheet.url} target="_blank" rel="noopener noreferrer" style={{color:"#2563eb"}}>{e.worksheet.name}</a>:null}/>
         </div>
       </div>
 
@@ -1685,6 +1750,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
+  const [worksheet,setWorksheet]=useState(existing?.worksheet||null);
   const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
@@ -1719,6 +1785,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
+        worksheet:worksheet||null,
         items,
         updated_at:serverTimestamp(),
       };
@@ -1785,6 +1852,9 @@ function EnquiryForm({existing,profile,showToast,onClose}){
           <div>
             <label style={labelStyle}>Validity time <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
             <input style={fieldStyle} type="time" value={validityTime} onChange={e=>setValidityTime(e.target.value)}/>
+          </div>
+          <div>
+            <WorksheetUpload worksheet={worksheet} onChange={setWorksheet} showToast={showToast}/>
           </div>
         </div>
       </div>
