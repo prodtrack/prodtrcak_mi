@@ -59,7 +59,7 @@ export function printPurchaseRequisition(pr){
   .two-col>div:first-child{border-right:1px solid #000;}
   .two-col b{font-weight:700;}
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
-  .items-table td{border-bottom:1px solid #999;font-size:11px;}
+  .items-table td{border-bottom:1px solid #000;font-size:11px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
   .remarks-row{border-top:1px solid #000;min-height:28px;padding:4px 8px;font-size:11px;}

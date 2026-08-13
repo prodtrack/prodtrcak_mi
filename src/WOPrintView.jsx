@@ -41,33 +41,33 @@ export function printWorkOrder(order){
 <meta charset="utf-8"/>
 <title>${esc(order.wo_number)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  *{box-sizing:border-box;}
+  @page { size: A4; margin: 8mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:0;}
   .sheet{border:1.5px solid #000;}
   .c{text-align:center;}
   .r{text-align:right;}
   table{width:100%;border-collapse:collapse;}
-  td,th{padding:4px 8px;vertical-align:top;}
-  .header{padding:12px 16px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
-  .addr{font-size:11px;margin-top:8px;}
-  .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .title{text-align:center;font-size:16px;font-weight:700;padding:8px 0;border-bottom:1px solid #000;}
-  .wonum-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:11px;}
+  td,th{padding:3px 6px;vertical-align:top;}
+  .header{padding:8px 12px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:260px;max-height:65px;margin:0 auto;display:block;}
+  .addr{font-size:11px;margin-top:6px;}
+  .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
+  .title{text-align:center;font-size:15px;font-weight:700;padding:6px 0;border-bottom:1px solid #000;}
+  .wonum-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:11px;}
   .wonum-row b{font-weight:700;}
-  .section-head{background:#dcdcdc;font-weight:700;padding:4px 8px;border-bottom:1px solid #000;font-size:11px;}
+  .section-head{background:#dcdcdc;font-weight:700;padding:3px 8px;border-bottom:1px solid #000;font-size:11px;}
   .grid{display:flex;flex-wrap:wrap;border-bottom:1px solid #000;}
-  .grid>div{width:50%;padding:8px;font-size:11px;line-height:1.6;border-right:1px solid #000;}
+  .grid>div{width:50%;padding:6px 8px;font-size:11px;line-height:1.45;border-right:1px solid #000;}
   .grid>div:nth-child(2n){border-right:none;}
   .grid .k{color:#555;font-size:10px;text-transform:uppercase;letter-spacing:.03em;}
   .grid .v{font-weight:600;}
   .ins-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
-  .ins-table th,.ins-table td{border-left:1px solid #000;border-bottom:1px solid #eee;font-size:11px;}
+  .ins-table th,.ins-table td{border-left:1px solid #000;border-bottom:1px solid #000;font-size:11px;}
   .ins-table th:first-child,.ins-table td:first-child{border-left:none;}
-  .remarks-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:8px;font-size:11px;min-height:50px;}
+  .remarks-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:6px 8px;font-size:11px;min-height:36px;}
   .sign-row{display:flex;}
-  .sign-row>div{flex:1;padding:24px 8px 8px;text-align:center;font-size:11px;border-right:1px solid #000;}
+  .sign-row>div{flex:1;padding:18px 8px 6px;text-align:center;font-size:11px;border-right:1px solid #000;}
   .sign-row>div:last-child{border-right:none;}
   @media print{
     .print-btn{display:none;}

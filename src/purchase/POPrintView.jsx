@@ -54,47 +54,47 @@ export function printPurchaseOrder(po){
 <meta charset="utf-8"/>
 <title>${esc(po.po_number)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  *{box-sizing:border-box;}
+  @page { size: A4; margin: 8mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:0;}
   .sheet{border:1.5px solid #000;}
   .center{text-align:center;}
   .r{text-align:right;}
   .c{text-align:center;}
   table{width:100%;border-collapse:collapse;}
-  td,th{padding:4px 8px;vertical-align:top;}
-  .header{padding:12px 16px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
-  .addr{font-size:11px;margin-top:8px;}
-  .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .title{text-align:center;font-size:16px;font-weight:700;padding:8px 0;border-bottom:1px solid #000;}
-  .ponum-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:11px;}
+  td,th{padding:3px 6px;vertical-align:top;}
+  .header{padding:8px 12px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:260px;max-height:65px;margin:0 auto;display:block;}
+  .addr{font-size:11px;margin-top:6px;}
+  .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
+  .title{text-align:center;font-size:15px;font-weight:700;padding:6px 0;border-bottom:1px solid #000;}
+  .ponum-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:11px;}
   .ponum-row b{font-weight:700;}
-  .section-head{background:#dcdcdc;font-weight:700;padding:4px 8px;border-bottom:1px solid #000;font-size:11px;}
+  .section-head{background:#dcdcdc;font-weight:700;padding:3px 8px;border-bottom:1px solid #000;font-size:11px;}
   .two-col{display:flex;border-bottom:1px solid #000;}
-  .two-col>div{flex:1;padding:8px;font-size:11px;line-height:1.5;}
+  .two-col>div{flex:1;padding:6px 8px;font-size:11px;line-height:1.4;}
   .two-col>div:first-child{border-right:1px solid #000;}
   .two-col .vname{font-weight:700;}
-  .terms-strip{border-bottom:1px solid #000;padding:6px 8px;font-size:10.5px;line-height:1.6;}
+  .terms-strip{border-bottom:1px solid #000;padding:4px 8px;font-size:10.5px;line-height:1.45;}
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
-  .items-table td{border-bottom:1px solid #eee;font-size:11px;}
+  .items-table td{border-bottom:1px solid #000;font-size:11px;}
   .items-table .partcode{font-weight:700;font-size:10.5px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
   .label{font-weight:600;}
   .totalrow td{border-top:1px solid #000;font-weight:700;background:#f5f5f5;}
-  .words-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:6px 8px;font-size:11px;}
+  .words-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:4px 8px;font-size:11px;}
   .words-row b{font-weight:700;}
-  .tc-head{font-weight:700;padding:5px 8px;border-bottom:1px solid #000;font-size:11px;}
-  .tc-table td{font-size:10px;border:none;padding:2px 8px;line-height:1.5;}
+  .tc-head{font-weight:700;padding:4px 8px;border-bottom:1px solid #000;font-size:11px;}
+  .tc-table td{font-size:10px;border:none;padding:1px 8px;line-height:1.4;}
   .tc-table .tno{width:20px;vertical-align:top;}
-  .remarks-row{display:flex;border-top:1px solid #000;border-bottom:1px solid #000;min-height:60px;}
-  .remarks-row>div{flex:1;padding:6px 8px;font-size:11px;}
+  .remarks-row{display:flex;border-top:1px solid #000;border-bottom:1px solid #000;min-height:40px;}
+  .remarks-row>div{flex:1;padding:4px 8px;font-size:11px;}
   .remarks-row>div:first-child{border-right:1px solid #000;}
   .sign-row{display:flex;}
-  .sign-row>div{flex:1;padding:24px 8px 8px;text-align:center;font-size:11px;border-right:1px solid #000;}
+  .sign-row>div{flex:1;padding:18px 8px 6px;text-align:center;font-size:11px;border-right:1px solid #000;}
   .sign-row>div:last-child{border-right:none;}
-  .sign-row .for-company{font-weight:700;margin-bottom:36px;}
+  .sign-row .for-company{font-weight:700;margin-bottom:26px;}
   @media print{
     .print-btn{display:none;}
     body{padding:0;}

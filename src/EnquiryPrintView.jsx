@@ -90,22 +90,22 @@ export function printEnquiry(enquiry){
 <meta charset="utf-8"/>
 <title>${esc(enquiry.enq_number||"Enquiry")}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  *{box-sizing:border-box;}
+  @page { size: A4; margin: 8mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:0;padding:0;}
   .sheet{border:1.5px solid #000;}
-  .header{padding:12px 16px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
-  .addr{font-size:11px;margin-top:8px;}
-  .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .item-block{padding:16px 20px;border-bottom:1px solid #9ca3af;}
+  .header{padding:8px 12px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:260px;max-height:65px;margin:0 auto;display:block;}
+  .addr{font-size:11px;margin-top:6px;}
+  .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
+  .item-block{padding:12px 16px;border-bottom:1px solid #6b7280;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:90px;flex-shrink:0;font-weight:600;}
-  .final-price{padding:10px 0 4px 20px;font-size:13px;font-weight:700;}
-  .item-remarks{padding:8px 0 0 20px;font-size:12px;}
-  .enq-no-line{padding:12px 20px 0;font-size:12px;font-weight:600;}
-  .offer-intro{padding:8px 20px 4px;font-size:13px;font-weight:600;}
+  .final-price{padding:8px 0 3px 16px;font-size:13px;font-weight:700;}
+  .item-remarks{padding:6px 0 0 16px;font-size:12px;}
+  .enq-no-line{padding:8px 16px 0;font-size:12px;font-weight:600;}
+  .offer-intro{padding:6px 16px 3px;font-size:13px;font-weight:600;}
   @media print{
     .print-btn{display:none;}
     body{padding:0;}

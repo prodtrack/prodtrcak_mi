@@ -59,16 +59,16 @@ export function printTender(tender){
 <meta charset="utf-8"/>
 <title>${esc(tender.tender_number||"Tender")}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  *{box-sizing:border-box;}
+  @page { size: A4; margin: 8mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:0;padding:0;}
   .sheet{border:1.5px solid #000;}
-  .header{padding:12px 16px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
-  .addr{font-size:11px;margin-top:8px;}
-  .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .tender-no-line{padding:12px 20px 0;font-size:12px;font-weight:600;}
-  .item-block{padding:16px 20px;}
+  .header{padding:8px 12px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:260px;max-height:65px;margin:0 auto;display:block;}
+  .addr{font-size:11px;margin-top:6px;}
+  .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
+  .tender-no-line{padding:8px 16px 0;font-size:12px;font-weight:600;}
+  .item-block{padding:12px 16px;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:120px;flex-shrink:0;font-weight:600;}

@@ -32,24 +32,25 @@ export function printGoodsInwardNote(gin){
 <title>${escapeHtml(gin.gin_number)}</title>
 <meta charset="utf-8"/>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 8mm; }
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin:0; }
-  .letterhead { text-align:center; border:1px solid #000; border-bottom:none; padding:10px; }
-  .letterhead .name { font-size:18px; font-weight:700; }
-  .letterhead .addr { font-size:12px; margin-top:4px; }
-  .letterhead .contact { display:flex; justify-content:center; gap:40px; margin-top:8px; font-size:11px; }
-  .title-bar { border:1px solid #000; border-top:none; text-align:center; font-weight:700; font-size:14px; padding:6px; }
+  .letterhead { text-align:center; border:1px solid #000; border-bottom:none; padding:6px; }
+  .letterhead .name { font-size:16px; font-weight:700; }
+  .letterhead .addr { font-size:11px; margin-top:3px; }
+  .letterhead .contact { display:flex; justify-content:center; gap:32px; margin-top:5px; font-size:10.5px; }
+  .title-bar { border:1px solid #000; border-top:none; text-align:center; font-weight:700; font-size:13px; padding:4px; }
   table.header-table { width:100%; border-collapse:collapse; }
-  .header-table td { border:1px solid #000; border-top:none; padding:4px 8px; vertical-align:top; font-size:12px; }
+  .header-table td { border:1px solid #000; border-top:none; padding:3px 8px; vertical-align:top; font-size:11.5px; }
   .header-table .label { display:inline-block; width:120px; color:#374151; }
   .items { width:100%; border-collapse:collapse; margin-top:-1px; }
-  .items th, .items td { border:1px solid #000; padding:5px 7px; font-size:11px; }
+  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:11px; }
   .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:10px; }
   .r { text-align:right; } .c { text-align:center; }
-  .footer-box { border:1px solid #000; border-top:none; padding:8px; min-height:34px; }
-  .footer-box .label { font-size:11px; margin-bottom:4px; }
+  .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:26px; }
+  .footer-box .label { font-size:11px; margin-bottom:3px; }
   .sign-row { display:flex; border:1px solid #000; border-top:none; }
-  .sign-row div { flex:1; padding:20px 8px 8px; font-size:12px; }
+  .sign-row div { flex:1; padding:14px 8px 6px; font-size:12px; }
   .sign-row div:first-child { border-right:1px solid #000; }
   .print-btn { margin-bottom:14px; }
   @media print { .print-btn { display:none; } }
