@@ -8,7 +8,7 @@ import { useState } from "react";
 import { useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
-import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
+import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
   PLANTS, UNITS, REQUISITION_TYPES, PR_STATUSES, PR_STATUS_LABELS, PR_STATUS_COLORS,
   generatePRNumber, generatePONumber, emptyPRLineItem, lastPORateForMaterial, DEFAULT_GST_RATE,
@@ -316,18 +316,18 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
   function updateLine(i,k,v){setLineItems(items=>items.map((it,idx)=>idx===i?{...it,[k]:v}:it));}
   function addLine(){setLineItems(items=>[...items,emptyPRLineItem()]);}
   function removeLine(i){setLineItems(items=>items.filter((_,idx)=>idx!==i));}
-  function selectMaterial(i,materialId){
-    if(materialId==="__custom__"){updateLine(i,"material_id","");return;}
-    const m=materials.find(m=>m.id===materialId);
-    if(!m)return;
-    const lastRate=lastPORateForMaterial(purchaseOrders,materialId,m.material_name);
+  function onItemNameChange(i,text){
+    setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_name:text,material_id:""}:it));
+  }
+  function onItemSelect(i,m){
+    const lastRate=lastPORateForMaterial(purchaseOrders,m.id,m.material_name);
     setLineItems(items=>items.map((it,idx)=>idx===i?{
       // Inventory Qty stays manual-only again — the live system figure is
       // shown separately (read-only "Current Stock") so it's visible as a
       // reference, but never auto-fills or overwrites what's typed here.
       // Last PO rate IS auto-filled from catalog selection, but the field
       // itself stays editable so the user can override it afterward.
-      ...it, material_id:materialId, material_name:m.material_name||it.material_name,
+      ...it, material_id:m.id, material_name:m.material_name||it.material_name,
       unit:m.unit||it.unit, current_stock:m.current_stock??0, last_po_rate:lastRate,
     }:it));
   }
@@ -417,12 +417,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
             </div>
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
               <div>
-                <label style={labelStyle}>Item (from catalog, or type a new item)</label>
-                <select style={{...fieldStyle,marginBottom:6}} value={it.material_id||"__custom__"} onChange={e=>selectMaterial(i,e.target.value)}>
-                  <option value="__custom__">— Custom / non-catalog item —</option>
-                  {materials.map(m=><option key={m.id} value={m.id}>{m.material_name}</option>)}
-                </select>
-                <input style={fieldStyle} placeholder="Item description" value={it.material_name} onChange={e=>updateLine(i,"material_name",e.target.value)}/>
+                <FuzzyAutocomplete label="Item (from catalog, or type a new item)" value={it.material_name} onChange={v=>onItemNameChange(i,v)} onSelect={m=>onItemSelect(i,m)} options={materials} displayKey="material_name" placeholder="Start typing item name…"/>
               </div>
               <div>
                 <label style={labelStyle}>Item code</label>
