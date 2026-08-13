@@ -325,6 +325,8 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
       // Inventory Qty stays manual-only again — the live system figure is
       // shown separately (read-only "Current Stock") so it's visible as a
       // reference, but never auto-fills or overwrites what's typed here.
+      // Last PO rate IS auto-filled from catalog selection, but the field
+      // itself stays editable so the user can override it afterward.
       ...it, material_id:materialId, material_name:m.material_name||it.material_name,
       unit:m.unit||it.unit, current_stock:m.current_stock??0, last_po_rate:lastRate,
     }:it));
@@ -450,7 +452,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
               </div>
               <div>
                 <label style={labelStyle}>Last PO rate</label>
-                <div style={{...fieldStyle,...S,background:"#f9fafb"}}>{it.last_po_rate!=null?`₹${it.last_po_rate}`:"—"}</div>
+                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.last_po_rate??""} onChange={e=>updateLine(i,"last_po_rate",e.target.value===""?null:e.target.value)} placeholder="—"/>
               </div>
             </div>
             <div style={{marginTop:10}}>
