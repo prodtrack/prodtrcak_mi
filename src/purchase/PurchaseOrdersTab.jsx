@@ -336,10 +336,11 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
   function updateLine(i,k,v){setLineItems(items=>items.map((it,idx)=>idx===i?{...it,[k]:v}:it));}
   function addLine(){setLineItems(items=>[...items,emptyLineItem()]);}
   function removeLine(i){setLineItems(items=>items.filter((_,idx)=>idx!==i));}
-  function selectMaterial(i,materialId){
-    if(materialId==="__custom__"){updateLine(i,"material_id","");return;}
-    const m=materials.find(m=>m.id===materialId);
-    setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_id:materialId,material_name:m?.material_name||it.material_name,unit:m?.unit||it.unit}:it));
+  function onMaterialNameChange(i,text){
+    setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_name:text,material_id:""}:it));
+  }
+  function onMaterialSelect(i,m){
+    setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_id:m.id,material_name:m.material_name||it.material_name,unit:m.unit||it.unit}:it));
   }
 
   async function save(submitForApproval){
@@ -445,12 +446,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
             </div>
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
-                <label style={labelStyle}>Material (from catalog, or type a new item)</label>
-                <select style={{...fieldStyle,marginBottom:6}} value={it.material_id||"__custom__"} onChange={e=>selectMaterial(i,e.target.value)} disabled={isAmendment}>
-                  <option value="__custom__">— Custom / non-catalog item —</option>
-                  {materials.map(m=><option key={m.id} value={m.id}>{m.material_name}</option>)}
-                </select>
-                <input style={fieldStyle} placeholder="Item description" value={it.material_name} onChange={e=>updateLine(i,"material_name",e.target.value)} readOnly={isAmendment}/>
+                <FuzzyAutocomplete label="Material (from catalog, or type a new item)" value={it.material_name} onChange={v=>onMaterialNameChange(i,v)} onSelect={m=>onMaterialSelect(i,m)} options={materials} displayKey="material_name" placeholder="Start typing item name…"/>
               </div>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Part code</label>
