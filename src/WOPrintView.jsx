@@ -41,7 +41,7 @@ export function printWorkOrder(order){
 <meta charset="utf-8"/>
 <title>${esc(order.wo_number)}</title>
 <style>
-  @page { size: A4; margin: 8mm; }
+  @page { size: A4; margin: 10mm; }
   *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:0;}
   .sheet{border:1.5px solid #000;}
@@ -49,8 +49,8 @@ export function printWorkOrder(order){
   .r{text-align:right;}
   table{width:100%;border-collapse:collapse;}
   td,th{padding:3px 6px;vertical-align:top;}
-  .header{padding:8px 12px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:260px;max-height:65px;margin:0 auto;display:block;}
+  .header{padding:8px 12px 6px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:210px;max-height:52px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:6px;}
   .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
   .title{text-align:center;font-size:15px;font-weight:700;padding:6px 0;border-bottom:1px solid #000;}

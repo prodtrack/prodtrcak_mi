@@ -63,8 +63,8 @@ export function printPurchaseOrder(po){
   .c{text-align:center;}
   table{width:100%;border-collapse:collapse;}
   td,th{padding:3px 6px;vertical-align:top;}
-  .header{padding:12px 12px 10px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:280px;max-height:75px;margin:0 auto;display:block;}
+  .header{padding:8px 12px 6px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:210px;max-height:52px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:6px;}
   .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
   .title{text-align:center;font-size:15px;font-weight:700;padding:6px 0;border-bottom:1px solid #000;}
