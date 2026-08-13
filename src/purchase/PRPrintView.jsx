@@ -44,7 +44,7 @@ export function printPurchaseRequisition(pr){
   @page { size: A4; margin: 10mm; }
   *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:0;}
-  .sheet{border:1.5px solid #000;}
+  .sheet{width:94%;margin:40px auto 0;border:1.5px solid #000;}
   .r{text-align:right;}
   .c{text-align:center;}
   table{width:100%;border-collapse:collapse;}

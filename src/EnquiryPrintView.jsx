@@ -93,7 +93,7 @@ export function printEnquiry(enquiry){
   @page { size: A4; margin: 10mm; }
   *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:0;padding:0;}
-  .sheet{border:1.5px solid #000;}
+  .sheet{width:94%;margin:40px auto 0;border:1.5px solid #000;}
   .header{padding:8px 12px 6px;text-align:center;border-bottom:1px solid #000;}
   .logo{max-width:210px;max-height:52px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:6px;}
