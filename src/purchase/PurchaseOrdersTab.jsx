@@ -406,27 +406,27 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
           <div>
             <label style={labelStyle}>Plant *</label>
-            <select style={fieldStyle} value={plant} onChange={e=>setPlant(e.target.value)}>
+            <select style={fieldStyle} value={plant} onChange={e=>setPlant(e.target.value)} disabled={isAmendment}>
               {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-          <div>
+          <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <FuzzyAutocomplete label="Vendor *" value={vendor?.name||""} onChange={()=>{}} onSelect={m=>onSelectVendor(m.id)} options={vendors} displayKey="name" strict placeholder="— Select vendor —"/>
           </div>
-          <div>
+          <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <SelectOrCustom label="GST rate" required value={gstRate} onChange={setGstRate} options={GST_RATE_OPTIONS} suffix="%" placeholder="— Select GST rate —"/>
           </div>
           <div>
             <label style={labelStyle}>Your reference</label>
-            <input style={fieldStyle} value={yourReference} onChange={e=>setYourReference(e.target.value)} placeholder="Buyer's reference no. (optional)"/>
+            <input style={fieldStyle} value={yourReference} onChange={e=>setYourReference(e.target.value)} placeholder="Buyer's reference no. (optional)" readOnly={isAmendment}/>
           </div>
-          <div>
+          <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <SelectOrCustom label="Payment terms" value={paymentTerms} onChange={setPaymentTerms} options={PAYMENT_TERMS_OPTIONS} placeholder="— Select payment terms —"/>
           </div>
-          <div>
+          <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <SelectOrCustom label="Terms of delivery" value={termsOfDelivery} onChange={setTermsOfDelivery} options={DELIVERY_TERMS_OPTIONS} placeholder="— Select delivery terms —"/>
           </div>
-          <div>
+          <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <SelectOrCustom label="Mode of delivery" value={modeOfDelivery} onChange={setModeOfDelivery} options={DELIVERY_MODE_OPTIONS} placeholder="— Select mode —"/>
           </div>
         </div>
@@ -434,44 +434,47 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
 
       <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Line items</div>
+        {isAmendment&&(
+          <div style={{fontSize:11,color:"#9ca3af",marginBottom:12}}>Only the Required date can be changed during an amendment — all other fields are locked.</div>
+        )}
         {lineItems.map((it,i)=>(
           <div key={i} style={{borderTop:i>0?"1px solid #f3f4f6":undefined,paddingTop:i>0?14:0,marginTop:i>0?14:0}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
               <span style={{...S,fontSize:11,color:"#6b7280",fontWeight:600}}>LINE {i+1}</span>
-              {lineItems.length>1&&<button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeLine(i)}><Icon name="x" size={11}/>Remove</button>}
+              {lineItems.length>1&&!isAmendment&&<button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeLine(i)}><Icon name="x" size={11}/>Remove</button>}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
-              <div>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Material (from catalog, or type a new item)</label>
-                <select style={{...fieldStyle,marginBottom:6}} value={it.material_id||"__custom__"} onChange={e=>selectMaterial(i,e.target.value)}>
+                <select style={{...fieldStyle,marginBottom:6}} value={it.material_id||"__custom__"} onChange={e=>selectMaterial(i,e.target.value)} disabled={isAmendment}>
                   <option value="__custom__">— Custom / non-catalog item —</option>
                   {materials.map(m=><option key={m.id} value={m.id}>{m.material_name}</option>)}
                 </select>
-                <input style={fieldStyle} placeholder="Item description" value={it.material_name} onChange={e=>updateLine(i,"material_name",e.target.value)}/>
+                <input style={fieldStyle} placeholder="Item description" value={it.material_name} onChange={e=>updateLine(i,"material_name",e.target.value)} readOnly={isAmendment}/>
               </div>
-              <div>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Part code</label>
-                <input style={fieldStyle} value={it.part_code||""} onChange={e=>updateLine(i,"part_code",e.target.value)} placeholder="F361"/>
+                <input style={fieldStyle} value={it.part_code||""} onChange={e=>updateLine(i,"part_code",e.target.value)} placeholder="F361" readOnly={isAmendment}/>
               </div>
-              <div>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>HSN code</label>
-                <input style={fieldStyle} value={it.hsn_code} onChange={e=>updateLine(i,"hsn_code",e.target.value)} placeholder="82072000"/>
+                <input style={fieldStyle} value={it.hsn_code} onChange={e=>updateLine(i,"hsn_code",e.target.value)} placeholder="82072000" readOnly={isAmendment}/>
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
-              <div>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Qty *</label>
-                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.qty} onChange={e=>updateLine(i,"qty",e.target.value)}/>
+                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.qty} onChange={e=>updateLine(i,"qty",e.target.value)} readOnly={isAmendment}/>
               </div>
-              <div>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>UOM</label>
-                <select style={fieldStyle} value={it.unit} onChange={e=>updateLine(i,"unit",e.target.value)}>
+                <select style={fieldStyle} value={it.unit} onChange={e=>updateLine(i,"unit",e.target.value)} disabled={isAmendment}>
                   {UNITS.map(u=><option key={u}>{u}</option>)}
                 </select>
               </div>
-              <div>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Rate *</label>
-                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.rate} onChange={e=>updateLine(i,"rate",e.target.value)}/>
+                <input type="number" style={fieldStyle} min="0" step="0.01" value={it.rate} onChange={e=>updateLine(i,"rate",e.target.value)} readOnly={isAmendment}/>
               </div>
               <div>
                 <label style={labelStyle}>Req. date *</label>
@@ -484,7 +487,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
             </div>
           </div>
         ))}
-        <button className="btn-ghost" style={{width:"100%",justifyContent:"center",marginTop:16,borderStyle:"dashed"}} onClick={addLine}><Icon name="plus" size={13}/>Add line item</button>
+        {!isAmendment&&<button className="btn-ghost" style={{width:"100%",justifyContent:"center",marginTop:16,borderStyle:"dashed"}} onClick={addLine}><Icon name="plus" size={13}/>Add line item</button>}
 
         <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid #f3f4f6"}}>
           <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,width:100,textAlign:"right"}}>₹{totals.subtotal.toLocaleString("en-IN")}</span></div>
@@ -495,7 +498,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
 
       <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <label style={labelStyle}>Remarks</label>
-        <textarea style={{...fieldStyle,minHeight:64,resize:"vertical"}} value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Any additional notes for this PO..."/>
+        <textarea style={{...fieldStyle,minHeight:64,resize:"vertical"}} value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Any additional notes for this PO..." readOnly={isAmendment}/>
       </div>
 
       {errors.length>0&&(
