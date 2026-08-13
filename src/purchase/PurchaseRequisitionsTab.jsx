@@ -130,7 +130,7 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
 function PRListItem({pr,profile,vendors,materials,purchaseOrders,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelPR,onDeleteDraft}){
   const sc=PR_STATUS_COLORS[pr.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const isDraft=pr.status==="draft";
-  const canEdit=["draft","pending_approval"].includes(pr.status)&&canCreate;
+  const canEdit=["draft","pending_approval","approved"].includes(pr.status)&&canCreate;
   const canCancel=["draft","pending_approval"].includes(pr.status);
 
   return(
