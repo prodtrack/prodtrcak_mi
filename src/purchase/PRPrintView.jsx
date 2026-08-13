@@ -41,28 +41,28 @@ export function printPurchaseRequisition(pr){
 <meta charset="utf-8"/>
 <title>${esc(pr.pr_number)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  *{box-sizing:border-box;}
+  @page { size: A4; margin: 8mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:0;}
   .sheet{border:1.5px solid #000;}
   .r{text-align:right;}
   .c{text-align:center;}
   table{width:100%;border-collapse:collapse;}
-  td,th{padding:4px 8px;vertical-align:top;}
-  .header{padding:12px 16px;text-align:center;border-bottom:1px solid #000;}
-  .logo{max-width:340px;max-height:90px;margin:0 auto;display:block;}
-  .addr{font-size:11px;margin-top:8px;}
-  .contact-row{display:flex;justify-content:space-between;padding:6px 16px;border-bottom:1px solid #000;font-size:10.5px;}
-  .title{text-align:center;font-size:16px;font-weight:700;padding:8px 0;border-bottom:1px solid #000;}
+  td,th{padding:3px 6px;vertical-align:top;}
+  .header{padding:8px 12px;text-align:center;border-bottom:1px solid #000;}
+  .logo{max-width:260px;max-height:65px;margin:0 auto;display:block;}
+  .addr{font-size:11px;margin-top:6px;}
+  .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
+  .title{text-align:center;font-size:15px;font-weight:700;padding:6px 0;border-bottom:1px solid #000;}
   .two-col{display:flex;border-bottom:1px solid #000;}
-  .two-col>div{flex:1;padding:8px;font-size:11px;line-height:1.6;}
+  .two-col>div{flex:1;padding:6px 8px;font-size:11px;line-height:1.45;}
   .two-col>div:first-child{border-right:1px solid #000;}
   .two-col b{font-weight:700;}
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
-  .items-table td{border-bottom:1px solid #eee;font-size:11px;}
+  .items-table td{border-bottom:1px solid #999;font-size:11px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
-  .remarks-row{border-top:1px solid #000;min-height:44px;padding:6px 8px;font-size:11px;}
+  .remarks-row{border-top:1px solid #000;min-height:28px;padding:4px 8px;font-size:11px;}
   .remarks-row:last-child{border-bottom:1px solid #000;}
   .remarks-row b{font-weight:700;}
   @media print{
