@@ -32,6 +32,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
   const [search,setSearch]=useState("");
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
+  const [selectedId,setSelectedId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
   const [sortField,setSortField]=useState("created_at");
   const [sortDir,setSortDir]=useState("desc");
@@ -92,7 +93,19 @@ export default function PurchaseOrdersTab({profile,showToast}){
     setPage(1);
   }
 
-  function toggleExpand(id){setExpandedId(prev=>prev===id?null:id);setEditingId(null);}
+  function poEditability(po,canCreate){
+    const isDraft=po.status==="draft";
+    const hasReceipts=(po.line_items||[]).some(it=>(it.received_qty||0)>0);
+    const canEdit=(["draft","pending_approval","approved"].includes(po.status))&&canCreate&&!hasReceipts;
+    const isAmendment=!isDraft&&po.status!=="pending_approval";
+    const canCancel=["draft","pending_approval","approved"].includes(po.status)&&!hasReceipts;
+    return {canEdit,isAmendment,canCancel};
+  }
+
+  function selectRow(id){setSelectedId(prev=>prev===id?null:id);setExpandedId(null);setEditingId(null);}
+  function openView(){if(selectedId){setExpandedId(selectedId);setEditingId(null);}}
+  function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
+  function closeDetail(){setExpandedId(null);setEditingId(null);}
 
   async function cancelPO(po){
     if(!window.confirm(`Cancel ${po.po_number}? This cannot be undone.`))return;
@@ -162,33 +175,42 @@ export default function PurchaseOrdersTab({profile,showToast}){
                   <POTableRow
                     key={po.id}
                     po={po}
-                    profile={profile}
-                    vendors={vendors}
-                    materials={materials}
-                    showToast={showToast}
-                    canApprove={canApprove}
-                    canCreate={canCreate}
-                    expanded={expandedId===po.id}
-                    editing={editingId===po.id}
-                    onToggle={()=>toggleExpand(po.id)}
-                    onEditClick={()=>setEditingId(po.id)}
-                    onCancelEdit={()=>setEditingId(null)}
-                    onCancelPO={()=>cancelPO(po)}
-                    onDeleteDraft={()=>deleteDraft(po)}
-                    onClosePO={()=>closePO(po)}
+                    selected={selectedId===po.id}
+                    onSelect={()=>selectRow(po.id)}
                   />
                 ))}
               </tbody>
             </table>
           </div>
-          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginTop:12,fontSize:12,color:"#6b7280"}}>
-            <span>{sorted.length} purchase order{sorted.length!==1?"s":""}</span>
-            <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
-            <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
-            <span>Page {pageSafe} of {totalPages}</span>
-            <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
-            <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&poEditability(pos.find(p=>p.id===selectedId)||{},canCreate).canEdit?1:.4,cursor:selectedId&&poEditability(pos.find(p=>p.id===selectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!selectedId||!poEditability(pos.find(p=>p.id===selectedId)||{},canCreate).canEdit} onClick={openEdit}>Edit</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+              <span>{sorted.length} purchase order{sorted.length!==1?"s":""}</span>
+              <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+              <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+              <span>Page {pageSafe} of {totalPages}</span>
+              <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+              <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+            </div>
           </div>
+
+          {expandedId&&(()=>{
+            const po=pos.find(p=>p.id===expandedId);
+            if(!po)return null;
+            const {canEdit,isAmendment,canCancel}=poEditability(po,canCreate);
+            return(
+              <div className="card" style={{marginTop:16,padding:20,background:"#fafbfc"}}>
+                {editingId===po.id
+                  ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={closeDetail}/>
+                  : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
+                      onEdit={openEdit} onCancel={()=>cancelPO(po)} onDeleteDraft={()=>deleteDraft(po)} onClose={()=>closePO(po)}/>
+                }
+              </div>
+            );
+          })()}
         </>
       }
     </div>
@@ -219,49 +241,31 @@ function SortTh({label,field,sortField,sortDir,onSort,align}){
 }
 
 // ─── PO table row — click the selector circle to expand the existing detail view ─
-function POTableRow({po,profile,vendors,materials,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelPO,onDeleteDraft,onClosePO}){
+function POTableRow({po,selected,onSelect}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
   const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
-  const isDraft=po.status==="draft";
-  const hasReceipts=(po.line_items||[]).some(it=>(it.received_qty||0)>0);
-  const canEdit=(["draft","pending_approval","approved"].includes(po.status))&&canCreate&&!hasReceipts;
-  const isAmendment=!isDraft&&po.status!=="pending_approval";
-  const canCancel=["draft","pending_approval","approved"].includes(po.status)&&!hasReceipts;
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
-    <>
-      <tr onClick={onToggle} style={{cursor:"pointer",background:expanded?"#f5f7fa":"transparent"}}
-        onMouseEnter={e=>{if(!expanded)e.currentTarget.style.background="#fafafa";}}
-        onMouseLeave={e=>{if(!expanded)e.currentTarget.style.background="transparent";}}>
-        <td style={{...cellStyle,textAlign:"center"}}>
-          <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${expanded?"#1a1f2e":"#d1d5db"}`,background:expanded?"#1a1f2e":"transparent"}}/>
-        </td>
-        <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{po.po_number}</td>
-        <td style={cellStyle}>{po.amd_no||0}</td>
-        <td style={cellStyle} title={po.your_reference}>{po.your_reference||"—"}</td>
-        <td style={cellStyle}>{po.vendor_code||"—"}</td>
-        <td style={cellStyle} title={po.vendor_name}>{po.vendor_name}</td>
-        <td style={cellStyle}>{po.plant}</td>
-        <td style={cellStyle}>{formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at)}</td>
-        <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{PO_STATUS_LABELS[po.status]}</span></td>
-        <td style={cellStyle} title={po.remarks}>{po.remarks||"—"}</td>
-        <td style={{...cellStyle,textAlign:"right",...S}}>₹{totals.grandTotal.toLocaleString("en-IN")}</td>
-        <td style={{...cellStyle,textAlign:"right",...S}}>₹{tax.toLocaleString("en-IN")}</td>
-      </tr>
-      {expanded&&(
-        <tr>
-          <td colSpan={12} style={{padding:20,background:"#fafbfc",borderBottom:"1px solid #e5e7eb"}} onClick={e=>e.stopPropagation()}>
-            {editing
-              ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={onCancelEdit}/>
-              : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
-                  onEdit={onEditClick} onCancel={onCancelPO} onDeleteDraft={onDeleteDraft} onClose={onClosePO}/>
-            }
-          </td>
-        </tr>
-      )}
-    </>
+    <tr onClick={onSelect} style={{cursor:"pointer",background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center"}}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{po.po_number}</td>
+      <td style={cellStyle}>{po.amd_no||0}</td>
+      <td style={cellStyle} title={po.your_reference}>{po.your_reference||"—"}</td>
+      <td style={cellStyle}>{po.vendor_code||"—"}</td>
+      <td style={cellStyle} title={po.vendor_name}>{po.vendor_name}</td>
+      <td style={cellStyle}>{po.plant}</td>
+      <td style={cellStyle}>{formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at)}</td>
+      <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{PO_STATUS_LABELS[po.status]}</span></td>
+      <td style={cellStyle} title={po.remarks}>{po.remarks||"—"}</td>
+      <td style={{...cellStyle,textAlign:"right",...S}}>₹{totals.grandTotal.toLocaleString("en-IN")}</td>
+      <td style={{...cellStyle,textAlign:"right",...S}}>₹{tax.toLocaleString("en-IN")}</td>
+    </tr>
   );
 }
 
