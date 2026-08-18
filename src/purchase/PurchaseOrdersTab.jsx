@@ -33,6 +33,10 @@ export default function PurchaseOrdersTab({profile,showToast}){
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
+  const [sortField,setSortField]=useState("created_at");
+  const [sortDir,setSortDir]=useState("desc");
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=10;
 
   useEffect(()=>{
     const q=query(collection(db,"purchase_orders"),orderBy("created_at","desc"));
@@ -56,6 +60,37 @@ export default function PurchaseOrdersTab({profile,showToast}){
   );
 
   const hasActiveNarrowing=statusFilter!=="all"||plantFilter!=="all"||q.length>0;
+
+  function poField(po,field){
+    switch(field){
+      case "po_number":return po.po_number||"";
+      case "amd_no":return po.amd_no||0;
+      case "your_reference":return po.your_reference||"";
+      case "vendor_code":return po.vendor_code||"";
+      case "vendor_name":return po.vendor_name||"";
+      case "plant":return po.plant||"";
+      case "created_at":return po.created_at?.toDate?po.created_at.toDate().getTime():(po.created_at?new Date(po.created_at).getTime():0);
+      case "status":return po.status||"";
+      case "remarks":return po.remarks||"";
+      case "amount":return poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE).grandTotal;
+      case "tax":{const t=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);return t.treatment==="IGST"?t.igst:t.cgst+t.sgst;}
+      default:return "";
+    }
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    const va=poField(a,sortField),vb=poField(b,sortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
+  const pageSafe=Math.min(page,totalPages);
+  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+
+  function onSort(field){
+    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
+    else{setSortField(field);setSortDir("asc");}
+    setPage(1);
+  }
 
   function toggleExpand(id){setExpandedId(prev=>prev===id?null:id);setEditingId(null);}
 
@@ -87,93 +122,130 @@ export default function PurchaseOrdersTab({profile,showToast}){
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
         {[["all","All"],...PO_STATUSES.map(s=>[s,PO_STATUS_LABELS[s]])].map(([v,l])=>(
-          <button key={v} onClick={()=>setStatusFilter(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
+          <button key={v} onClick={()=>{setStatusFilter(v);setPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
         ))}
-        <select value={plantFilter} onChange={e=>setPlantFilter(e.target.value)} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
+        <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
           <option value="all">All plants</option>
           {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
         </select>
       </div>
 
       <div style={{marginBottom:16}}>
-        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by PO number, vendor name, or vendor code…" value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by PO number, vendor name, or vendor code…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
       </div>
 
       {!hasActiveNarrowing
         ?<EmptyState text="Search or select a filter to view purchase orders" sub="Use the status chips, plant dropdown, or search box above"/>
         :filtered.length===0
         ?<EmptyState text="No purchase orders match" sub={canCreate?"Try a different filter, or click 'New Purchase Order' to create one":undefined}/>
-        :filtered.map(po=>(
-          <POListItem
-            key={po.id}
-            po={po}
-            profile={profile}
-            vendors={vendors}
-            materials={materials}
-            showToast={showToast}
-            canApprove={canApprove}
-            canCreate={canCreate}
-            expanded={expandedId===po.id}
-            editing={editingId===po.id}
-            onToggle={()=>toggleExpand(po.id)}
-            onEditClick={()=>setEditingId(po.id)}
-            onCancelEdit={()=>setEditingId(null)}
-            onCancelPO={()=>cancelPO(po)}
-            onDeleteDraft={()=>deleteDraft(po)}
-            onClosePO={()=>closePO(po)}
-          />
-        ))
+        :<>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"#fafafa"}}>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <SortTh label="PO No." field="po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Ver." field="amd_no" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Ref./PR No." field="your_reference" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Vendor code" field="vendor_code" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Vendor name" field="vendor_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Site" field="plant" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="PO date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Description" field="remarks" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Amount" field="amount" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right"/>
+                  <SortTh label="Tax" field="tax" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right"/>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(po=>(
+                  <POTableRow
+                    key={po.id}
+                    po={po}
+                    profile={profile}
+                    vendors={vendors}
+                    materials={materials}
+                    showToast={showToast}
+                    canApprove={canApprove}
+                    canCreate={canCreate}
+                    expanded={expandedId===po.id}
+                    editing={editingId===po.id}
+                    onToggle={()=>toggleExpand(po.id)}
+                    onEditClick={()=>setEditingId(po.id)}
+                    onCancelEdit={()=>setEditingId(null)}
+                    onCancelPO={()=>cancelPO(po)}
+                    onDeleteDraft={()=>deleteDraft(po)}
+                    onClosePO={()=>closePO(po)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginTop:12,fontSize:12,color:"#6b7280"}}>
+            <span>{sorted.length} purchase order{sorted.length!==1?"s":""}</span>
+            <button className="btn-ghost" style={{padding:"4px 10px",fontSize:12}} disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
+            <span>Page {pageSafe} of {totalPages}</span>
+            <button className="btn-ghost" style={{padding:"4px 10px",fontSize:12}} disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>Next</button>
+          </div>
+        </>
       }
     </div>
   );
 }
 
-// ─── PO list item — inline expand, same interaction pattern as Work Orders ─────
-function POListItem({po,profile,vendors,materials,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelPO,onDeleteDraft,onClosePO}){
+function SortTh({label,field,sortField,sortDir,onSort,align}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+// ─── PO table row — click the selector circle to expand the existing detail view ─
+function POTableRow({po,profile,vendors,materials,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelPO,onDeleteDraft,onClosePO}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
+  const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
   const isDraft=po.status==="draft";
   const hasReceipts=(po.line_items||[]).some(it=>(it.received_qty||0)>0);
   const canEdit=(["draft","pending_approval","approved"].includes(po.status))&&canCreate&&!hasReceipts;
-  const isAmendment=!isDraft&&po.status!=="pending_approval"; // editing an approved PO = amendment
+  const isAmendment=!isDraft&&po.status!=="pending_approval";
   const canCancel=["draft","pending_approval","approved"].includes(po.status)&&!hasReceipts;
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
-    <div className="card animate-in" style={{padding:0,marginBottom:8,overflow:"hidden"}}>
-      <div onClick={onToggle} style={{padding:"14px 18px",cursor:"pointer"}}
-        onMouseEnter={e=>e.currentTarget.style.background="#fafafa"}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-          <span style={{...S,fontSize:13,fontWeight:700,color:"#1a1f2e"}}>{po.po_number}</span>
-          <span style={{...S,background:"#f3f4f6",color:"#374151",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>{po.plant}</span>
-          <span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,flexShrink:0}}>{PO_STATUS_LABELS[po.status]}</span>
-          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{transform:expanded?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
-        </div>
-        <div style={{display:"flex",alignItems:"baseline",gap:0,flexWrap:"wrap",fontSize:13,marginBottom:6}}>
-          <span style={{fontWeight:600,color:"#1a1f2e",marginRight:12}}>{po.vendor_name}</span>
-          <span style={{...S,fontSize:11,color:"#6b7280",marginRight:12}}>{(po.line_items||[]).length} line{(po.line_items||[]).length!==1?"s":""}</span>
-          <span style={{...S,fontSize:13,fontWeight:700,color:"#1a1f2e"}}>₹{totals.grandTotal.toLocaleString("en-IN")}</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",gap:4}}>
-            <Icon name="calendar" size={11}/>Required by {formatDate(po.expected_delivery||earliestRequiredDate(po.line_items))}
-          </span>
-          <span style={{fontSize:11,color:"#9ca3af"}}>by {po.created_by_name}</span>
-        </div>
-      </div>
-
+    <>
+      <tr onClick={onToggle} style={{cursor:"pointer",background:expanded?"#f5f7fa":"transparent"}}
+        onMouseEnter={e=>{if(!expanded)e.currentTarget.style.background="#fafafa";}}
+        onMouseLeave={e=>{if(!expanded)e.currentTarget.style.background="transparent";}}>
+        <td style={{...cellStyle,textAlign:"center"}}>
+          <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${expanded?"#1a1f2e":"#d1d5db"}`,background:expanded?"#1a1f2e":"transparent"}}/>
+        </td>
+        <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{po.po_number}</td>
+        <td style={cellStyle}>{po.amd_no||0}</td>
+        <td style={cellStyle} title={po.your_reference}>{po.your_reference||"—"}</td>
+        <td style={cellStyle}>{po.vendor_code||"—"}</td>
+        <td style={cellStyle} title={po.vendor_name}>{po.vendor_name}</td>
+        <td style={cellStyle}>{po.plant}</td>
+        <td style={cellStyle}>{formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at)}</td>
+        <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{PO_STATUS_LABELS[po.status]}</span></td>
+        <td style={cellStyle} title={po.remarks}>{po.remarks||"—"}</td>
+        <td style={{...cellStyle,textAlign:"right",...S}}>₹{totals.grandTotal.toLocaleString("en-IN")}</td>
+        <td style={{...cellStyle,textAlign:"right",...S}}>₹{tax.toLocaleString("en-IN")}</td>
+      </tr>
       {expanded&&(
-        <div style={{borderTop:"1px solid #f3f4f6",padding:20,background:"#fafbfc"}} onClick={e=>e.stopPropagation()}>
-          {editing
-            ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={onCancelEdit}/>
-            : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
-                onEdit={onEditClick} onCancel={onCancelPO} onDeleteDraft={onDeleteDraft} onClose={onClosePO}/>
-          }
-        </div>
+        <tr>
+          <td colSpan={12} style={{padding:20,background:"#fafbfc",borderBottom:"1px solid #e5e7eb"}} onClick={e=>e.stopPropagation()}>
+            {editing
+              ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={onCancelEdit}/>
+              : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
+                  onEdit={onEditClick} onCancel={onCancelPO} onDeleteDraft={onDeleteDraft} onClose={onClosePO}/>
+            }
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
@@ -315,6 +387,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
   const [paymentTerms,setPaymentTerms]=useState(existing?.payment_terms||"");
   const [termsOfDelivery,setTermsOfDelivery]=useState(existing?.terms_of_delivery||"FOR (freight paid by you)");
   const [modeOfDelivery,setModeOfDelivery]=useState(existing?.mode_of_delivery||"Road");
+  const [poType,setPoType]=useState(existing?.po_type||"Domestic");
   const [remarks,setRemarks]=useState(existing?.remarks||"");
   const [gstRate,setGstRate]=useState(existing?.gst_rate??DEFAULT_GST_RATE);
   const [saving,setSaving]=useState(false);
@@ -363,7 +436,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         gst_rate:parseFloat(gstRate)||0,
         total_amount:totals.grandTotal,
         expected_delivery:earliestRequiredDate(cleanLines), your_reference:yourReference||null,
-        payment_terms:paymentTerms||null, terms_of_delivery:termsOfDelivery||null, mode_of_delivery:modeOfDelivery||null,
+        payment_terms:paymentTerms||null, terms_of_delivery:termsOfDelivery||null, mode_of_delivery:modeOfDelivery||null, po_type:poType||null,
         remarks:remarks||null,
         updated_at:serverTimestamp(),
       };
@@ -429,6 +502,9 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
           </div>
           <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <SelectOrCustom label="Mode of delivery" value={modeOfDelivery} onChange={setModeOfDelivery} options={DELIVERY_MODE_OPTIONS} placeholder="— Select mode —"/>
+          </div>
+          <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
+            <SelectOrCustom label="PO Type" value={poType} onChange={setPoType} options={["Domestic","Import"]} placeholder="— Select PO type —"/>
           </div>
         </div>
       </div>
