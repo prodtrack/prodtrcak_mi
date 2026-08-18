@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
   PLANTS, UNITS, REQUISITION_TYPES, PR_STATUSES, PR_STATUS_LABELS, PR_STATUS_COLORS,
@@ -121,6 +122,19 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
     showToast(`${pr.pr_number} deleted`);
   }
 
+  function exportExcel(){
+    const rows=sorted.map(pr=>({
+      "PR No.":pr.pr_number||"","Type":pr.requisition_type||"","Vendor code":pr.vendor_code||"","Vendor name":pr.vendor_name||"",
+      "Site":pr.plant||"","PR date":pr.created_at?formatDate(pr.created_at?.toDate?pr.created_at.toDate():pr.created_at):"",
+      "Status":PR_STATUS_LABELS[pr.status]||pr.status||"","Converted PO":pr.converted_po_number||"","Items":(pr.line_items||[]).length,
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Requisitions");
+    XLSX.writeFile(wb,`Purchase_Requisitions_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(creatingNew){
     return <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
   }
@@ -149,7 +163,10 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{hasActiveNarrowing?`${filtered.length} of ${prs.length} requisition${prs.length!==1?"s":""}`:`${prs.length} requisition${prs.length!==1?"s":""}`}</div>
-        {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Requisition</button>}
+        <div style={{display:"flex",gap:8}}>
+          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Requisition</button>}
+        </div>
       </div>
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>

@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
 import {
   PLANTS, GIN_TYPES, GIN_STATUSES, GIN_STATUS_LABELS, GIN_STATUS_COLORS,
@@ -110,6 +111,19 @@ export default function GINTab({profile,showToast}){
     showToast(`${gin.gin_number} cancelled`);
   }
 
+  function exportExcel(){
+    const rows=sorted.map(gin=>({
+      "GIN No.":gin.gin_number||"","Type":gin.gin_type||"","PO No.":gin.po_number||"","Vendor name":gin.vendor_name||"",
+      "Site":gin.plant||"","Date":gin.created_at?formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at):"",
+      "Status":GIN_STATUS_LABELS[gin.status]||gin.status||"","Vehicle":gin.vehicle_no||"","GRN":gin.grn_number||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"GINs");
+    XLSX.writeFile(wb,`GINs_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(creatingNew){
     return <GINForm profile={profile} pos={pos} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
   }
@@ -138,7 +152,10 @@ export default function GINTab({profile,showToast}){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{hasActiveNarrowing?`${filtered.length} of ${gins.length} GIN${gins.length!==1?"s":""}`:`${gins.length} GIN${gins.length!==1?"s":""}`}</div>
-        {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New GIN</button>}
+        <div style={{display:"flex",gap:8}}>
+          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New GIN</button>}
+        </div>
       </div>
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>

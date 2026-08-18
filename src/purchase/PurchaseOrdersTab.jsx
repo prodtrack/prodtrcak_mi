@@ -9,6 +9,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
   PLANTS, COMPANY_INFO, UNITS, PO_STATUSES, PO_STATUS_LABELS, PO_STATUS_COLORS,
@@ -130,6 +131,25 @@ export default function PurchaseOrdersTab({profile,showToast}){
     showToast(`${po.po_number} closed`);
   }
 
+  function exportExcel(){
+    const rows=sorted.map(po=>{
+      const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
+      const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
+      return{
+        "PO No.":po.po_number||"","Ver.":po.amd_no||0,"Ref./PR No.":po.your_reference||"",
+        "Vendor code":po.vendor_code||"","Vendor name":po.vendor_name||"","Site":po.plant||"",
+        "PO date":po.created_at?formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at):"",
+        "Status":PO_STATUS_LABELS[po.status]||po.status||"","Description":po.remarks||"","PO Type":po.po_type||"",
+        "Amount":totals.grandTotal,"Tax":tax,
+      };
+    });
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Purchase Orders");
+    XLSX.writeFile(wb,`Purchase_Orders_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(creatingNew){
     return <POForm profile={profile} vendors={vendors} materials={materials} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
   }
@@ -158,7 +178,10 @@ export default function PurchaseOrdersTab({profile,showToast}){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{hasActiveNarrowing?`${filtered.length} of ${pos.length} purchase order${pos.length!==1?"s":""}`:`${pos.length} purchase order${pos.length!==1?"s":""}`}</div>
-        {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Purchase Order</button>}
+        <div style={{display:"flex",gap:8}}>
+          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Purchase Order</button>}
+        </div>
       </div>
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>

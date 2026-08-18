@@ -12,6 +12,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import { PLANTS, UNITS, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS } from "./purchaseHelpers";
 
@@ -112,6 +113,18 @@ export default function GRNTab({profile,showToast}){
     setPage(1);
   }
 
+  function exportExcel(){
+    const rows=sorted.map(e=>({
+      "Date":e.date_received?formatDate(e.date_received):"","Material":e.material_name||"","Supplier":e.supplier_name||"",
+      "Quantity":e.quantity??"","Unit":e.unit||"","PO No.":e.po_number||"","GRN No.":e.grn_number||"","Received by":e.operator_name||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"GRN");
+    XLSX.writeFile(wb,`GRN_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(mode==="po")return<ReceiveAgainstPO profile={profile} pos={pos} showToast={showToast} onClose={()=>setMode(null)}/>;
   if(mode==="direct")return<DirectReceipt profile={profile} materials={materials} suppliers={suppliers} showToast={showToast} onClose={()=>setMode(null)}/>;
 
@@ -121,12 +134,13 @@ export default function GRNTab({profile,showToast}){
         <div>
           <div style={{fontSize:14,fontWeight:600}}>{entries.length} receipt{entries.length!==1?"s":""} recorded</div>
         </div>
-        {canReceive&&(
-          <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8}}>
+          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canReceive&&(<>
             <button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("po")}><Icon name="clipboard" size={12}/>Receive against PO</button>
             <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>
-          </div>
-        )}
+          </>)}
+        </div>
       </div>
 
       {/* GRN Hold alert — admin only */}

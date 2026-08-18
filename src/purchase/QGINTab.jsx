@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shared.jsx";
 import {
   PLANTS, QGIN_STATUSES, QGIN_STATUS_LABELS, QGIN_STATUS_COLORS,
@@ -145,6 +146,20 @@ export default function QGINTab({profile,showToast}){
     showToast(`${qgin.qgin_number} cancelled`);
   }
 
+  function exportExcel(){
+    const rows=sorted.map(qgin=>({
+      "QGIN No.":qgin.qgin_number||"","GIN No.":qgin.gin_number||"","PO No.":qgin.po_number||"",
+      "Material":(qgin.item_code?`${qgin.item_code} — `:"")+(qgin.material_name||""),"Site":qgin.plant||"",
+      "Date":qgin.created_at?formatDate(qgin.created_at?.toDate?qgin.created_at.toDate():qgin.created_at):"",
+      "Status":QGIN_STATUS_LABELS[qgin.status]||qgin.status||"","GIN Qty":`${qgin.gin_qty||0} ${qgin.base_uom||""}`,"GRN":qgin.grn_number||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"QGINs");
+    XLSX.writeFile(wb,`QGINs_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(manualSeed){
     return(
       <div>
@@ -185,7 +200,10 @@ export default function QGINTab({profile,showToast}){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:14,fontWeight:600}}>{hasActiveNarrowing?`${filtered.length} of ${qgins.length} QGIN${qgins.length!==1?"s":""}`:`${qgins.length} QGIN${qgins.length!==1?"s":""}`}</div>
-        {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setPickerOpen(true)}><Icon name="plus" size={12}/>New QGIN</button>}
+        <div style={{display:"flex",gap:8}}>
+          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setPickerOpen(true)}><Icon name="plus" size={12}/>New QGIN</button>}
+        </div>
       </div>
       <div style={{fontSize:12,color:"#9ca3af",marginTop:-10,marginBottom:16}}>QGINs are created automatically when a GIN is approved — use "New QGIN" only if one was missed or a line needs re-inspection.</div>
 

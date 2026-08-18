@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, doc, addDoc, updateDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import { generateVendorCode } from "./purchaseHelpers";
 
@@ -65,6 +66,19 @@ export default function PurchaseVendorsTab({profile,showToast}){
     showToast(`${v.name} ${v.active!==false?"deactivated":"activated"}`);
   }
 
+  function exportExcel(){
+    const rows=sorted.map(v=>({
+      "Code":v.vendor_code||"","Name":v.name||"","GSTIN":v.gstin||"","State code":v.state_code||"","PAN":v.pan||"",
+      "Phone":v.phone||v.contact||"","Email":v.email||"","Payment terms":v.payment_terms||"","Category":v.category||"",
+      "Status":v.active!==false?"Active":"Inactive",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Vendors");
+    XLSX.writeFile(wb,`Vendors_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
   if(showForm||editVendor){
     return <VendorForm existing={editVendor} showToast={showToast} onClose={()=>{setShowForm(false);setEditVendor(null);}}/>;
   }
@@ -80,7 +94,10 @@ export default function PurchaseVendorsTab({profile,showToast}){
           <div style={{fontSize:14,fontWeight:600}}>{vendors.length} vendor{vendors.length!==1?"s":""}</div>
           <div style={{fontSize:12,color:"#9ca3af",marginTop:2}}>Shared across all plants</div>
         </div>
-        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Vendor</button>}
+        <div style={{display:"flex",gap:8}}>
+          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+          {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Vendor</button>}
+        </div>
       </div>
 
       <input style={{...fieldStyle,marginBottom:16,maxWidth:280}} placeholder="Search vendor name / code…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
