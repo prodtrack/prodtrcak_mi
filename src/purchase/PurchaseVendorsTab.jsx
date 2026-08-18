@@ -177,10 +177,10 @@ function VendorTableRow({vendor,selected,onSelect}){
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160,opacity:active?1:.55};
 
   return(
-    <tr onClick={onSelect} style={{cursor:"pointer",background:selected?"#f5f7fa":"transparent"}}
+    <tr style={{background:selected?"#f5f7fa":"transparent"}}
       onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
       onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
-      <td style={{...cellStyle,textAlign:"center",opacity:1}}>
+      <td style={{...cellStyle,textAlign:"center",opacity:1,cursor:"pointer"}} onClick={onSelect}>
         <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
       </td>
       <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{vendor.vendor_code||"—"}</td>
