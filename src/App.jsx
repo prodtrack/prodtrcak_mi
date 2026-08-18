@@ -237,8 +237,8 @@ function MainApp({user,profile}){
           <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:200}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",rowGap:8,minHeight:56,padding:"10px 12px",gap:8}}>
               <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-                <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:24,flexShrink:0}}/>
-                <span style={{...S,fontSize:14,fontWeight:700,color:"#e8c547",letterSpacing:".06em",flexShrink:0}}>PRODTRACK</span>
+                <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:28,flexShrink:0}}/>
+                <span style={{...S,fontSize:16,fontWeight:700,color:"#e8c547",letterSpacing:".06em",flexShrink:0}}>PRODTRACK</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
                 <span style={{fontSize:12,color:"#6b7280",whiteSpace:"nowrap"}}>{profile.name||user.email}</span>
