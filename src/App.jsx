@@ -182,13 +182,13 @@ function MainApp({user,profile}){
   const canDispatch=isAdmin||["sales"].includes(profile.role)||profile.dispatch_access!==false;
 
   const TABS=[
-    ...(canEnquiry?[{id:"enquiry",label:"Enquiry"}]:[]),
-    ...(canTender?[{id:"tender",label:"Tender"}]:[]),
-    ...(canWO?[{id:"dashboard",label:"Work Orders"}]:[]),
-    ...(canPurchase?[{id:"purchase",label:"Purchase"}]:[]),
-    ...(canInventory?[{id:"inventory",label:"Inventory"}]:[]),
-    ...(canDispatch?[{id:"dispatch",label:"Dispatch"}]:[]),
-    ...(isAdmin?[{id:"admin",label:"Admin"}]:[]),
+    ...(canEnquiry?[{id:"enquiry",label:"Enquiry",icon:"document"}]:[]),
+    ...(canTender?[{id:"tender",label:"Tender",icon:"clipboard"}]:[]),
+    ...(canWO?[{id:"dashboard",label:"Work Orders",icon:"list"}]:[]),
+    ...(canPurchase?[{id:"purchase",label:"Purchase",icon:"bag"}]:[]),
+    ...(canInventory?[{id:"inventory",label:"Inventory",icon:"box"}]:[]),
+    ...(canDispatch?[{id:"dispatch",label:"Dispatch",icon:"truck"}]:[]),
+    ...(isAdmin?[{id:"admin",label:"Admin",icon:"settings"}]:[]),
   ];
 
   // Default landing tab: first one this profile actually has access to. No
@@ -197,6 +197,7 @@ function MainApp({user,profile}){
   // through to nothing rendered, rather than assuming any specific tab
   // (dispatch included) is always safe to land on.
   const [tab,setTab]=useState(()=>TABS[0]?.id);
+  const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
 
   const isMobile=useIsMobile();
   const shellWidth=isMobile?"100%":900;
@@ -205,22 +206,28 @@ function MainApp({user,profile}){
   return(
     <div style={{background:"#f4f6f9",minHeight:"100vh",display:"flex"}}>
       {!isMobile && (
-        <div style={{width:200,flexShrink:0,background:"#fff",borderRight:"1px solid #e5e7eb",display:"flex",flexDirection:"column",padding:"20px 12px",position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,paddingLeft:4}}>
-            <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:26,flexShrink:0}}/>
+        <div style={{width:sidebarCollapsed?60:200,flexShrink:0,background:"#fff",borderRight:"1px solid #e5e7eb",display:"flex",flexDirection:"column",padding:sidebarCollapsed?"20px 8px":"20px 12px",position:"sticky",top:0,height:"100vh",overflowY:"auto",overflowX:"hidden",transition:"width .15s, padding .15s"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between",gap:10,marginBottom:6,paddingLeft:sidebarCollapsed?0:4}}>
+            {!sidebarCollapsed&&<img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:26,flexShrink:0}}/>}
+            <button onClick={()=>setSidebarCollapsed(c=>!c)} title={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"#6b7280",display:"flex",flexShrink:0}}
+              onMouseEnter={e=>e.currentTarget.style.background="#f3f4f6"} onMouseLeave={e=>e.currentTarget.style.background="none"}>
+              <Icon name="menu" size={16}/>
+            </button>
           </div>
-          <div style={{...S,fontSize:12,fontWeight:700,color:"#e8c547",letterSpacing:".06em",marginBottom:22,paddingLeft:4}}>PRODTRACK</div>
+          {!sidebarCollapsed&&<div style={{...S,fontSize:12,fontWeight:700,color:"#e8c547",letterSpacing:".06em",marginBottom:22,paddingLeft:4}}>PRODTRACK</div>}
+          {sidebarCollapsed&&<div style={{height:22,marginBottom:22}}/>}
           <div style={{display:"flex",flexDirection:"column",gap:2,flex:1}}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:13,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
-                {t.label}
+              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:10,justifyContent:sidebarCollapsed?"center":"flex-start",textAlign:"left",padding:sidebarCollapsed?"9px 0":"9px 12px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:13,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
+                <Icon name={t.icon} size={16}/>
+                {!sidebarCollapsed&&t.label}
               </button>
             ))}
           </div>
           <div style={{borderTop:"1px solid #f3f4f6",paddingTop:12,marginTop:12}}>
-            <div style={{fontSize:12,color:"#6b7280",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name||user.email}</div>
-            <span style={{...S,background:`${ROLE_COLORS[profile.role]}18`,color:ROLE_COLORS[profile.role],padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{ROLE_LABELS[profile.role]||profile.role}</span>
-            <button className="btn-ghost" style={{marginTop:10,width:"100%",justifyContent:"center",padding:"6px 10px",fontSize:12}} onClick={()=>signOut(auth)}><Icon name="logout" size={13}/>Sign out</button>
+            {!sidebarCollapsed&&<div style={{fontSize:12,color:"#6b7280",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name||user.email}</div>}
+            {!sidebarCollapsed&&<span style={{...S,background:`${ROLE_COLORS[profile.role]}18`,color:ROLE_COLORS[profile.role],padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{ROLE_LABELS[profile.role]||profile.role}</span>}
+            <button className="btn-ghost" title={sidebarCollapsed?"Sign out":undefined} style={{marginTop:10,width:"100%",justifyContent:"center",padding:"6px 10px",fontSize:12}} onClick={()=>signOut(auth)}><Icon name="logout" size={13}/>{!sidebarCollapsed&&"Sign out"}</button>
           </div>
         </div>
       )}
