@@ -1566,6 +1566,7 @@ function EnquiryTab({profile,showToast}){
                         onMouseEnter={ev=>ev.currentTarget.style.textDecorationColor="#2563eb"}
                         onMouseLeave={ev=>ev.currentTarget.style.textDecorationColor="transparent"}>
                         {e.enq_number||"—"}
+                        {e.status==="draft"&&<span style={{...S,marginLeft:6,background:"#f3f4f6",color:"#6b7280",padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:600,textDecoration:"none"}}>DRAFT</span>}
                       </td>
                       <td style={{padding:"10px 12px",...S}}>{e.enq_date?formatDate(e.enq_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.specification_number||"—"}</td>
@@ -1775,7 +1776,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
     }));
   }
 
-  async function save(){
+  async function save(asDraft){
     setError("");setSaving(true);
     try{
       const payload={
@@ -1785,17 +1786,18 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
         items,
+        status:asDraft?"draft":"final",
         updated_at:serverTimestamp(),
       };
       if(isEdit){
         await updateDoc(doc(db,"enquiries",existing.id),payload);
-        showToast("Enquiry updated");
+        showToast(asDraft?"Enquiry saved as draft":"Enquiry updated");
       }else{
         const enqNumber=await generateEnqNumber();
         await addDoc(collection(db,"enquiries"),{
           ...payload,enq_number:enqNumber,created_by:profile.name||auth.currentUser.email,created_at:serverTimestamp(),
         });
-        showToast("Enquiry created");
+        showToast(asDraft?"Enquiry saved as draft":"Enquiry created");
       }
       onClose();
     }catch(e){setError("Save failed: "+e.message);}
@@ -1810,7 +1812,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
       </div>
 
       {!isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#1d4ed8",marginBottom:20}}>Auto-generated Enq No. on save</div>}
-      {isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#92400e",marginBottom:20}}>{existing.enq_number}</div>}
+      {isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#92400e",marginBottom:20}}>{existing.enq_number}{existing.status==="draft"&&" · Draft"}</div>}
 
       <div className="card" style={{padding:20,marginBottom:16}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:16}}>Enquiry details</div>
@@ -2002,7 +2004,8 @@ function EnquiryForm({existing,profile,showToast,onClose}){
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Enquiry":"Save Enquiry"}</button>
+        <button className="btn-ghost" disabled={saving} onClick={()=>save(true)}><Icon name="clipboard" size={14}/>{saving?"Saving…":"Save as Draft"}</button>
+        <button className="btn-primary" disabled={saving} onClick={()=>save(false)}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Enquiry":"Save Enquiry"}</button>
       </div>
     </div>
   );
