@@ -29,6 +29,10 @@ export default function GRNTab({profile,showToast}){
   const [search,setSearch]=useState("");
   const [holdRemark,setHoldRemark]=useState({});
   const [holdSaving,setHoldSaving]=useState({});
+  const [sortField,setSortField]=useState("date_received");
+  const [sortDir,setSortDir]=useState("desc");
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=10;
 
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),s=>setMaterials(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
   useEffect(()=>onSnapshot(collection(db,"supplier_master"),s=>setSuppliers(s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.active!==false))),[]);
@@ -75,6 +79,32 @@ export default function GRNTab({profile,showToast}){
   const pendingHolds=holds.filter(h=>h.status==="pending");
   const filtered=entries.filter(e=>!search||e.material_name?.toLowerCase().includes(search.toLowerCase())||e.supplier_name?.toLowerCase().includes(search.toLowerCase())||e.po_number?.toLowerCase().includes(search.toLowerCase()));
 
+  function entryField(e,field){
+    switch(field){
+      case "date_received":return e.date_received?new Date(e.date_received).getTime():0;
+      case "material_name":return e.material_name||"";
+      case "supplier_name":return e.supplier_name||"";
+      case "quantity":return parseFloat(e.quantity)||0;
+      case "po_number":return e.po_number||"";
+      case "operator_name":return e.operator_name||"";
+      default:return "";
+    }
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    const va=entryField(a,sortField),vb=entryField(b,sortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
+  const pageSafe=Math.min(page,totalPages);
+  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+
+  function onSort(field){
+    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
+    else{setSortField(field);setSortDir("asc");}
+    setPage(1);
+  }
+
   if(mode==="po")return<ReceiveAgainstPO profile={profile} pos={pos} showToast={showToast} onClose={()=>setMode(null)}/>;
   if(mode==="direct")return<DirectReceipt profile={profile} materials={materials} suppliers={suppliers} showToast={showToast} onClose={()=>setMode(null)}/>;
 
@@ -120,22 +150,22 @@ export default function GRNTab({profile,showToast}){
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f3f4f6",flexWrap:"wrap"}}>
           <span style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",flex:1}}>Receipt History</span>
-          <input style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 11px",fontSize:12,outline:"none",width:200}} placeholder="Search material / supplier / PO…" value={search} onChange={e=>setSearch(e.target.value)}/>
+          <input style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 11px",fontSize:12,outline:"none",width:200}} placeholder="Search material / supplier / PO…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
         </div>
         <div style={{overflowX:"auto"}}>
         <div style={{minWidth:560}}>
-        {filtered.length>0&&(
+        {sorted.length>0&&(
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6"}}>
-            {[["DATE",80],["MATERIAL","1"],["SUPPLIER",110],["QTY",70],["PO #",90],["BY",90]].map(([l,w])=>(
-              <span key={l} style={{...S,fontSize:10,color:"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined}}>{l}</span>
+            {[["DATE",80,"date_received"],["MATERIAL","1","material_name"],["SUPPLIER",110,"supplier_name"],["QTY",70,"quantity"],["PO #",90,"po_number"],["BY",90,"operator_name"]].map(([l,w,field])=>(
+              <span key={l} onClick={()=>onSort(field)} style={{...S,fontSize:10,color:sortField===field?"#374151":"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined,cursor:"pointer",userSelect:"none"}}>{l}{sortField===field&&(sortDir==="asc"?" ▲":" ▼")}</span>
             ))}
           </div>
         )}
-        <div style={{maxHeight:280,overflowY:"auto"}}>
-        {filtered.length===0
+        <div>
+        {paginated.length===0
           ?<EmptyState text="No receipts yet"/>
-          :filtered.map((e,i)=>(
-            <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:i<filtered.length-1?"1px solid #f9fafb":undefined}}
+          :paginated.map((e,i)=>(
+            <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:i<paginated.length-1?"1px solid #f9fafb":undefined}}
               onMouseEnter={ev=>ev.currentTarget.style.background="#f9fafb"}
               onMouseLeave={ev=>ev.currentTarget.style.background="#fff"}>
               <span style={{...S,fontSize:11,color:"#9ca3af",flexShrink:0,width:80}}>{formatDate(e.date_received)}</span>
@@ -148,10 +178,34 @@ export default function GRNTab({profile,showToast}){
           ))
         }
         </div>
+        {sorted.length>0&&(
+          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,padding:"8px 16px",borderTop:"1px solid #f3f4f6",fontSize:12,color:"#6b7280"}}>
+            <span>{sorted.length} receipt{sorted.length!==1?"s":""}</span>
+            <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+            <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+            <span>Page {pageSafe} of {totalPages}</span>
+            <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+            <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+          </div>
+        )}
         </div>
         </div>
       </div>
     </div>
+  );
+}
+
+const pagerBtnStyle={display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,padding:0,border:"1px solid #d1d5db",borderRadius:6,background:"#fff",cursor:"pointer"};
+
+function PagerIcon({dir}){
+  const chevron=(flip)=><polyline points="15 18 9 12 15 6" transform={flip?"scale(-1,1) translate(-24,0)":undefined}/>;
+  return(
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir==="prev"&&chevron(false)}
+      {dir==="next"&&chevron(true)}
+      {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
+      {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
+    </svg>
   );
 }
 

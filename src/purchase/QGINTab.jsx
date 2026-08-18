@@ -40,6 +40,11 @@ export default function QGINTab({profile,showToast}){
   const [search,setSearch]=useState("");
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
+  const [selectedId,setSelectedId]=useState(null);
+  const [sortField,setSortField]=useState("created_at");
+  const [sortDir,setSortDir]=useState("desc");
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=10;
 
   useEffect(()=>{
     const q=query(collection(db,"quality_gins"),orderBy("created_at","desc"));
@@ -88,7 +93,45 @@ export default function QGINTab({profile,showToast}){
   );
   const hasActiveNarrowing=statusFilter!=="all"||plantFilter!=="all"||q.length>0;
 
-  function toggleExpand(id){setExpandedId(prev=>prev===id?null:id);setEditingId(null);}
+  function qginField(qgin,field){
+    switch(field){
+      case "qgin_number":return qgin.qgin_number||"";
+      case "gin_number":return qgin.gin_number||"";
+      case "po_number":return qgin.po_number||"";
+      case "material_name":return qgin.material_name||"";
+      case "plant":return qgin.plant||"";
+      case "created_at":return qgin.created_at?.toDate?qgin.created_at.toDate().getTime():(qgin.created_at?new Date(qgin.created_at).getTime():0);
+      case "status":return qgin.status||"";
+      case "gin_qty":return parseFloat(qgin.gin_qty)||0;
+      case "grn_number":return qgin.grn_number||"";
+      default:return "";
+    }
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    const va=qginField(a,sortField),vb=qginField(b,sortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
+  const pageSafe=Math.min(page,totalPages);
+  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+
+  function onSort(field){
+    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
+    else{setSortField(field);setSortDir("asc");}
+    setPage(1);
+  }
+
+  function qginEditability(qgin,canCreate,canApprove){
+    const canEdit=["draft","pending_approval"].includes(qgin.status)&&(canCreate||canApprove);
+    const canCancel=["draft","pending_approval"].includes(qgin.status);
+    return {canEdit,canCancel};
+  }
+
+  function selectRow(id){setSelectedId(prev=>prev===id?null:id);setExpandedId(null);setEditingId(null);}
+  function openView(){if(selectedId){setExpandedId(selectedId);setEditingId(null);}}
+  function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
+  function closeDetail(){setExpandedId(null);setEditingId(null);}
 
   async function cancelQGIN(qgin){
     if(!window.confirm(`Cancel ${qgin.qgin_number}? This cannot be undone.`))return;
@@ -112,6 +155,26 @@ export default function QGINTab({profile,showToast}){
     return <QGINPicker approvedGins={approvedGins} onCreate={startManualQGIN} onClose={()=>setPickerOpen(false)}/>;
   }
 
+  if(expandedId){
+    const qgin=qgins.find(g=>g.id===expandedId);
+    if(qgin){
+      const {canEdit,canCancel}=qginEditability(qgin,canCreate,canApprove);
+      return(
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={closeDetail}><Icon name="arrow" size={14}/>Back</button>
+            <div style={{fontSize:14,fontWeight:600}}>{qgin.qgin_number}</div>
+          </div>
+          {editingId===qgin.id
+            ? <QGINForm profile={profile} existing={qgin} showToast={showToast} onClose={closeDetail}/>
+            : <QGINDetailPanel qgin={qgin} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
+                onEdit={openEdit} onCancel={()=>cancelQGIN(qgin)}/>
+          }
+        </div>
+      );
+    }
+  }
+
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -122,82 +185,111 @@ export default function QGINTab({profile,showToast}){
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
         {[["all","All"],...QGIN_STATUSES.map(s=>[s,QGIN_STATUS_LABELS[s]])].map(([v,l])=>(
-          <button key={v} onClick={()=>setStatusFilter(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
+          <button key={v} onClick={()=>{setStatusFilter(v);setPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
         ))}
-        <select value={plantFilter} onChange={e=>setPlantFilter(e.target.value)} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
+        <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
           <option value="all">All plants</option>
           {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
         </select>
       </div>
 
       <div style={{marginBottom:16}}>
-        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by QGIN, GIN, PO number, or item…" value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by QGIN, GIN, PO number, or item…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
       </div>
 
-      {!hasActiveNarrowing
-        ?<EmptyState text="Search or select a filter to view QGINs" sub="Use the status chips, plant dropdown, or search box above"/>
+      {qgins.length===0
+        ?<EmptyState text="No QGINs yet" sub="QGINs are created automatically when a GIN is approved"/>
         :filtered.length===0
         ?<EmptyState text="No QGINs match" sub="Try a different filter"/>
-        :filtered.map(qgin=>(
-          <QGINListItem
-            key={qgin.id}
-            qgin={qgin}
-            profile={profile}
-            showToast={showToast}
-            canApprove={canApprove}
-            canCreate={canCreate}
-            expanded={expandedId===qgin.id}
-            editing={editingId===qgin.id}
-            onToggle={()=>toggleExpand(qgin.id)}
-            onEditClick={()=>setEditingId(qgin.id)}
-            onCancelEdit={()=>setEditingId(null)}
-            onCancelQGIN={()=>cancelQGIN(qgin)}
-          />
-        ))
+        :<>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"#fafafa"}}>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <SortTh label="QGIN No." field="qgin_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="GIN No." field="gin_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="PO No." field="po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Material" field="material_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Site" field="plant" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="GIN Qty" field="gin_qty" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right"/>
+                  <SortTh label="GRN" field="grn_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(qgin=>(
+                  <QGINTableRow key={qgin.id} qgin={qgin} selected={selectedId===qgin.id} onSelect={()=>selectRow(qgin.id)}/>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&qginEditability(qgins.find(g=>g.id===selectedId)||{},canCreate,canApprove).canEdit?1:.4,cursor:selectedId&&qginEditability(qgins.find(g=>g.id===selectedId)||{},canCreate,canApprove).canEdit?"pointer":"default"}} disabled={!selectedId||!qginEditability(qgins.find(g=>g.id===selectedId)||{},canCreate,canApprove).canEdit} onClick={openEdit}>Edit</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+              <span>{sorted.length} QGIN{sorted.length!==1?"s":""}</span>
+              <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+              <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+              <span>Page {pageSafe} of {totalPages}</span>
+              <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+              <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+            </div>
+          </div>
+        </>
       }
     </div>
   );
 }
 
-function QGINListItem({qgin,profile,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelQGIN}){
+const pagerBtnStyle={display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,padding:0,border:"1px solid #d1d5db",borderRadius:6,background:"#fff",cursor:"pointer"};
+
+function PagerIcon({dir}){
+  const chevron=(flip)=><polyline points="15 18 9 12 15 6" transform={flip?"scale(-1,1) translate(-24,0)":undefined}/>;
+  return(
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir==="prev"&&chevron(false)}
+      {dir==="next"&&chevron(true)}
+      {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
+      {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
+    </svg>
+  );
+}
+
+function SortTh({label,field,sortField,sortDir,onSort,align}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+// ─── QGIN table row — select circle only; View/Edit buttons open full detail ─
+function QGINTableRow({qgin,selected,onSelect}){
   const sc=QGIN_STATUS_COLORS[qgin.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const canEdit=["draft","pending_approval"].includes(qgin.status)&&(canCreate||canApprove);
-  const canCancel=["draft","pending_approval"].includes(qgin.status);
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
-    <div className="card animate-in" style={{padding:0,marginBottom:8,overflow:"hidden"}}>
-      <div onClick={onToggle} style={{padding:"14px 18px",cursor:"pointer"}}
-        onMouseEnter={e=>e.currentTarget.style.background="#fafafa"}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-          <span style={{...S,fontSize:13,fontWeight:700,color:"#1a1f2e"}}>{qgin.qgin_number}</span>
-          <span style={{...S,background:"#f3f4f6",color:"#374151",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>{qgin.plant}</span>
-          <span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,flexShrink:0}}>{QGIN_STATUS_LABELS[qgin.status]}</span>
-          {qgin.grn_number&&<span style={{...S,background:"#f0fdf4",color:"#16a34a",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>→ {qgin.grn_number}</span>}
-          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{transform:expanded?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
-        </div>
-        <div style={{display:"flex",alignItems:"baseline",gap:0,flexWrap:"wrap",fontSize:13,marginBottom:6}}>
-          <span style={{fontWeight:600,color:"#1a1f2e",marginRight:12}}>{qgin.item_code&&<span style={{...S,color:"#6b7280"}}>{qgin.item_code} — </span>}{qgin.material_name}</span>
-          <span style={{...S,fontSize:11,color:"#6b7280"}}>from {qgin.gin_number}</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:11,color:"#9ca3af"}}>GIN Qty {qgin.gin_qty} {qgin.base_uom}</span>
-          <span style={{fontSize:11,color:"#9ca3af"}}>by {qgin.created_by_name}</span>
-        </div>
-      </div>
-
-      {expanded&&(
-        <div style={{borderTop:"1px solid #f3f4f6",padding:20,background:"#fafbfc"}} onClick={e=>e.stopPropagation()}>
-          {editing
-            ? <QGINForm profile={profile} existing={qgin} showToast={showToast} onClose={onCancelEdit}/>
-            : <QGINDetailPanel qgin={qgin} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
-                onEdit={onEditClick} onCancel={onCancelQGIN}/>
-          }
-        </div>
-      )}
-    </div>
+    <tr onClick={onSelect} style={{cursor:"pointer",background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center"}}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{qgin.qgin_number}</td>
+      <td style={cellStyle}>{qgin.gin_number||"—"}</td>
+      <td style={cellStyle}>{qgin.po_number||"—"}</td>
+      <td style={cellStyle} title={qgin.material_name}>{qgin.item_code?`${qgin.item_code} — `:""}{qgin.material_name}</td>
+      <td style={cellStyle}>{qgin.plant}</td>
+      <td style={cellStyle}>{formatDate(qgin.created_at?.toDate?qgin.created_at.toDate():qgin.created_at)}</td>
+      <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{QGIN_STATUS_LABELS[qgin.status]}</span></td>
+      <td style={{...cellStyle,textAlign:"right"}}>{qgin.gin_qty} {qgin.base_uom}</td>
+      <td style={cellStyle}>{qgin.grn_number||"—"}</td>
+    </tr>
   );
 }
 

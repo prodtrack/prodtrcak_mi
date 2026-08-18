@@ -29,7 +29,12 @@ export default function GINTab({profile,showToast}){
   const [search,setSearch]=useState("");
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
+  const [selectedId,setSelectedId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
+  const [sortField,setSortField]=useState("created_at");
+  const [sortDir,setSortDir]=useState("desc");
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=10;
 
   useEffect(()=>{
     const q=query(collection(db,"goods_inward_notes"),orderBy("created_at","desc"));
@@ -53,7 +58,45 @@ export default function GINTab({profile,showToast}){
   );
   const hasActiveNarrowing=statusFilter!=="all"||plantFilter!=="all"||q.length>0;
 
-  function toggleExpand(id){setExpandedId(prev=>prev===id?null:id);setEditingId(null);}
+  function ginField(gin,field){
+    switch(field){
+      case "gin_number":return gin.gin_number||"";
+      case "gin_type":return gin.gin_type||"";
+      case "po_number":return gin.po_number||"";
+      case "vendor_name":return gin.vendor_name||"";
+      case "plant":return gin.plant||"";
+      case "created_at":return gin.created_at?.toDate?gin.created_at.toDate().getTime():(gin.created_at?new Date(gin.created_at).getTime():0);
+      case "status":return gin.status||"";
+      case "vehicle_no":return gin.vehicle_no||"";
+      case "grn_number":return gin.grn_number||"";
+      default:return "";
+    }
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    const va=ginField(a,sortField),vb=ginField(b,sortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
+  const pageSafe=Math.min(page,totalPages);
+  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+
+  function onSort(field){
+    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
+    else{setSortField(field);setSortDir("asc");}
+    setPage(1);
+  }
+
+  function ginEditability(gin,canCreate){
+    const canEdit=["draft","pending_approval","approved"].includes(gin.status)&&canCreate;
+    const canCancel=["draft","pending_approval"].includes(gin.status);
+    return {canEdit,canCancel};
+  }
+
+  function selectRow(id){setSelectedId(prev=>prev===id?null:id);setExpandedId(null);setEditingId(null);}
+  function openView(){if(selectedId){setExpandedId(selectedId);setEditingId(null);}}
+  function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
+  function closeDetail(){setExpandedId(null);setEditingId(null);}
 
   async function cancelGIN(gin){
     if(!window.confirm(`Cancel ${gin.gin_number}? This cannot be undone.`))return;
@@ -65,6 +108,26 @@ export default function GINTab({profile,showToast}){
     return <GINForm profile={profile} pos={pos} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
   }
 
+  if(expandedId){
+    const gin=gins.find(g=>g.id===expandedId);
+    if(gin){
+      const {canEdit,canCancel}=ginEditability(gin,canCreate);
+      return(
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={closeDetail}><Icon name="arrow" size={14}/>Back</button>
+            <div style={{fontSize:14,fontWeight:600}}>{gin.gin_number}</div>
+          </div>
+          {editingId===gin.id
+            ? <GINForm profile={profile} pos={pos} existing={gin} showToast={showToast} onClose={closeDetail}/>
+            : <GINDetailPanel gin={gin} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
+                onEdit={openEdit} onCancel={()=>cancelGIN(gin)}/>
+          }
+        </div>
+      );
+    }
+  }
+
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -74,87 +137,111 @@ export default function GINTab({profile,showToast}){
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
         {[["all","All"],...GIN_STATUSES.map(s=>[s,GIN_STATUS_LABELS[s]])].map(([v,l])=>(
-          <button key={v} onClick={()=>setStatusFilter(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
+          <button key={v} onClick={()=>{setStatusFilter(v);setPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
         ))}
-        <select value={plantFilter} onChange={e=>setPlantFilter(e.target.value)} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
+        <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
           <option value="all">All plants</option>
           {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
         </select>
       </div>
 
       <div style={{marginBottom:16}}>
-        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by GIN number, vendor, PO, or challan no…" value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by GIN number, vendor, PO, or challan no…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
       </div>
 
-      {!hasActiveNarrowing
-        ?<EmptyState text="Search or select a filter to view GINs" sub="Use the status chips, plant dropdown, or search box above"/>
+      {gins.length===0
+        ?<EmptyState text="No GINs yet" sub={canCreate?"Click 'New GIN' to log an arrival":undefined}/>
         :filtered.length===0
         ?<EmptyState text="No GINs match" sub={canCreate?"Try a different filter, or click 'New GIN' to log an arrival":undefined}/>
-        :filtered.map(gin=>(
-          <GINListItem
-            key={gin.id}
-            gin={gin}
-            profile={profile}
-            pos={pos}
-            showToast={showToast}
-            canApprove={canApprove}
-            canCreate={canCreate}
-            expanded={expandedId===gin.id}
-            editing={editingId===gin.id}
-            onToggle={()=>toggleExpand(gin.id)}
-            onEditClick={()=>setEditingId(gin.id)}
-            onCancelEdit={()=>setEditingId(null)}
-            onCancelGIN={()=>cancelGIN(gin)}
-          />
-        ))
+        :<>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"#fafafa"}}>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <SortTh label="GIN No." field="gin_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Type" field="gin_type" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="PO No." field="po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Vendor name" field="vendor_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Site" field="plant" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Vehicle" field="vehicle_no" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="GRN" field="grn_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(gin=>(
+                  <GINTableRow key={gin.id} gin={gin} selected={selectedId===gin.id} onSelect={()=>selectRow(gin.id)}/>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&ginEditability(gins.find(g=>g.id===selectedId)||{},canCreate).canEdit?1:.4,cursor:selectedId&&ginEditability(gins.find(g=>g.id===selectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!selectedId||!ginEditability(gins.find(g=>g.id===selectedId)||{},canCreate).canEdit} onClick={openEdit}>Edit</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+              <span>{sorted.length} GIN{sorted.length!==1?"s":""}</span>
+              <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+              <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+              <span>Page {pageSafe} of {totalPages}</span>
+              <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+              <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+            </div>
+          </div>
+        </>
       }
     </div>
   );
 }
 
-function GINListItem({gin,profile,pos,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelGIN}){
+const pagerBtnStyle={display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,padding:0,border:"1px solid #d1d5db",borderRadius:6,background:"#fff",cursor:"pointer"};
+
+function PagerIcon({dir}){
+  const chevron=(flip)=><polyline points="15 18 9 12 15 6" transform={flip?"scale(-1,1) translate(-24,0)":undefined}/>;
+  return(
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir==="prev"&&chevron(false)}
+      {dir==="next"&&chevron(true)}
+      {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
+      {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
+    </svg>
+  );
+}
+
+function SortTh({label,field,sortField,sortDir,onSort,align}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+// ─── GIN table row — select circle only; View/Edit buttons open full detail ─
+function GINTableRow({gin,selected,onSelect}){
   const sc=GIN_STATUS_COLORS[gin.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const canEdit=["draft","pending_approval","approved"].includes(gin.status)&&canCreate;
-  const canCancel=["draft","pending_approval"].includes(gin.status);
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
-    <div className="card animate-in" style={{padding:0,marginBottom:8,overflow:"hidden"}}>
-      <div onClick={onToggle} style={{padding:"14px 18px",cursor:"pointer"}}
-        onMouseEnter={e=>e.currentTarget.style.background="#fafafa"}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-          <span style={{...S,fontSize:13,fontWeight:700,color:"#1a1f2e"}}>{gin.gin_number}</span>
-          <span style={{...S,background:"#f3f4f6",color:"#374151",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>{gin.plant}</span>
-          <span style={{...S,background:"#eef2ff",color:"#4338ca",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>{gin.gin_type}</span>
-          <span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,flexShrink:0}}>{GIN_STATUS_LABELS[gin.status]}</span>
-          {gin.grn_number&&<span style={{...S,background:"#f0fdf4",color:"#16a34a",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>→ {gin.grn_number}</span>}
-          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{transform:expanded?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
-        </div>
-        <div style={{display:"flex",alignItems:"baseline",gap:0,flexWrap:"wrap",fontSize:13,marginBottom:6}}>
-          <span style={{fontWeight:600,color:"#1a1f2e",marginRight:12}}>{gin.vendor_name}</span>
-          <span style={{...S,fontSize:11,color:"#6b7280",marginRight:12}}>PO {gin.po_number}</span>
-          <span style={{...S,fontSize:11,color:"#6b7280"}}>{(gin.line_items||[]).length} item{(gin.line_items||[]).length!==1?"s":""}</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",gap:4}}>
-            <Icon name="truck" size={11}/>Vehicle {gin.vehicle_no||"—"}
-          </span>
-          <span style={{fontSize:11,color:"#9ca3af"}}>by {gin.created_by_name}</span>
-        </div>
-      </div>
-
-      {expanded&&(
-        <div style={{borderTop:"1px solid #f3f4f6",padding:20,background:"#fafbfc"}} onClick={e=>e.stopPropagation()}>
-          {editing
-            ? <GINForm profile={profile} pos={pos} existing={gin} showToast={showToast} onClose={onCancelEdit}/>
-            : <GINDetailPanel gin={gin} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
-                onEdit={onEditClick} onCancel={onCancelGIN}/>
-          }
-        </div>
-      )}
-    </div>
+    <tr onClick={onSelect} style={{cursor:"pointer",background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center"}}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{gin.gin_number}</td>
+      <td style={cellStyle}>{gin.gin_type||"—"}</td>
+      <td style={cellStyle}>{gin.po_number||"—"}</td>
+      <td style={cellStyle} title={gin.vendor_name}>{gin.vendor_name}</td>
+      <td style={cellStyle}>{gin.plant}</td>
+      <td style={cellStyle}>{formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at)}</td>
+      <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{GIN_STATUS_LABELS[gin.status]}</span></td>
+      <td style={cellStyle}>{gin.vehicle_no||"—"}</td>
+      <td style={cellStyle}>{gin.grn_number||"—"}</td>
+    </tr>
   );
 }
 
@@ -440,8 +527,8 @@ function GINForm({profile,pos,existing,showToast,onClose}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:14}}>
           <div><label style={labelStyle}>LR No</label><input style={fieldStyle} value={lrNo} onChange={e=>setLrNo(e.target.value)}/></div>
           <div><label style={labelStyle}>LR Date</label><input type="date" style={fieldStyle} value={lrDate} onChange={e=>setLrDate(e.target.value)}/></div>
-          <div><label style={labelStyle}>Challan No</label><input style={fieldStyle} value={challanNo} onChange={e=>setChallanNo(e.target.value)}/></div>
-          <div><label style={labelStyle}>Challan Date</label><input type="date" style={fieldStyle} value={challanDate} onChange={e=>setChallanDate(e.target.value)}/></div>
+          <div><label style={labelStyle}>Invoice No</label><input style={fieldStyle} value={challanNo} onChange={e=>setChallanNo(e.target.value)}/></div>
+          <div><label style={labelStyle}>Invoice Date</label><input type="date" style={fieldStyle} value={challanDate} onChange={e=>setChallanDate(e.target.value)}/></div>
           <div><label style={labelStyle}>Bill No</label><input style={fieldStyle} value={billNo} onChange={e=>setBillNo(e.target.value)}/></div>
           <div><label style={labelStyle}>Bill Date</label><input type="date" style={fieldStyle} value={billDate} onChange={e=>setBillDate(e.target.value)}/></div>
           <div><label style={labelStyle}>Vehicle No</label><input style={fieldStyle} value={vehicleNo} onChange={e=>setVehicleNo(e.target.value)}/></div>

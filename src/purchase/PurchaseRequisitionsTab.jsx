@@ -32,7 +32,12 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
   const [search,setSearch]=useState("");
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
+  const [selectedId,setSelectedId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
+  const [sortField,setSortField]=useState("created_at");
+  const [sortDir,setSortDir]=useState("desc");
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=10;
 
   useEffect(()=>{
     const q=query(collection(db,"purchase_requisitions"),orderBy("created_at","desc"));
@@ -59,7 +64,45 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
 
   const hasActiveNarrowing=statusFilter!=="all"||plantFilter!=="all"||q.length>0;
 
-  function toggleExpand(id){setExpandedId(prev=>prev===id?null:id);setEditingId(null);}
+  function prField(pr,field){
+    switch(field){
+      case "pr_number":return pr.pr_number||"";
+      case "requisition_type":return pr.requisition_type||"";
+      case "vendor_code":return pr.vendor_code||"";
+      case "vendor_name":return pr.vendor_name||"";
+      case "plant":return pr.plant||"";
+      case "created_at":return pr.created_at?.toDate?pr.created_at.toDate().getTime():(pr.created_at?new Date(pr.created_at).getTime():0);
+      case "status":return pr.status||"";
+      case "converted_po_number":return pr.converted_po_number||"";
+      case "items":return (pr.line_items||[]).length;
+      default:return "";
+    }
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    const va=prField(a,sortField),vb=prField(b,sortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
+  const pageSafe=Math.min(page,totalPages);
+  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+
+  function onSort(field){
+    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
+    else{setSortField(field);setSortDir("asc");}
+    setPage(1);
+  }
+
+  function prEditability(pr,canCreate){
+    const canEdit=["draft","pending_approval","approved"].includes(pr.status)&&canCreate;
+    const canCancel=["draft","pending_approval"].includes(pr.status);
+    return {canEdit,canCancel};
+  }
+
+  function selectRow(id){setSelectedId(prev=>prev===id?null:id);setExpandedId(null);setEditingId(null);}
+  function openView(){if(selectedId){setExpandedId(selectedId);setEditingId(null);}}
+  function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
+  function closeDetail(){setExpandedId(null);setEditingId(null);}
 
   async function cancelPR(pr){
     if(!window.confirm(`Cancel ${pr.pr_number}? This cannot be undone.`))return;
@@ -76,6 +119,26 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
     return <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
   }
 
+  if(expandedId){
+    const pr=prs.find(p=>p.id===expandedId);
+    if(pr){
+      const {canEdit,canCancel}=prEditability(pr,canCreate);
+      return(
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={closeDetail}><Icon name="arrow" size={14}/>Back</button>
+            <div style={{fontSize:14,fontWeight:600}}>{pr.pr_number}</div>
+          </div>
+          {editingId===pr.id
+            ? <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} existing={pr} showToast={showToast} onClose={closeDetail}/>
+            : <PRDetailPanel pr={pr} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
+                onEdit={openEdit} onCancel={()=>cancelPR(pr)} onDeleteDraft={()=>deleteDraft(pr)}/>
+          }
+        </div>
+      );
+    }
+  }
+
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -85,91 +148,111 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
 
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
         {[["all","All"],...PR_STATUSES.map(s=>[s,PR_STATUS_LABELS[s]])].map(([v,l])=>(
-          <button key={v} onClick={()=>setStatusFilter(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
+          <button key={v} onClick={()=>{setStatusFilter(v);setPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
         ))}
-        <select value={plantFilter} onChange={e=>setPlantFilter(e.target.value)} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
+        <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
           <option value="all">All plants</option>
           {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
         </select>
       </div>
 
       <div style={{marginBottom:16}}>
-        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by PR number, vendor name, or item…" value={search} onChange={e=>setSearch(e.target.value)}/>
+        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by PR number, vendor name, or item…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
       </div>
 
-      {!hasActiveNarrowing
-        ?<EmptyState text="Search or select a filter to view requisitions" sub="Use the status chips, plant dropdown, or search box above"/>
+      {prs.length===0
+        ?<EmptyState text="No requisitions yet" sub={canCreate?"Click 'New Requisition' to create one":undefined}/>
         :filtered.length===0
         ?<EmptyState text="No requisitions match" sub={canCreate?"Try a different filter, or click 'New Requisition' to create one":undefined}/>
-        :filtered.map(pr=>(
-          <PRListItem
-            key={pr.id}
-            pr={pr}
-            profile={profile}
-            vendors={vendors}
-            materials={materials}
-            purchaseOrders={purchaseOrders}
-            showToast={showToast}
-            canApprove={canApprove}
-            canCreate={canCreate}
-            expanded={expandedId===pr.id}
-            editing={editingId===pr.id}
-            onToggle={()=>toggleExpand(pr.id)}
-            onEditClick={()=>setEditingId(pr.id)}
-            onCancelEdit={()=>setEditingId(null)}
-            onCancelPR={()=>cancelPR(pr)}
-            onDeleteDraft={()=>deleteDraft(pr)}
-          />
-        ))
+        :<>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"#fafafa"}}>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <SortTh label="PR No." field="pr_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Type" field="requisition_type" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Vendor code" field="vendor_code" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Vendor name" field="vendor_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Site" field="plant" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="PR date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Converted PO" field="converted_po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Items" field="items" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right"/>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(pr=>(
+                  <PRTableRow key={pr.id} pr={pr} selected={selectedId===pr.id} onSelect={()=>selectRow(pr.id)}/>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&prEditability(prs.find(p=>p.id===selectedId)||{},canCreate).canEdit?1:.4,cursor:selectedId&&prEditability(prs.find(p=>p.id===selectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!selectedId||!prEditability(prs.find(p=>p.id===selectedId)||{},canCreate).canEdit} onClick={openEdit}>Edit</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+              <span>{sorted.length} requisition{sorted.length!==1?"s":""}</span>
+              <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+              <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+              <span>Page {pageSafe} of {totalPages}</span>
+              <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+              <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+            </div>
+          </div>
+        </>
       }
     </div>
   );
 }
 
-// ─── PR list item — inline expand, same interaction pattern as PO ───────────
-function PRListItem({pr,profile,vendors,materials,purchaseOrders,showToast,canApprove,canCreate,expanded,editing,onToggle,onEditClick,onCancelEdit,onCancelPR,onDeleteDraft}){
+const pagerBtnStyle={display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,padding:0,border:"1px solid #d1d5db",borderRadius:6,background:"#fff",cursor:"pointer"};
+
+function PagerIcon({dir}){
+  const chevron=(flip)=><polyline points="15 18 9 12 15 6" transform={flip?"scale(-1,1) translate(-24,0)":undefined}/>;
+  return(
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir==="prev"&&chevron(false)}
+      {dir==="next"&&chevron(true)}
+      {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
+      {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
+    </svg>
+  );
+}
+
+function SortTh({label,field,sortField,sortDir,onSort,align}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+// ─── PR table row — select circle only; View/Edit buttons open full detail ──
+function PRTableRow({pr,selected,onSelect}){
   const sc=PR_STATUS_COLORS[pr.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const isDraft=pr.status==="draft";
-  const canEdit=["draft","pending_approval","approved"].includes(pr.status)&&canCreate;
-  const canCancel=["draft","pending_approval"].includes(pr.status);
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
-    <div className="card animate-in" style={{padding:0,marginBottom:8,overflow:"hidden"}}>
-      <div onClick={onToggle} style={{padding:"14px 18px",cursor:"pointer"}}
-        onMouseEnter={e=>e.currentTarget.style.background="#fafafa"}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-          <span style={{...S,fontSize:13,fontWeight:700,color:"#1a1f2e"}}>{pr.pr_number}</span>
-          <span style={{...S,background:"#f3f4f6",color:"#374151",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>{pr.plant}</span>
-          <span style={{...S,background:"#eef2ff",color:"#4338ca",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>{pr.requisition_type}</span>
-          <span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,flexShrink:0}}>{PR_STATUS_LABELS[pr.status]}</span>
-          {pr.converted_po_number&&<span style={{...S,background:"#f0fdf4",color:"#16a34a",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>→ {pr.converted_po_number}</span>}
-          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" style={{transform:expanded?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
-        </div>
-        <div style={{display:"flex",alignItems:"baseline",gap:0,flexWrap:"wrap",fontSize:13,marginBottom:6}}>
-          <span style={{fontWeight:600,color:"#1a1f2e",marginRight:12}}>{pr.vendor_name||"— no vendor —"}</span>
-          <span style={{...S,fontSize:11,color:"#6b7280"}}>{(pr.line_items||[]).length} item{(pr.line_items||[]).length!==1?"s":""}</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:11,color:"#9ca3af",display:"flex",alignItems:"center",gap:4}}>
-            <Icon name="calendar" size={11}/>Requested {formatDate(pr.created_at?.toDate?pr.created_at.toDate():pr.created_at)}
-          </span>
-          <span style={{fontSize:11,color:"#9ca3af"}}>by {pr.created_by_name}</span>
-        </div>
-      </div>
-
-      {expanded&&(
-        <div style={{borderTop:"1px solid #f3f4f6",padding:20,background:"#fafbfc"}} onClick={e=>e.stopPropagation()}>
-          {editing
-            ? <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} existing={pr} showToast={showToast} onClose={onCancelEdit}/>
-            : <PRDetailPanel pr={pr} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
-                onEdit={onEditClick} onCancel={onCancelPR} onDeleteDraft={onDeleteDraft}/>
-          }
-        </div>
-      )}
-    </div>
+    <tr onClick={onSelect} style={{cursor:"pointer",background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center"}}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{pr.pr_number}</td>
+      <td style={cellStyle}>{pr.requisition_type||"—"}</td>
+      <td style={cellStyle}>{pr.vendor_code||"—"}</td>
+      <td style={cellStyle} title={pr.vendor_name}>{pr.vendor_name||"— no vendor —"}</td>
+      <td style={cellStyle}>{pr.plant}</td>
+      <td style={cellStyle}>{formatDate(pr.created_at?.toDate?pr.created_at.toDate():pr.created_at)}</td>
+      <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{PR_STATUS_LABELS[pr.status]}</span></td>
+      <td style={cellStyle}>{pr.converted_po_number||"—"}</td>
+      <td style={{...cellStyle,textAlign:"right"}}>{(pr.line_items||[]).length}</td>
+    </tr>
   );
 }
 

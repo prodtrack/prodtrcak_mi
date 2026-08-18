@@ -1551,7 +1551,7 @@ function EnquiryTab({profile,showToast}){
       {enquiries.length===0
         ?<EmptyState text="No enquiries yet" sub={canManage?"Click 'New Enquiry' to add one":undefined}/>
         :(
-          <div className="card" style={{padding:0,overflow:"auto",maxHeight:280}}>
+          <div className="card" style={{padding:0,overflow:"auto",maxHeight:520}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
                 {["Enq No","Enq Date","Spec. No.","Company","Items","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
@@ -1745,7 +1745,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [company,setCompany]=useState(existing?.company||"");
   const [deliveryTerms,setDeliveryTerms]=useState(existing?.delivery_terms||"");
   const [paymentTerms,setPaymentTerms]=useState(existing?.payment_terms||"");
-  const [tolerance,setTolerance]=useState(existing?.tolerance||"");
+  const [tolerance,setTolerance]=useState(existing?.tolerance||"±");
   const [freight,setFreight]=useState(existing?.freight||"");
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
@@ -1835,7 +1835,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
           </div>
           <div>
             <label style={labelStyle}>Tolerance</label>
-            <input style={fieldStyle} value={tolerance} onChange={e=>setTolerance(e.target.value)} placeholder="e.g. ±2%"/>
+            <input style={fieldStyle} value={tolerance} onChange={e=>setTolerance(e.target.value)} placeholder="±2%"/>
           </div>
           <div>
             <SelectOrCustom label="Freight" value={freight} onChange={setFreight} options={ENQ_FREIGHT_OPTIONS} placeholder="— Select freight terms —"/>

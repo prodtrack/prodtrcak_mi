@@ -16,12 +16,49 @@ export default function PurchaseVendorsTab({profile,showToast}){
   const [vendors,setVendors]=useState([]);
   const [showForm,setShowForm]=useState(false);
   const [editVendor,setEditVendor]=useState(null);
+  const [viewVendor,setViewVendor]=useState(null);
+  const [selectedId,setSelectedId]=useState(null);
   const [search,setSearch]=useState("");
+  const [sortField,setSortField]=useState("name");
+  const [sortDir,setSortDir]=useState("asc");
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=10;
 
   useEffect(()=>onSnapshot(collection(db,"supplier_master"),snap=>setVendors(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  const hasQuery=search.trim().length>0;
-  const filtered=hasQuery?vendors.filter(v=>v.name?.toLowerCase().includes(search.toLowerCase())||v.vendor_code?.toLowerCase().includes(search.toLowerCase())):[];
+  const q=search.trim().toLowerCase();
+  const filtered=vendors.filter(v=>!q||v.name?.toLowerCase().includes(q)||v.vendor_code?.toLowerCase().includes(q));
+
+  function vendorField(v,field){
+    switch(field){
+      case "vendor_code":return v.vendor_code||"";
+      case "name":return v.name||"";
+      case "gstin":return v.gstin||"";
+      case "state_code":return v.state_code||"";
+      case "phone":return v.phone||v.contact||"";
+      case "email":return v.email||"";
+      case "payment_terms":return v.payment_terms||"";
+      case "category":return v.category||"";
+      case "active":return v.active!==false?1:0;
+      default:return "";
+    }
+  }
+  const sorted=[...filtered].sort((a,b)=>{
+    const va=vendorField(a,sortField),vb=vendorField(b,sortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return sortDir==="asc"?cmp:-cmp;
+  });
+  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
+  const pageSafe=Math.min(page,totalPages);
+  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+
+  function onSort(field){
+    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
+    else{setSortField(field);setSortDir("asc");}
+    setPage(1);
+  }
+
+  function selectRow(id){setSelectedId(prev=>prev===id?null:id);setViewVendor(null);}
 
   async function toggleActive(v){
     await updateDoc(doc(db,"supplier_master",v.id),{active:!(v.active!==false)});
@@ -30,6 +67,10 @@ export default function PurchaseVendorsTab({profile,showToast}){
 
   if(showForm||editVendor){
     return <VendorForm existing={editVendor} showToast={showToast} onClose={()=>{setShowForm(false);setEditVendor(null);}}/>;
+  }
+
+  if(viewVendor){
+    return <VendorDetailPanel vendor={viewVendor} isAdmin={isAdmin} canManage={canManage} onEdit={()=>{setEditVendor(viewVendor);setViewVendor(null);}} onToggleActive={()=>toggleActive(viewVendor)} onClose={()=>setViewVendor(null)}/>;
   }
 
   return(
@@ -42,37 +83,125 @@ export default function PurchaseVendorsTab({profile,showToast}){
         {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowForm(true)}><Icon name="plus" size={12}/>New Vendor</button>}
       </div>
 
-      <input style={{...fieldStyle,marginBottom:16,maxWidth:280}} placeholder="Search vendor name / code…" value={search} onChange={e=>setSearch(e.target.value)}/>
+      <input style={{...fieldStyle,marginBottom:16,maxWidth:280}} placeholder="Search vendor name / code…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
 
-      {!hasQuery
-        ?<EmptyState text="Search for a vendor" sub="Start typing a vendor name or code above"/>
+      {vendors.length===0
+        ?<EmptyState text="No vendors yet" sub={canManage?"Click 'New Vendor' to add one":undefined}/>
         :filtered.length===0
-          ?<EmptyState text={`No vendors match "${search.trim()}"`} sub={canManage?"Click 'New Vendor' to add one":undefined}/>
-          :filtered.map(v=>{
-          const active=v.active!==false;
-          return(
-            <div key={v.id} className="card animate-in" style={{padding:"14px 18px",marginBottom:8,opacity:active?1:.55}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                <span style={{...S,fontSize:12,fontWeight:700,color:"#1a1f2e"}}>{v.vendor_code||"—"}</span>
-                <span style={{fontSize:14,fontWeight:600,color:"#1a1f2e"}}>{v.name}</span>
-                {!active&&<span style={{...S,background:"#f3f4f6",color:"#9ca3af",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>INACTIVE</span>}
-                <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-                  {canManage&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11}} onClick={()=>setEditVendor(v)}><Icon name="edit" size={11}/>Edit</button>}
-                  {isAdmin&&<button className="btn-ghost" style={{padding:"3px 8px",fontSize:11,color:active?"#dc2626":"#16a34a"}} onClick={()=>toggleActive(v)}>{active?"Deactivate":"Activate"}</button>}
-                </div>
-              </div>
-              <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:"#6b7280"}}>
-                {v.gstin&&<span><span style={{color:"#9ca3af"}}>GSTIN:</span> {v.gstin}{v.state_code?` (St.${v.state_code})`:""}</span>}
-                {v.phone&&<span><span style={{color:"#9ca3af"}}>Phone:</span> {v.phone}</span>}
-                {v.email&&<span><span style={{color:"#9ca3af"}}>Email:</span> {v.email}</span>}
-                {!v.phone&&!v.email&&v.contact&&<span><span style={{color:"#9ca3af"}}>Contact:</span> {v.contact}</span>}
-                {v.payment_terms&&<span><span style={{color:"#9ca3af"}}>Terms:</span> {v.payment_terms}</span>}
-                {v.category&&<span><span style={{color:"#9ca3af"}}>Category:</span> {v.category}</span>}
-              </div>
+        ?<EmptyState text={`No vendors match "${search.trim()}"`} sub={canManage?"Try a different search, or click 'New Vendor' to add one":undefined}/>
+        :<>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"#fafafa"}}>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <SortTh label="Code" field="vendor_code" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Name" field="name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="GSTIN" field="gstin" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Phone" field="phone" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Payment terms" field="payment_terms" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Status" field="active" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(v=>(
+                  <VendorTableRow key={v.id} vendor={v} selected={selectedId===v.id} onSelect={()=>selectRow(v.id)}/>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={()=>setViewVendor(vendors.find(v=>v.id===selectedId))}>View</button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&canManage?1:.4,cursor:selectedId&&canManage?"pointer":"default"}} disabled={!selectedId||!canManage} onClick={()=>setEditVendor(vendors.find(v=>v.id===selectedId))}>Edit</button>
             </div>
-          );
-        })
+            <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+              <span>{sorted.length} vendor{sorted.length!==1?"s":""}</span>
+              <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+              <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+              <span>Page {pageSafe} of {totalPages}</span>
+              <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+              <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+            </div>
+          </div>
+        </>
       }
+    </div>
+  );
+}
+
+const pagerBtnStyle={display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,padding:0,border:"1px solid #d1d5db",borderRadius:6,background:"#fff",cursor:"pointer"};
+
+function PagerIcon({dir}){
+  const chevron=(flip)=><polyline points="15 18 9 12 15 6" transform={flip?"scale(-1,1) translate(-24,0)":undefined}/>;
+  return(
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir==="prev"&&chevron(false)}
+      {dir==="next"&&chevron(true)}
+      {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
+      {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
+    </svg>
+  );
+}
+
+function SortTh({label,field,sortField,sortDir,onSort}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+// ─── Vendor table row — select circle only; View/Edit buttons open detail ──
+function VendorTableRow({vendor,selected,onSelect}){
+  const active=vendor.active!==false;
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160,opacity:active?1:.55};
+
+  return(
+    <tr onClick={onSelect} style={{cursor:"pointer",background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center",opacity:1}}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{vendor.vendor_code||"—"}</td>
+      <td style={cellStyle} title={vendor.name}>{vendor.name}</td>
+      <td style={cellStyle}>{vendor.gstin||"—"}</td>
+      <td style={cellStyle}>{vendor.phone||vendor.contact||"—"}</td>
+      <td style={cellStyle}>{vendor.payment_terms||"—"}</td>
+      <td style={cellStyle}>{vendor.category||"—"}</td>
+      <td style={{...cellStyle,opacity:1}}>{active?<span style={{background:"#f0fdf4",color:"#16a34a",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>Active</span>:<span style={{background:"#f3f4f6",color:"#9ca3af",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>Inactive</span>}</td>
+    </tr>
+  );
+}
+
+// ─── Vendor detail panel — read-only View, reached via the View button ─────
+function VendorDetailPanel({vendor,isAdmin,canManage,onEdit,onToggleActive,onClose}){
+  const active=vendor.active!==false;
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{vendor.vendor_code} — {vendor.name}</div>
+        {!active&&<span style={{...S,background:"#f3f4f6",color:"#9ca3af",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>INACTIVE</span>}
+      </div>
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,fontSize:13}}>
+          <div><span style={{color:"#9ca3af"}}>GSTIN:</span> {vendor.gstin||"—"}{vendor.state_code?` (St.${vendor.state_code})`:""}</div>
+          <div><span style={{color:"#9ca3af"}}>PAN:</span> {vendor.pan||"—"}</div>
+          <div><span style={{color:"#9ca3af"}}>Phone:</span> {vendor.phone||vendor.contact||"—"}</div>
+          <div><span style={{color:"#9ca3af"}}>Email:</span> {vendor.email||"—"}</div>
+          <div><span style={{color:"#9ca3af"}}>Payment terms:</span> {vendor.payment_terms||"—"}</div>
+          <div><span style={{color:"#9ca3af"}}>Category:</span> {vendor.category||"—"}</div>
+        </div>
+        {vendor.address&&<div style={{marginTop:14,fontSize:13}}><span style={{color:"#9ca3af"}}>Address:</span> {vendor.address}</div>}
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        {canManage&&<button className="btn-ghost" onClick={onEdit}><Icon name="edit" size={12}/>Edit</button>}
+        {isAdmin&&<button className="btn-ghost" style={{color:active?"#dc2626":"#16a34a"}} onClick={onToggleActive}>{active?"Deactivate":"Activate"}</button>}
+      </div>
     </div>
   );
 }
