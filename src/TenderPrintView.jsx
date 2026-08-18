@@ -68,7 +68,7 @@ export function printTender(tender){
   .addr{font-size:11px;margin-top:6px;}
   .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
   .tender-no-line{padding:8px 16px 0;font-size:12px;font-weight:600;}
-  .item-block{padding:12px 16px;}
+  .item-block{padding:12px 16px;break-inside:avoid;page-break-inside:avoid;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:120px;flex-shrink:0;font-weight:600;}
