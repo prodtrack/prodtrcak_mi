@@ -89,7 +89,7 @@ export function printTender(tender){
   </div>
   <div class="contact-row">
     <span>Phone : ${esc(company.phone)}</span>
-    <span>Email : ${esc(company.email)}</span>
+    <span>Email : marketing@mahendraindustries.in</span>
     <span>Website : ${esc(company.website)}</span>
   </div>
   <div class="contact-row" style="border-bottom:1px solid #000;">

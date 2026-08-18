@@ -86,7 +86,7 @@ export function printWorkOrder(order){
   </div>
   <div class="contact-row">
     <span>Phone : ${esc(company.phone)}</span>
-    <span>Email : ${esc(company.email)}</span>
+    <span>Email : marketing@mahendraindustries.in</span>
     <span>Website : ${esc(company.website)}</span>
   </div>
 
