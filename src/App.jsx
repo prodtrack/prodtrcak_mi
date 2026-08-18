@@ -2930,7 +2930,7 @@ function UserManager({showToast}){
           <div style={{fontSize:14,fontWeight:600}}>{users.length} user{users.length!==1?"s":""} registered</div>
           <button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowAdd(true)}><Icon name="plus" size={12}/>Add User</button>
         </div>
-        <div style={{overflowX:"auto",overflowY:"auto",maxHeight:280}}>
+        <div style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
             {["User ID","Name","Role","Purchase Access","PO Approval","WO Access","Inventory Reports","Dispatch Access","Actions"].map(h=><th key={h} style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:10,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
