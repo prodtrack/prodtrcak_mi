@@ -1794,7 +1794,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
           </div>
         </div>
         <div>
-          <label style={labelStyle}>Notes <span style={{color:"#9ca3af",fontWeight:400}}>(internal reference only — never printed on the offer sheet)</span></label>
+          <label style={labelStyle}>Notes</label>
           <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Client prefers courier delivery, confirm stock before quoting"/>
         </div>
       </div>
