@@ -958,7 +958,7 @@ function TenderTab({profile,showToast}){
       {tenders.length===0
         ?<EmptyState text="No tenders yet" sub={canManage?"Click 'New Tender' to add one":undefined}/>
         :(
-          <div className="card" style={{padding:0,overflow:"auto",maxHeight:280}}>
+          <div className="card" style={{padding:0,overflow:"auto",maxHeight:520}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
                 {["Tender No","Tender Date","LOI No.","Spec. No.","Company","Size","Insulation Type","Quantity","UOM","Fabrication Rate","BME/Copper Price","Bid Due Date","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
