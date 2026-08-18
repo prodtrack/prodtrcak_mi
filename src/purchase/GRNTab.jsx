@@ -32,6 +32,9 @@ export default function GRNTab({profile,showToast}){
   const [sortField,setSortField]=useState("date_received");
   const [sortDir,setSortDir]=useState("desc");
   const [page,setPage]=useState(1);
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
+  const [dateOpen,setDateOpen]=useState(false);
   const PAGE_SIZE=10;
 
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),s=>setMaterials(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
@@ -77,7 +80,11 @@ export default function GRNTab({profile,showToast}){
   }
 
   const pendingHolds=holds.filter(h=>h.status==="pending");
-  const filtered=entries.filter(e=>!search||e.material_name?.toLowerCase().includes(search.toLowerCase())||e.supplier_name?.toLowerCase().includes(search.toLowerCase())||e.po_number?.toLowerCase().includes(search.toLowerCase()));
+  const filtered=entries.filter(e=>
+    (!search||e.material_name?.toLowerCase().includes(search.toLowerCase())||e.supplier_name?.toLowerCase().includes(search.toLowerCase())||e.po_number?.toLowerCase().includes(search.toLowerCase()))&&
+    (!dateFrom||(e.date_received&&e.date_received>=dateFrom))&&
+    (!dateTo||(e.date_received&&e.date_received<=dateTo))
+  );
 
   function entryField(e,field){
     switch(field){
@@ -157,7 +164,24 @@ export default function GRNTab({profile,showToast}){
         {sorted.length>0&&(
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6"}}>
             {[["DATE",80,"date_received"],["MATERIAL","1","material_name"],["SUPPLIER",110,"supplier_name"],["QTY",70,"quantity"],["PO #",90,"po_number"],["BY",90,"operator_name"]].map(([l,w,field])=>(
-              <span key={l} onClick={()=>onSort(field)} style={{...S,fontSize:10,color:sortField===field?"#374151":"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined,cursor:"pointer",userSelect:"none"}}>{l}{sortField===field&&(sortDir==="asc"?" ▲":" ▼")}</span>
+              field==="date_received"
+                ?<span key={l} style={{...S,fontSize:10,color:(sortField===field||dateFrom||dateTo)?"#374151":"#9ca3af",width:w,minWidth:w,position:"relative"}}>
+                    <span onClick={()=>onSort(field)} style={{cursor:"pointer",userSelect:"none"}}>{l}{sortField===field&&(sortDir==="asc"?" ▲":" ▼")}</span>
+                    <span onClick={()=>setDateOpen(o=>!o)} style={{marginLeft:2,cursor:"pointer"}}>▾</span>
+                    {dateOpen&&(
+                      <div style={{position:"absolute",top:18,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
+                      <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
+                      <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/>
+                      <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
+                      <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={dateTo} onChange={e=>setDateTo(e.target.value)}/>
+                      <div style={{display:"flex",gap:6}}>
+                        <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setPage(1);setDateOpen(false);}}>Apply</button>
+                        <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setDateFrom("");setDateTo("");setPage(1);setDateOpen(false);}}>Clear</button>
+                      </div>
+                      </div>
+                    )}
+                  </span>
+                :<span key={l} onClick={()=>onSort(field)} style={{...S,fontSize:10,color:sortField===field?"#374151":"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined,cursor:"pointer",userSelect:"none"}}>{l}{sortField===field&&(sortDir==="asc"?" ▲":" ▼")}</span>
             ))}
           </div>
         )}

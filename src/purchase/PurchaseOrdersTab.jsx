@@ -37,6 +37,8 @@ export default function PurchaseOrdersTab({profile,showToast}){
   const [sortField,setSortField]=useState("created_at");
   const [sortDir,setSortDir]=useState("desc");
   const [page,setPage]=useState(1);
+  const [dateFrom,setDateFrom]=useState("");
+  const [dateTo,setDateTo]=useState("");
   const PAGE_SIZE=10;
 
   useEffect(()=>{
@@ -47,9 +49,13 @@ export default function PurchaseOrdersTab({profile,showToast}){
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),s=>setMaterials(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
   const q=search.trim().toLowerCase();
-  const filtered=pos.filter(p=>
-    (statusFilter==="all"||p.status===statusFilter)&&
+  const filtered=pos.filter(p=>{
+    const d=p.created_at?.toDate?p.created_at.toDate():(p.created_at?new Date(p.created_at):null);
+    const dISO=d?d.toISOString().slice(0,10):null;
+    return (statusFilter==="all"||p.status===statusFilter)&&
     (plantFilter==="all"||p.plant===plantFilter)&&
+    (!dateFrom||(dISO&&dISO>=dateFrom))&&
+    (!dateTo||(dISO&&dISO<=dateTo))&&
     (!q||
       p.po_number?.toLowerCase().includes(q)||
       p.vendor_name?.toLowerCase().includes(q)||
@@ -57,8 +63,9 @@ export default function PurchaseOrdersTab({profile,showToast}){
       p.your_reference?.toLowerCase().includes(q)||
       p.plant?.toLowerCase().includes(q)||
       (p.line_items||[]).some(it=>it.material_name?.toLowerCase().includes(q)||it.part_code?.toLowerCase().includes(q))
-    )
-  );
+    );
+  });
+
 
   const hasActiveNarrowing=statusFilter!=="all"||plantFilter!=="all"||q.length>0;
 
@@ -184,7 +191,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
                   <SortTh label="Vendor code" field="vendor_code" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Vendor name" field="vendor_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Site" field="plant" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
-                  <SortTh label="PO date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <DateRangeTh label="PO date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort} dateFrom={dateFrom} dateTo={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);setPage(1);}}/>
                   <SortTh label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Description" field="remarks" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="PO Type" field="po_type" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
@@ -243,6 +250,33 @@ function SortTh({label,field,sortField,sortDir,onSort,align}){
   return(
     <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
       {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+// ─── Sortable date column header with a From/To range-filter popover ───────
+function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApply}){
+  const active=sortField===field;
+  const filtered=!!(dateFrom||dateTo);
+  const [open,setOpen]=useState(false);
+  const [from,setFrom]=useState(dateFrom);
+  const [to,setTo]=useState(dateTo);
+  return(
+    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e5e7eb",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
+      <span onClick={()=>onSort(field)} style={{cursor:"pointer",userSelect:"none"}}>{label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}</span>
+      <span onClick={()=>{setFrom(dateFrom);setTo(dateTo);setOpen(o=>!o);}} style={{marginLeft:4,cursor:"pointer",color:filtered?"#1a1f2e":"#9ca3af"}}>▾</span>
+      {open&&(
+        <div style={{position:"absolute",top:26,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
+          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={from} onChange={e=>setFrom(e.target.value)}/>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
+          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={to} onChange={e=>setTo(e.target.value)}/>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{onApply(from,to);setOpen(false);}}>Apply</button>
+            <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setFrom("");setTo("");onApply("","");setOpen(false);}}>Clear</button>
+          </div>
+        </div>
+      )}
     </th>
   );
 }
