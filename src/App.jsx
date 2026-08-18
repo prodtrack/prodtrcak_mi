@@ -208,18 +208,18 @@ function MainApp({user,profile}){
       {!isMobile && (
         <div style={{width:sidebarCollapsed?60:240,flexShrink:0,background:"#fff",borderRight:"1px solid #e5e7eb",display:"flex",flexDirection:"column",padding:sidebarCollapsed?"20px 8px":"20px 16px",position:"sticky",top:0,height:"100vh",overflowY:"auto",overflowX:"hidden",transition:"width .15s, padding .15s"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between",gap:10,marginBottom:6,paddingLeft:sidebarCollapsed?0:4}}>
-            {!sidebarCollapsed&&<img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:26,flexShrink:0}}/>}
+            {!sidebarCollapsed&&<img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:38,flexShrink:0}}/>}
             <button onClick={()=>setSidebarCollapsed(c=>!c)} title={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"#6b7280",display:"flex",flexShrink:0}}
               onMouseEnter={e=>e.currentTarget.style.background="#f3f4f6"} onMouseLeave={e=>e.currentTarget.style.background="none"}>
               <Icon name="menu" size={16}/>
             </button>
           </div>
-          {!sidebarCollapsed&&<div style={{...S,fontSize:12,fontWeight:700,color:"#e8c547",letterSpacing:".06em",marginBottom:22,paddingLeft:4}}>PRODTRACK</div>}
+          {!sidebarCollapsed&&<div style={{...S,fontSize:16,fontWeight:700,color:"#e8c547",letterSpacing:".06em",marginBottom:26,paddingLeft:4}}>PRODTRACK</div>}
           {sidebarCollapsed&&<div style={{height:22,marginBottom:22}}/>}
-          <div style={{display:"flex",flexDirection:"column",gap:8,flex:1}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:12,justifyContent:"center",textAlign:"center",padding:sidebarCollapsed?"14px 0":"14px 16px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:15,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
-                <Icon name={t.icon} size={20}/>
+              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center",textAlign:"center",padding:sidebarCollapsed?"10px 0":"10px 14px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:14,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
+                <Icon name={t.icon} size={17}/>
                 {!sidebarCollapsed&&t.label}
               </button>
             ))}
