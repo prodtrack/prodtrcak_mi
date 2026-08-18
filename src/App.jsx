@@ -203,40 +203,63 @@ function MainApp({user,profile}){
   const shellPadding=isMobile?"0 12px":"0 20px";
 
   return(
-    <div style={{background:"#f4f6f9",minHeight:"100vh"}}>
-      {/* Header */}
-      <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:200}}>
-        <div style={{maxWidth:shellWidth,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",rowGap:8,minHeight:56,padding:isMobile?"10px 12px":"0 20px",transition:"max-width .15s",gap:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-            <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:isMobile?24:28,flexShrink:0}}/>
-            <span style={{...S,fontSize:isMobile?14:18,fontWeight:700,color:"#e8c547",letterSpacing:".06em",flexShrink:0}}>PRODTRACK</span>
+    <div style={{background:"#f4f6f9",minHeight:"100vh",display:"flex"}}>
+      {!isMobile && (
+        <div style={{width:200,flexShrink:0,background:"#fff",borderRight:"1px solid #e5e7eb",display:"flex",flexDirection:"column",padding:"20px 12px",position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,paddingLeft:4}}>
+            <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:26,flexShrink:0}}/>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:isMobile?8:12,flexShrink:0}}>
-            <span style={{fontSize:12,color:"#6b7280",whiteSpace:"nowrap"}}>{profile.name||user.email}</span>
+          <div style={{...S,fontSize:12,fontWeight:700,color:"#e8c547",letterSpacing:".06em",marginBottom:22,paddingLeft:4}}>PRODTRACK</div>
+          <div style={{display:"flex",flexDirection:"column",gap:2,flex:1}}>
+            {TABS.map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:13,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div style={{borderTop:"1px solid #f3f4f6",paddingTop:12,marginTop:12}}>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.name||user.email}</div>
             <span style={{...S,background:`${ROLE_COLORS[profile.role]}18`,color:ROLE_COLORS[profile.role],padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{ROLE_LABELS[profile.role]||profile.role}</span>
-            <button className="btn-ghost" style={{padding:"6px 10px",fontSize:12,flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>signOut(auth)}><Icon name="logout" size={13}/>Sign out</button>
+            <button className="btn-ghost" style={{marginTop:10,width:"100%",justifyContent:"center",padding:"6px 10px",fontSize:12}} onClick={()=>signOut(auth)}><Icon name="logout" size={13}/>Sign out</button>
           </div>
         </div>
-        {/* Nav tabs — horizontally scrollable so every tab stays reachable on a narrow screen */}
-        <div style={{maxWidth:shellWidth,margin:"0 auto",padding:shellPadding,display:"flex",gap:0,borderTop:"1px solid #f3f4f6",transition:"max-width .15s",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:isMobile?"10px 14px":"10px 18px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:tab===t.id?600:400,color:tab===t.id?"#1a1f2e":"#6b7280",borderBottom:tab===t.id?"2px solid #e8c547":"2px solid transparent",transition:"all .15s",fontFamily:"'Roboto',sans-serif",whiteSpace:"nowrap",flexShrink:0}}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
-      {/* Content */}
-      <div style={{maxWidth:shellWidth,margin:"0 auto",padding:isMobile?"20px 12px":"28px 20px",transition:"max-width .15s"}}>
-        {tab==="dashboard"    && (canWO?<DashboardTab profile={profile} showToast={showToast} onNavigate={setTab}/>:<AccessDenied/>)}
-        {tab==="tender"       && (canTender?<TenderTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
-        {tab==="enquiry"      && (canEnquiry?<EnquiryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
-        {tab==="purchase"     && (canPurchase?<PurchaseTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
-        {tab==="inventory"    && (canInventory?<InventoryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
-        {tab==="dispatch"     && (canDispatch?<DispatchTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
-        {tab==="admin"        && (isAdmin?<AdminTab showToast={showToast}/>:<AccessDenied/>)}
-        {!tab && <AccessDenied/>}
+      <div style={{flex:1,minWidth:0}}>
+        {isMobile && (
+          <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:200}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",rowGap:8,minHeight:56,padding:"10px 12px",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+                <img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:24,flexShrink:0}}/>
+                <span style={{...S,fontSize:14,fontWeight:700,color:"#e8c547",letterSpacing:".06em",flexShrink:0}}>PRODTRACK</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                <span style={{fontSize:12,color:"#6b7280",whiteSpace:"nowrap"}}>{profile.name||user.email}</span>
+                <span style={{...S,background:`${ROLE_COLORS[profile.role]}18`,color:ROLE_COLORS[profile.role],padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{ROLE_LABELS[profile.role]||profile.role}</span>
+                <button className="btn-ghost" style={{padding:"6px 10px",fontSize:12,flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>signOut(auth)}><Icon name="logout" size={13}/>Sign out</button>
+              </div>
+            </div>
+            <div style={{padding:shellPadding,display:"flex",gap:0,borderTop:"1px solid #f3f4f6",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
+              {TABS.map(t=>(
+                <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"10px 14px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:tab===t.id?600:400,color:tab===t.id?"#1a1f2e":"#6b7280",borderBottom:tab===t.id?"2px solid #e8c547":"2px solid transparent",transition:"all .15s",fontFamily:"'Roboto',sans-serif",whiteSpace:"nowrap",flexShrink:0}}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        <div style={{maxWidth:isMobile?"100%":shellWidth,margin:isMobile?0:"0 auto",padding:isMobile?"20px 12px":"28px 20px",transition:"max-width .15s"}}>
+          {tab==="dashboard"    && (canWO?<DashboardTab profile={profile} showToast={showToast} onNavigate={setTab}/>:<AccessDenied/>)}
+          {tab==="tender"       && (canTender?<TenderTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
+          {tab==="enquiry"      && (canEnquiry?<EnquiryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
+          {tab==="purchase"     && (canPurchase?<PurchaseTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
+          {tab==="inventory"    && (canInventory?<InventoryTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
+          {tab==="dispatch"     && (canDispatch?<DispatchTab profile={profile} showToast={showToast}/>:<AccessDenied/>)}
+          {tab==="admin"        && (isAdmin?<AdminTab showToast={showToast}/>:<AccessDenied/>)}
+          {!tab && <AccessDenied/>}
+        </div>
       </div>
       {toastEl}
     </div>
