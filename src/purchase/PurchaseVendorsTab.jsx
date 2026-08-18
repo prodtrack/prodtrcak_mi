@@ -108,7 +108,7 @@ export default function PurchaseVendorsTab({profile,showToast}){
         ?<EmptyState text={`No vendors match "${search.trim()}"`} sub={canManage?"Try a different search, or click 'New Vendor' to add one":undefined}/>
         :<>
           <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #e5e7eb"}}>
               <thead>
                 <tr style={{background:"#fafafa"}}>
                   <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
@@ -174,7 +174,7 @@ function SortTh({label,field,sortField,sortDir,onSort}){
 // ─── Vendor table row — select circle only; View/Edit buttons open detail ──
 function VendorTableRow({vendor,selected,onSelect}){
   const active=vendor.active!==false;
-  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #f3f4f6",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160,opacity:active?1:.55};
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160,opacity:active?1:.55};
 
   return(
     <tr style={{background:selected?"#f5f7fa":"transparent"}}
