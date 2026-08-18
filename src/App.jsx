@@ -200,13 +200,13 @@ function MainApp({user,profile}){
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
 
   const isMobile=useIsMobile();
-  const shellWidth=isMobile?"100%":900;
+  const shellWidth=isMobile?"100%":1400;
   const shellPadding=isMobile?"0 12px":"0 20px";
 
   return(
     <div style={{background:"#f4f6f9",minHeight:"100vh",display:"flex"}}>
       {!isMobile && (
-        <div style={{width:sidebarCollapsed?60:200,flexShrink:0,background:"#fff",borderRight:"1px solid #e5e7eb",display:"flex",flexDirection:"column",padding:sidebarCollapsed?"20px 8px":"20px 12px",position:"sticky",top:0,height:"100vh",overflowY:"auto",overflowX:"hidden",transition:"width .15s, padding .15s"}}>
+        <div style={{width:sidebarCollapsed?60:240,flexShrink:0,background:"#fff",borderRight:"1px solid #e5e7eb",display:"flex",flexDirection:"column",padding:sidebarCollapsed?"20px 8px":"20px 16px",position:"sticky",top:0,height:"100vh",overflowY:"auto",overflowX:"hidden",transition:"width .15s, padding .15s"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between",gap:10,marginBottom:6,paddingLeft:sidebarCollapsed?0:4}}>
             {!sidebarCollapsed&&<img src={COMPANY_LOGO_DATA_URI} alt="Mahendra Industries" style={{height:26,flexShrink:0}}/>}
             <button onClick={()=>setSidebarCollapsed(c=>!c)} title={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"#6b7280",display:"flex",flexShrink:0}}
