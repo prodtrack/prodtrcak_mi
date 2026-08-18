@@ -8,7 +8,6 @@ import {
   onSnapshot, query, orderBy, runTransaction, serverTimestamp, where, arrayUnion,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import "./App.css";
 import * as XLSX from "xlsx";
 import {
@@ -1397,69 +1396,6 @@ function RateHistoryView({onBack}){
 }
 
 
-// Single-slot worksheet attachment for an Enquiry — PDF, image, or Excel.
-// One file per enquiry (not per item); re-uploading replaces the existing
-// one. Uploads immediately to Firebase Storage on file select — the
-// resulting {url,name,type,size,uploaded_at} is handed up via onChange for
-// the parent form to include in its save payload, same pattern as any
-// other form field.
-function WorksheetUpload({worksheet,onChange,showToast}){
-  const [uploading,setUploading]=useState(false);
-
-  async function handleFile(e){
-    const file=e.target.files[0];
-    e.target.value="";
-    if(!file)return;
-    setUploading(true);
-    try{
-      const storage=getStorage();
-      const path=`enquiry_worksheets/${Date.now()}_${file.name}`;
-      const fileRef=storageRef(storage,path);
-      await uploadBytes(fileRef,file);
-      const url=await getDownloadURL(fileRef);
-      // Replacing an existing worksheet — delete the old file from Storage
-      // so orphaned files don't pile up.
-      if(worksheet?.path){
-        deleteObject(storageRef(storage,worksheet.path)).catch(()=>{});
-      }
-      onChange({url,path,name:file.name,size:file.size,uploaded_at:new Date().toISOString()});
-      showToast("Worksheet uploaded");
-    }catch(err){showToast("Upload failed: "+err.message,"error");}
-    finally{setUploading(false);}
-  }
-
-  async function handleRemove(){
-    if(!window.confirm("Remove this worksheet?"))return;
-    if(worksheet?.path){
-      try{await deleteObject(storageRef(getStorage(),worksheet.path));}catch(err){}
-    }
-    onChange(null);
-  }
-
-  return(
-    <div>
-      <label style={labelStyle}>Worksheet <span style={{color:"#9ca3af",fontWeight:400}}>(PDF, image, or Excel — one file per item)</span></label>
-      {!worksheet?(
-        <div style={{border:"1px dashed #d1d5db",borderRadius:8,padding:"16px",textAlign:"center"}}>
-          <input type="file" id="worksheet-file-input" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg" style={{display:"none"}} onChange={handleFile}/>
-          <button type="button" className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} disabled={uploading} onClick={()=>document.getElementById("worksheet-file-input").click()}>
-            <Icon name="plus" size={12}/>{uploading?"Uploading…":"Upload worksheet"}
-          </button>
-        </div>
-      ):(
-        <div style={{display:"flex",alignItems:"center",gap:10,border:"1px solid #e5e7eb",borderRadius:8,padding:"9px 13px"}}>
-          <Icon name="file" size={16}/>
-          <a href={worksheet.url} target="_blank" rel="noopener noreferrer" style={{flex:1,fontSize:13,color:"#2563eb",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{worksheet.name}</a>
-          <input type="file" id="worksheet-file-input" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg" style={{display:"none"}} onChange={handleFile}/>
-          <button type="button" className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} disabled={uploading} onClick={()=>document.getElementById("worksheet-file-input").click()}>{uploading?"Uploading…":"Replace"}</button>
-          <button type="button" className="btn-ghost" style={{fontSize:11,padding:"4px 10px",color:"#dc2626"}} onClick={handleRemove}><Icon name="trash" size={11}/></button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
 function EnquiryTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
   const canManage=isAdmin||profile.role==="sales";
@@ -1494,6 +1430,7 @@ function EnquiryTab({profile,showToast}){
         rows.push({
           "Enq No":e.enq_number||"","Enq Date":e.enq_date?formatDate(e.enq_date):"",
           "Spec No":it.specification_number||"","Company":e.company||"",
+          "Notes":e.notes||"",
           "Description":it.description||"","Size":itemSizeLabel(it),
           "Covering (mm)":it.conductor_type==="ctc"?"":(it.covering||""),
           "Covering 1 (mm)":it.conductor_type==="ctc"?(it.covering_1||""):"",
@@ -1554,7 +1491,7 @@ function EnquiryTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto",maxHeight:520}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
-                {["Enq No","Enq Date","Spec. No.","Company","Items","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
+                {["Enq No","Enq Date","Spec. No.","Company","Items","Notes","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {enquiries.map(e=>{
@@ -1572,6 +1509,7 @@ function EnquiryTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S}}>{items.length&&items.some(it=>it.specification_number)?items.map(it=>it.specification_number||"—").join(", "):"—"}</td>
                       <td style={{padding:"10px 12px"}}>{e.company||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{items.length?items.map(it=>itemSizeLabel(it)||"—").join(", "):"—"}</td>
+                      <td style={{padding:"10px 12px",...S,color:"#6b7280"}}>{e.notes||"–"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"—"}</td>
                       <td style={{padding:"10px 12px",...S,textAlign:"center"}}>{linkedCount>0?linkedCount:"—"}</td>
                       <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
@@ -1670,6 +1608,11 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
           <Field label="GST" value={e.gst}/>
           <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
         </div>
+        {e.notes&&(
+          <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #f3f4f6"}}>
+            <Field label="Notes (internal only)" value={e.notes}/>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
@@ -1706,7 +1649,6 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                   {it.show_breakdown&&<Field label="Copper Price" value={it.copper_price?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${it.copper_price}${it.uom?` / ${it.uom}`:""}`:null}/>}
                   <Field label="Final Price" value={fp!=null?`${CURRENCY_SYMBOLS[it.currency||"INR"]} ${fp}${it.uom?` / ${it.uom}`:""}`:null}/>
                   <Field label="Packing" value={it.packing}/>
-                  <Field label="Worksheet" value={it.worksheet?<a href={it.worksheet.url} target="_blank" rel="noopener noreferrer" style={{color:"#2563eb"}}>{it.worksheet.name}</a>:null}/>
                 </div>
                 {it.remarks&&(
                   <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #f3f4f6"}}>
@@ -1750,7 +1692,8 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);
+  const [notes,setNotes]=useState(existing?.notes||"");
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
@@ -1760,7 +1703,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [rates,setRates]=useState(null);
   useEffect(()=>onSnapshot(doc(db,"settings","exchange_rates"),snap=>setRates(snap.exists()?snap.data():null)),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);}
+  function addItem(){setItems(i=>[...i,{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
   // Switching currency converts the already-entered Fabrication rate and
@@ -1784,6 +1727,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
+        notes:notes.trim()||null,
         items,
         status:asDraft?"draft":"final",
         updated_at:serverTimestamp(),
@@ -1848,6 +1792,10 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <label style={labelStyle}>Validity time <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
             <input style={fieldStyle} type="time" value={validityTime} onChange={e=>setValidityTime(e.target.value)}/>
           </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Notes <span style={{color:"#9ca3af",fontWeight:400}}>(internal reference only — never printed on the offer sheet)</span></label>
+          <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Client prefers courier delivery, confirm stock before quoting"/>
         </div>
       </div>
 
@@ -1985,9 +1933,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
               <div>
                 <label style={labelStyle}>Packing</label>
                 <input style={fieldStyle} value={it.packing} onChange={e=>updateItem(i,"packing",e.target.value)} placeholder="e.g. Please confirm"/>
-              </div>
-              <div>
-                <WorksheetUpload worksheet={it.worksheet} onChange={w=>updateItem(i,"worksheet",w)} showToast={showToast}/>
               </div>
             </div>
             <div style={{marginTop:12}}>
