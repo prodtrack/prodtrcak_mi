@@ -216,9 +216,9 @@ function MainApp({user,profile}){
           </div>
           {!sidebarCollapsed&&<div style={{...S,fontSize:12,fontWeight:700,color:"#e8c547",letterSpacing:".06em",marginBottom:22,paddingLeft:4}}>PRODTRACK</div>}
           {sidebarCollapsed&&<div style={{height:22,marginBottom:22}}/>}
-          <div style={{display:"flex",flexDirection:"column",gap:2,flex:1,justifyContent:"center"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:2,flex:1}}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:10,justifyContent:sidebarCollapsed?"center":"flex-start",textAlign:"left",padding:sidebarCollapsed?"9px 0":"9px 12px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:13,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
+              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center",textAlign:"center",padding:sidebarCollapsed?"9px 0":"9px 12px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:13,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
                 <Icon name={t.icon} size={16}/>
                 {!sidebarCollapsed&&t.label}
               </button>
@@ -2113,7 +2113,7 @@ function InventoryTab({profile,showToast}){
   };
 
   return(
-    <div style={{maxWidth:900,margin:"0 auto"}}>
+    <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <SectionHeader mono="Store" title="RM Inventory" sub="Raw material stock levels"/>
         {canAddMaterial&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Item</button>}
