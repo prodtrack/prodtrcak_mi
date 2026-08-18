@@ -204,10 +204,10 @@ export default function PurchaseOrdersTab({profile,showToast}){
         ?<EmptyState text="No purchase orders match" sub={canCreate?"Try a different filter, or click 'New Purchase Order' to create one":undefined}/>
         :<>
           <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #e5e7eb"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
               <thead>
                 <tr style={{background:"#fafafa"}}>
-                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
                   <SortTh label="PO No." field="po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Ver." field="amd_no" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Ref./PR No." field="your_reference" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
@@ -271,7 +271,7 @@ function PagerIcon({dir}){
 function SortTh({label,field,sortField,sortDir,onSort,align}){
   const active=sortField===field;
   return(
-    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
       {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
     </th>
   );
@@ -285,7 +285,7 @@ function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApp
   const [from,setFrom]=useState(dateFrom);
   const [to,setTo]=useState(dateTo);
   return(
-    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
+    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
       <span style={{userSelect:"none"}}>{label}</span>
       <span onClick={()=>{setFrom(dateFrom);setTo(dateTo);setOpen(o=>!o);}} style={{marginLeft:4,cursor:"pointer",color:filtered?"#1a1f2e":"#9ca3af"}}>▾</span>
       {open&&(
@@ -309,7 +309,7 @@ function POTableRow({po,selected,onSelect}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
   const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
-  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
     <tr style={{background:selected?"#f5f7fa":"transparent"}}
@@ -447,7 +447,7 @@ function PODetailPanel({po,profile,showToast,canApprove,canEdit,isAmendment,canC
               <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>SGST {totals.gstRate/2}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.sgst.toLocaleString("en-IN")}</span></div>
             </>
           }
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:13,fontWeight:700,paddingTop:6,borderTop:"1px solid #e5e7eb"}}><span>Total</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.grandTotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:13,fontWeight:700,paddingTop:6,borderTop:"1px solid #9ca3af"}}><span>Total</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.grandTotal.toLocaleString("en-IN")}</span></div>
         </div>
       </div>
 

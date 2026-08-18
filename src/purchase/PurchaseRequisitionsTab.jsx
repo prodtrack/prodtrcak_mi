@@ -189,10 +189,10 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
         ?<EmptyState text="No requisitions match" sub={canCreate?"Try a different filter, or click 'New Requisition' to create one":undefined}/>
         :<>
           <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #e5e7eb"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
               <thead>
                 <tr style={{background:"#fafafa"}}>
-                  <th style={{padding:"8px 6px",borderBottom:"1px solid #e5e7eb",width:28}}></th>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
                   <SortTh label="PR No." field="pr_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Type" field="requisition_type" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Vendor code" field="vendor_code" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
@@ -248,7 +248,7 @@ function PagerIcon({dir}){
 function SortTh({label,field,sortField,sortDir,onSort,align}){
   const active=sortField===field;
   return(
-    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
       {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
     </th>
   );
@@ -262,7 +262,7 @@ function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApp
   const [from,setFrom]=useState(dateFrom);
   const [to,setTo]=useState(dateTo);
   return(
-    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
+    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
       <span style={{userSelect:"none"}}>{label}</span>
       <span onClick={()=>{setFrom(dateFrom);setTo(dateTo);setOpen(o=>!o);}} style={{marginLeft:4,cursor:"pointer",color:filtered?"#1a1f2e":"#9ca3af"}}>▾</span>
       {open&&(
@@ -284,7 +284,7 @@ function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApp
 // ─── PR table row — select circle only; View/Edit buttons open full detail ──
 function PRTableRow({pr,selected,onSelect}){
   const sc=PR_STATUS_COLORS[pr.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #e5e7eb",borderLeft:"1px solid #e5e7eb",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
     <tr style={{background:selected?"#f5f7fa":"transparent"}}
