@@ -1493,7 +1493,7 @@ function EnquiryTab({profile,showToast}){
         const fp=(isNaN(f)&&isNaN(c))?null:(isNaN(f)?0:f)+(isNaN(c)?0:c);
         rows.push({
           "Enq No":e.enq_number||"","Enq Date":e.enq_date?formatDate(e.enq_date):"",
-          "Spec No":e.specification_number||"","Company":e.company||"",
+          "Spec No":it.specification_number||"","Company":e.company||"",
           "Description":it.description||"","Size":itemSizeLabel(it),
           "Covering (mm)":it.conductor_type==="ctc"?"":(it.covering||""),
           "Covering 1 (mm)":it.conductor_type==="ctc"?(it.covering_1||""):"",
@@ -1569,7 +1569,7 @@ function EnquiryTab({profile,showToast}){
                         {e.status==="draft"&&<span style={{...S,marginLeft:6,background:"#f3f4f6",color:"#6b7280",padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:600,textDecoration:"none"}}>DRAFT</span>}
                       </td>
                       <td style={{padding:"10px 12px",...S}}>{e.enq_date?formatDate(e.enq_date):"—"}</td>
-                      <td style={{padding:"10px 12px",...S}}>{e.specification_number||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{items.length&&items.some(it=>it.specification_number)?items.map(it=>it.specification_number||"—").join(", "):"—"}</td>
                       <td style={{padding:"10px 12px"}}>{e.company||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{items.length?items.map(it=>itemSizeLabel(it)||"—").join(", "):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"—"}</td>
@@ -1631,9 +1631,9 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
       quantity:it.quantity||"",
       quantity_unit:it.uom&&["kg","nos"].includes(it.uom)?it.uom:"kg",
       insulation:it.conductor_type==="ctc"
-        ?[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_1||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""},
-          {scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_2||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}]
-        :[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering||"",spec:e.specification_number||"",rawMaterial:"",qtyUsed:""}],
+        ?[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_1||"",spec:it.specification_number||"",rawMaterial:"",qtyUsed:""},
+          {scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_2||"",spec:it.specification_number||"",rawMaterial:"",qtyUsed:""}]
+        :[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering||"",spec:it.specification_number||"",rawMaterial:"",qtyUsed:""}],
       remarks:`From Enquiry ${e.enq_number||""}${it.description?` — ${it.description}`:""}`.trim(),
     };
     return <OrderForm
@@ -1662,7 +1662,6 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:20}}>
           <Field label="Enq Number" value={e.enq_number}/>
           <Field label="Enq Date" value={e.enq_date?formatDate(e.enq_date):null}/>
-          <Field label="Specification No." value={e.specification_number}/>
           <Field label="Company" value={e.company}/>
           <Field label="Delivery" value={e.delivery_terms}/>
           <Field label="Payment" value={e.payment_terms}/>
@@ -1686,6 +1685,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14}}>
                   <Field label="Size" value={itemSizeLabel(it)}/>
+                  <Field label="Specification No." value={it.specification_number}/>
                   <Field label="Insulation Type" value={it.insulation_type}/>
                   {it.conductor_type==="ctc"?(
                     <>
@@ -1742,7 +1742,6 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
 function EnquiryForm({existing,profile,showToast,onClose}){
   const isEdit=!!existing;
   const [enqDate,setEnqDate]=useState(existing?.enq_date||"");
-  const [specNumber,setSpecNumber]=useState(existing?.specification_number||"");
   const [company,setCompany]=useState(existing?.company||"");
   const [deliveryTerms,setDeliveryTerms]=useState(existing?.delivery_terms||"");
   const [paymentTerms,setPaymentTerms]=useState(existing?.payment_terms||"");
@@ -1751,7 +1750,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
 
@@ -1761,7 +1760,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [rates,setRates]=useState(null);
   useEffect(()=>onSnapshot(doc(db,"settings","exchange_rates"),snap=>setRates(snap.exists()?snap.data():null)),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);}
+  function addItem(){setItems(i=>[...i,{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false,worksheet:null}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
   // Switching currency converts the already-entered Fabrication rate and
@@ -1781,7 +1780,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
     try{
       const payload={
         enq_date:enqDate||null,
-        specification_number:specNumber.trim()||null,company:company.trim()||null,
+        company:company.trim()||null,
         delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
@@ -1820,10 +1819,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
           <div>
             <label style={labelStyle}>Enquiry date</label>
             <input style={fieldStyle} type="date" value={enqDate} onChange={e=>setEnqDate(e.target.value)}/>
-          </div>
-          <div>
-            <label style={labelStyle}>Specification Number</label>
-            <input style={fieldStyle} value={specNumber} onChange={e=>setSpecNumber(e.target.value)} placeholder="e.g. IS 13730"/>
           </div>
           <div>
             <FuzzyAutocomplete label="Company" value={company} onChange={setCompany} options={customerMaster} displayKey="name" placeholder="Start typing…"/>
@@ -1870,6 +1865,10 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <div style={{marginBottom:12}}>
               <label style={labelStyle}>Description</label>
               <input style={fieldStyle} value={it.description} onChange={e=>updateItem(i,"description",e.target.value)} placeholder="e.g. 1 layer 66% overlap Kapton covered copper conductor"/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <label style={labelStyle}>Specification Number</label>
+              <input style={fieldStyle} value={it.specification_number||""} onChange={e=>updateItem(i,"specification_number",e.target.value)} placeholder="e.g. IS 13730"/>
             </div>
 
             {/* Conductor type — same toggle set as the WO form, so this
@@ -1972,11 +1971,11 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Fabrication rate ({CURRENCY_SYMBOLS[it.currency||"INR"]})</label>
+                <label style={labelStyle}>Fabrication rate ({CURRENCY_SYMBOLS[it.currency||"INR"]} / kg)</label>
                 <input style={fieldStyle} value={it.fabrication_rate} onChange={e=>updateItem(i,"fabrication_rate",e.target.value)} placeholder="Fabrication rate"/>
               </div>
               <div>
-                <label style={labelStyle}>Copper price ({CURRENCY_SYMBOLS[it.currency||"INR"]}) <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
+                <label style={labelStyle}>Copper price ({CURRENCY_SYMBOLS[it.currency||"INR"]} / kg) <span style={{color:"#9ca3af",fontWeight:400}}>(considered for bid)</span></label>
                 <input style={fieldStyle} value={it.copper_price} onChange={e=>updateItem(i,"copper_price",e.target.value)}/>
               </div>
               <div style={{gridColumn:"1 / -1",display:"flex",alignItems:"center",gap:8,paddingTop:2}}>
