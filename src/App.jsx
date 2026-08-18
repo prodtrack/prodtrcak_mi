@@ -1491,7 +1491,7 @@ function EnquiryTab({profile,showToast}){
           <div className="card" style={{padding:0,overflow:"auto",maxHeight:520}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
-                {["Enq No","Enq Date","Spec. No.","Company","Items","Notes","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
+                {["Enq No","Enq Date","Spec. No.","Company","Items","Validity","WOs","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {enquiries.map(e=>{
@@ -1509,7 +1509,6 @@ function EnquiryTab({profile,showToast}){
                       <td style={{padding:"10px 12px",...S}}>{items.length&&items.some(it=>it.specification_number)?items.map(it=>it.specification_number||"—").join(", "):"—"}</td>
                       <td style={{padding:"10px 12px"}}>{e.company||"—"}</td>
                       <td style={{padding:"10px 12px"}}>{items.length?items.map(it=>itemSizeLabel(it)||"—").join(", "):"—"}</td>
-                      <td style={{padding:"10px 12px",...S,color:"#6b7280"}}>{e.notes||"–"}</td>
                       <td style={{padding:"10px 12px",...S}}>{e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"—"}</td>
                       <td style={{padding:"10px 12px",...S,textAlign:"center"}}>{linkedCount>0?linkedCount:"—"}</td>
                       <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
