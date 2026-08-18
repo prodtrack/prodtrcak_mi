@@ -126,6 +126,26 @@ export default function PurchaseOrdersTab({profile,showToast}){
     return <POForm profile={profile} vendors={vendors} materials={materials} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
   }
 
+  if(expandedId){
+    const po=pos.find(p=>p.id===expandedId);
+    if(po){
+      const {canEdit,isAmendment,canCancel}=poEditability(po,canCreate);
+      return(
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={closeDetail}><Icon name="arrow" size={14}/>Back</button>
+            <div style={{fontSize:14,fontWeight:600}}>{po.po_number}</div>
+          </div>
+          {editingId===po.id
+            ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={closeDetail}/>
+            : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
+                onEdit={openEdit} onCancel={()=>cancelPO(po)} onDeleteDraft={()=>deleteDraft(po)} onClose={()=>closePO(po)}/>
+          }
+        </div>
+      );
+    }
+  }
+
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -196,21 +216,6 @@ export default function PurchaseOrdersTab({profile,showToast}){
               <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
             </div>
           </div>
-
-          {expandedId&&(()=>{
-            const po=pos.find(p=>p.id===expandedId);
-            if(!po)return null;
-            const {canEdit,isAmendment,canCancel}=poEditability(po,canCreate);
-            return(
-              <div className="card" style={{marginTop:16,padding:20,background:"#fafbfc"}}>
-                {editingId===po.id
-                  ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={closeDetail}/>
-                  : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
-                      onEdit={openEdit} onCancel={()=>cancelPO(po)} onDeleteDraft={()=>deleteDraft(po)} onClose={()=>closePO(po)}/>
-                }
-              </div>
-            );
-          })()}
         </>
       }
     </div>
