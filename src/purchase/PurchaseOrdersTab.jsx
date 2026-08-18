@@ -134,8 +134,8 @@ export default function PurchaseOrdersTab({profile,showToast}){
         <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by PO number, vendor name, or vendor code…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
       </div>
 
-      {!hasActiveNarrowing
-        ?<EmptyState text="Search or select a filter to view purchase orders" sub="Use the status chips, plant dropdown, or search box above"/>
+      {pos.length===0
+        ?<EmptyState text="No purchase orders yet" sub={canCreate?"Click 'New Purchase Order' to create one":undefined}/>
         :filtered.length===0
         ?<EmptyState text="No purchase orders match" sub={canCreate?"Try a different filter, or click 'New Purchase Order' to create one":undefined}/>
         :<>
@@ -183,13 +183,29 @@ export default function PurchaseOrdersTab({profile,showToast}){
           </div>
           <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,marginTop:12,fontSize:12,color:"#6b7280"}}>
             <span>{sorted.length} purchase order{sorted.length!==1?"s":""}</span>
-            <button className="btn-ghost" style={{padding:"4px 10px",fontSize:12}} disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
+            <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+            <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
             <span>Page {pageSafe} of {totalPages}</span>
-            <button className="btn-ghost" style={{padding:"4px 10px",fontSize:12}} disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>Next</button>
+            <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+            <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
           </div>
         </>
       }
     </div>
+  );
+}
+
+const pagerBtnStyle={display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,padding:0,border:"1px solid #d1d5db",borderRadius:6,background:"#fff",cursor:"pointer"};
+
+function PagerIcon({dir}){
+  const chevron=(flip)=><polyline points="15 18 9 12 15 6" transform={flip?"scale(-1,1) translate(-24,0)":undefined}/>;
+  return(
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir==="prev"&&chevron(false)}
+      {dir==="next"&&chevron(true)}
+      {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
+      {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
+    </svg>
   );
 }
 
