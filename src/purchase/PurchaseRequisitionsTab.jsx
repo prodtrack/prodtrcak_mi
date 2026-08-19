@@ -328,6 +328,7 @@ function PRDetailPanel({pr,profile,showToast,canApprove,canEdit,canCancel,onEdit
       const poNumber=await generatePONumber(pr.plant);
       const poLineItems=(pr.line_items||[]).map(it=>({
         part_code:it.item_code||"", material_id:it.material_id||"", material_name:it.material_name,
+        item_description:it.item_description||"",
         hsn_code:"", qty:parseFloat(it.qty)||0, unit:it.unit, rate:it.last_po_rate||0,
         required_date:it.required_date||"", received_qty:0,
       }));
