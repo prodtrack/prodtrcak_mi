@@ -1,43 +1,77 @@
 // ─── GRNTab.jsx ─────────────────────────────────────────────────────────────
-// Unified goods receipt. Two entry paths into the same history:
-//   1. Against PO   — pick an approved/partially-received PO, enter received
-//                      qty per line (partial supported), posts stock + rolls
-//                      the PO status forward.
-//   2. Direct        — no PO. Known material posts straight to stock; an
-//                      unrecognised material raises a `grn_holds` review item
-//                      for admin (unchanged from the old Goods Inward tab).
-// Both paths extend the existing `goods_inward` collection with optional
-// po_id/po_number + a formal grn_number — no new collection, no migration.
+// Merged GIN/GRN tab. "Receipts" is the former GIN workflow (raise against
+// an approved PO, capture Challan/Vehicle/transport detail, approve, then
+// QGIN inspects and posts the actual GRN) — this IS the "receive against
+// PO" step now, replacing the old GRN-side shortcut of the same name that
+// posted stock immediately with no inspection. "Posted History" is the
+// flat, final record of everything that has actually hit stock — via this
+// GIN→QGIN chain, or via Direct Receipt below, which still posts instantly
+// and skips QGIN entirely by design (no PO to inspect against).
+// GIN data lives in `goods_inward_notes` (read by QGINTab.jsx — untouched
+// by this merge); posted history lives in `goods_inward`.
 
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
-import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
-import { PLANTS, UNITS, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS } from "./purchaseHelpers";
+import {
+  PLANTS, UNITS, GIN_TYPES, GIN_STATUSES, GIN_STATUS_LABELS, GIN_STATUS_COLORS,
+  generateGINNumber, generateQGINNumber, generateGRNNumber, PO_STATUS_LABELS,
+} from "./purchaseHelpers";
+import { printGoodsInwardNote } from "./GINPrintView.jsx";
 
 export default function GRNTab({profile,showToast}){
-  const canReceive=["admin","store"].includes(profile.role)||!!profile.can_purchase;
   const isAdmin=profile.role==="admin";
+  const canCreate=isAdmin||["store"].includes(profile.role)||!!profile.can_purchase;
+  const canApprove=isAdmin||!!profile.isPurchaseManager;
 
+  const [segment,setSegment]=useState("receipts"); // "receipts" | "history"
+
+  // ── shared data ──
+  const [gins,setGins]=useState([]);
+  const [pos,setPos]=useState([]);
   const [materials,setMaterials]=useState([]);
   const [suppliers,setSuppliers]=useState([]);
   const [entries,setEntries]=useState([]);
   const [holds,setHolds]=useState([]);
-  const [pos,setPos]=useState([]);
 
-  const [mode,setMode]=useState(null); // null | "po" | "direct"
-  const [search,setSearch]=useState("");
+  // ── Receipts (GIN) view state ──
+  const [statusFilter,setStatusFilter]=useState("all");
+  const [plantFilter,setPlantFilter]=useState("all");
+  const [ginSearch,setGinSearch]=useState("");
+  const [expandedId,setExpandedId]=useState(null);
+  const [editingId,setEditingId]=useState(null);
+  const [selectedId,setSelectedId]=useState(null);
+  const [creatingNew,setCreatingNew]=useState(false);
+  const [ginSortField,setGinSortField]=useState("created_at");
+  const [ginSortDir,setGinSortDir]=useState("desc");
+  const [ginPage,setGinPage]=useState(1);
+  const [ginDateFrom,setGinDateFrom]=useState("");
+  const [ginDateTo,setGinDateTo]=useState("");
+  const GIN_PAGE_SIZE=10;
+
+  // ── Posted History (GRN) view state ──
+  const [mode,setMode]=useState(null); // null | "direct"
+  const [historySearch,setHistorySearch]=useState("");
   const [holdRemark,setHoldRemark]=useState({});
   const [holdSaving,setHoldSaving]=useState({});
-  const [sortField,setSortField]=useState("date_received");
-  const [sortDir,setSortDir]=useState("desc");
-  const [page,setPage]=useState(1);
-  const [dateFrom,setDateFrom]=useState("");
-  const [dateTo,setDateTo]=useState("");
-  const [dateOpen,setDateOpen]=useState(false);
-  const PAGE_SIZE=10;
+  const [historySortField,setHistorySortField]=useState("date_received");
+  const [historySortDir,setHistorySortDir]=useState("desc");
+  const [historyPage,setHistoryPage]=useState(1);
+  const [historyDateFrom,setHistoryDateFrom]=useState("");
+  const [historyDateTo,setHistoryDateTo]=useState("");
+  const [historyDateOpen,setHistoryDateOpen]=useState(false);
+  const HISTORY_PAGE_SIZE=10;
 
+  useEffect(()=>{
+    const q=query(collection(db,"goods_inward_notes"),orderBy("created_at","desc"));
+    return onSnapshot(q,snap=>setGins(snap.docs.map(d=>({id:d.id,...d.data()}))));
+  },[]);
+  useEffect(()=>{
+    const q=query(collection(db,"purchase_orders"),orderBy("created_at","desc"));
+    return onSnapshot(q,s=>setPos(s.docs.map(d=>({id:d.id,...d.data()}))));
+  },[]);
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),s=>setMaterials(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
   useEffect(()=>onSnapshot(collection(db,"supplier_master"),s=>setSuppliers(s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.active!==false))),[]);
   useEffect(()=>{
@@ -48,11 +82,86 @@ export default function GRNTab({profile,showToast}){
     const q=query(collection(db,"grn_holds"),orderBy("created_at","desc"));
     return onSnapshot(q,s=>setHolds(s.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
-  useEffect(()=>{
-    const q=query(collection(db,"purchase_orders"),orderBy("created_at","desc"));
-    return onSnapshot(q,s=>setPos(s.docs.map(d=>({id:d.id,...d.data()}))));
-  },[]);
 
+  // ── Receipts (GIN) derived state ──
+  const gq=ginSearch.trim().toLowerCase();
+  const ginFiltered=gins.filter(g=>{
+    const d=g.created_at?.toDate?g.created_at.toDate():(g.created_at?new Date(g.created_at):null);
+    const dISO=d?d.toISOString().slice(0,10):null;
+    return (statusFilter==="all"||g.status===statusFilter)&&
+    (plantFilter==="all"||g.plant===plantFilter)&&
+    (!ginDateFrom||(dISO&&dISO>=ginDateFrom))&&
+    (!ginDateTo||(dISO&&dISO<=ginDateTo))&&
+    (!gq||
+      g.gin_number?.toLowerCase().includes(gq)||
+      g.vendor_name?.toLowerCase().includes(gq)||
+      g.po_number?.toLowerCase().includes(gq)||
+      g.challan_no?.toLowerCase().includes(gq)
+    );
+  });
+  const ginHasActiveNarrowing=statusFilter!=="all"||plantFilter!=="all"||gq.length>0;
+
+  function ginField(gin,field){
+    switch(field){
+      case "gin_number":return gin.gin_number||"";
+      case "gin_type":return gin.gin_type||"";
+      case "po_number":return gin.po_number||"";
+      case "vendor_name":return gin.vendor_name||"";
+      case "plant":return gin.plant||"";
+      case "created_at":return gin.created_at?.toDate?gin.created_at.toDate().getTime():(gin.created_at?new Date(gin.created_at).getTime():0);
+      case "status":return gin.status||"";
+      case "vehicle_no":return gin.vehicle_no||"";
+      case "grn_number":return gin.grn_number||"";
+      default:return "";
+    }
+  }
+  const ginSorted=[...ginFiltered].sort((a,b)=>{
+    const va=ginField(a,ginSortField),vb=ginField(b,ginSortField);
+    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
+    return ginSortDir==="asc"?cmp:-cmp;
+  });
+  const ginTotalPages=Math.max(1,Math.ceil(ginSorted.length/GIN_PAGE_SIZE));
+  const ginPageSafe=Math.min(ginPage,ginTotalPages);
+  const ginPaginated=ginSorted.slice((ginPageSafe-1)*GIN_PAGE_SIZE,ginPageSafe*GIN_PAGE_SIZE);
+
+  function onGinSort(field){
+    if(ginSortField===field)setGinSortDir(d=>d==="asc"?"desc":"asc");
+    else{setGinSortField(field);setGinSortDir("asc");}
+    setGinPage(1);
+  }
+
+  function ginEditability(gin,canCreate){
+    const canEdit=["draft","pending_approval","approved"].includes(gin.status)&&canCreate;
+    const canCancel=["draft","pending_approval"].includes(gin.status);
+    return {canEdit,canCancel};
+  }
+
+  function selectRow(id){setSelectedId(prev=>prev===id?null:id);setExpandedId(null);setEditingId(null);}
+  function openView(){if(selectedId){setExpandedId(selectedId);setEditingId(null);}}
+  function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
+  function closeDetail(){setExpandedId(null);setEditingId(null);}
+
+  async function cancelGIN(gin){
+    if(!window.confirm(`Cancel ${gin.gin_number}? This cannot be undone.`))return;
+    await updateDoc(doc(db,"goods_inward_notes",gin.id),{status:"cancelled",cancelled_by:profile.name||auth.currentUser.email,cancelled_at:serverTimestamp()});
+    showToast(`${gin.gin_number} cancelled`);
+  }
+
+  function exportGinExcel(){
+    const rows=ginSorted.map(gin=>({
+      "GIN No.":gin.gin_number||"","Type":gin.gin_type||"","PO No.":gin.po_number||"","Vendor name":gin.vendor_name||"",
+      "Site":gin.plant||"","Date":gin.created_at?formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at):"",
+      "Status":GIN_STATUS_LABELS[gin.status]||gin.status||"","Vehicle":gin.vehicle_no||"","Challan No.":gin.challan_no||"",
+      "Challan Date":gin.challan_date?formatDate(gin.challan_date):"","GRN":gin.grn_number||"",
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Receipts");
+    XLSX.writeFile(wb,`GIN_Receipts_${new Date().toISOString().split("T")[0]}.xlsx`);
+    showToast("Exported to Excel");
+  }
+
+  // ── Posted History (GRN) derived state ──
   async function approveHold(hold){
     setHoldSaving(p=>({...p,[hold.id]:true}));
     try{
@@ -81,10 +190,10 @@ export default function GRNTab({profile,showToast}){
   }
 
   const pendingHolds=holds.filter(h=>h.status==="pending");
-  const filtered=entries.filter(e=>
-    (!search||e.material_name?.toLowerCase().includes(search.toLowerCase())||e.supplier_name?.toLowerCase().includes(search.toLowerCase())||e.po_number?.toLowerCase().includes(search.toLowerCase()))&&
-    (!dateFrom||(e.date_received&&e.date_received>=dateFrom))&&
-    (!dateTo||(e.date_received&&e.date_received<=dateTo))
+  const historyFiltered=entries.filter(e=>
+    (!historySearch||e.material_name?.toLowerCase().includes(historySearch.toLowerCase())||e.supplier_name?.toLowerCase().includes(historySearch.toLowerCase())||e.po_number?.toLowerCase().includes(historySearch.toLowerCase()))&&
+    (!historyDateFrom||(e.date_received&&e.date_received>=historyDateFrom))&&
+    (!historyDateTo||(e.date_received&&e.date_received<=historyDateTo))
   );
 
   function entryField(e,field){
@@ -98,52 +207,67 @@ export default function GRNTab({profile,showToast}){
       default:return "";
     }
   }
-  const sorted=[...filtered].sort((a,b)=>{
-    const va=entryField(a,sortField),vb=entryField(b,sortField);
+  const historySorted=[...historyFiltered].sort((a,b)=>{
+    const va=entryField(a,historySortField),vb=entryField(b,historySortField);
     const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
-    return sortDir==="asc"?cmp:-cmp;
+    return historySortDir==="asc"?cmp:-cmp;
   });
-  const totalPages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
-  const pageSafe=Math.min(page,totalPages);
-  const paginated=sorted.slice((pageSafe-1)*PAGE_SIZE,pageSafe*PAGE_SIZE);
+  const historyTotalPages=Math.max(1,Math.ceil(historySorted.length/HISTORY_PAGE_SIZE));
+  const historyPageSafe=Math.min(historyPage,historyTotalPages);
+  const historyPaginated=historySorted.slice((historyPageSafe-1)*HISTORY_PAGE_SIZE,historyPageSafe*HISTORY_PAGE_SIZE);
 
-  function onSort(field){
-    if(sortField===field)setSortDir(d=>d==="asc"?"desc":"asc");
-    else{setSortField(field);setSortDir("asc");}
-    setPage(1);
+  function onHistorySort(field){
+    if(historySortField===field)setHistorySortDir(d=>d==="asc"?"desc":"asc");
+    else{setHistorySortField(field);setHistorySortDir("asc");}
+    setHistoryPage(1);
   }
 
-  function exportExcel(){
-    const rows=sorted.map(e=>({
+  function exportHistoryExcel(){
+    const rows=historySorted.map(e=>({
       "Date":e.date_received?formatDate(e.date_received):"","Material":e.material_name||"","Supplier":e.supplier_name||"",
       "Quantity":e.quantity??"","Unit":e.unit||"","PO No.":e.po_number||"","GRN No.":e.grn_number||"","Received by":e.operator_name||"",
     }));
     const ws=XLSX.utils.json_to_sheet(rows);
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"GRN");
-    XLSX.writeFile(wb,`GRN_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb,`GRN_History_${new Date().toISOString().split("T")[0]}.xlsx`);
     showToast("Exported to Excel");
   }
 
-  if(mode==="po")return<ReceiveAgainstPO profile={profile} pos={pos} showToast={showToast} onClose={()=>setMode(null)}/>;
-  if(mode==="direct")return<DirectReceipt profile={profile} materials={materials} suppliers={suppliers} showToast={showToast} onClose={()=>setMode(null)}/>;
+  // ── Full-page detail / form / mode overrides ──
+  if(creatingNew){
+    return <GINForm profile={profile} pos={pos} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
+  }
+  if(mode==="direct"){
+    return <DirectReceipt profile={profile} materials={materials} suppliers={suppliers} showToast={showToast} onClose={()=>setMode(null)}/>;
+  }
+  if(expandedId){
+    const gin=gins.find(g=>g.id===expandedId);
+    if(gin){
+      const {canEdit,canCancel}=ginEditability(gin,canCreate);
+      return(
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={closeDetail}><Icon name="arrow" size={14}/>Back</button>
+            <div style={{fontSize:14,fontWeight:600}}>{gin.gin_number}</div>
+          </div>
+          {editingId===gin.id
+            ? <GINForm profile={profile} pos={pos} existing={gin} showToast={showToast} onClose={closeDetail}/>
+            : <GINDetailPanel gin={gin} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
+                onEdit={openEdit} onCancel={()=>cancelGIN(gin)}/>
+          }
+        </div>
+      );
+    }
+  }
 
   return(
     <div>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
-        <div>
-          <div style={{fontSize:14,fontWeight:600}}>{entries.length} receipt{entries.length!==1?"s":""} recorded</div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          {sorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
-          {canReceive&&(<>
-            <button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("po")}><Icon name="clipboard" size={12}/>Receive against PO</button>
-            <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>
-          </>)}
-        </div>
+      <div style={{display:"inline-flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,padding:3,marginBottom:16}}>
+        <button onClick={()=>setSegment("receipts")} style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:segment==="receipts"?600:400,background:segment==="receipts"?"#fff":"transparent",color:segment==="receipts"?"#1a1f2e":"#6b7280",fontFamily:"'Roboto',sans-serif",boxShadow:segment==="receipts"?"0 1px 2px rgba(0,0,0,.06)":"none"}}>Receipts</button>
+        <button onClick={()=>setSegment("history")} style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:segment==="history"?600:400,background:segment==="history"?"#fff":"transparent",color:segment==="history"?"#1a1f2e":"#6b7280",fontFamily:"'Roboto',sans-serif",boxShadow:segment==="history"?"0 1px 2px rgba(0,0,0,.06)":"none"}}>Posted History</button>
       </div>
 
-      {/* GRN Hold alert — admin only */}
       {isAdmin&&pendingHolds.length>0&&(
         <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"14px 16px",marginBottom:20}}>
           <div style={{...S,fontSize:11,color:"#92400e",fontWeight:700,marginBottom:12}}>⚠ {pendingHolds.length} GRN Hold{pendingHolds.length>1?"s":""} pending review</div>
@@ -167,68 +291,149 @@ export default function GRNTab({profile,showToast}){
         </div>
       )}
 
-      {/* History */}
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f3f4f6",flexWrap:"wrap"}}>
-          <span style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",flex:1}}>Receipt History</span>
-          <input style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 11px",fontSize:12,outline:"none",width:200}} placeholder="Search material / supplier / PO…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
-        </div>
-        <div style={{overflowX:"auto"}}>
-        <div style={{minWidth:560}}>
-        {sorted.length>0&&(
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6"}}>
-            {[["DATE",80,"date_received"],["MATERIAL","1","material_name"],["SUPPLIER",110,"supplier_name"],["QTY",70,"quantity"],["PO #",90,"po_number"],["BY",90,"operator_name"]].map(([l,w,field])=>(
-              field==="date_received"
-                ?<span key={l} style={{...S,fontSize:10,color:(sortField===field||dateFrom||dateTo)?"#374151":"#9ca3af",width:w,minWidth:w,position:"relative"}}>
-                    <span style={{userSelect:"none"}}>{l}</span>
-                    <span onClick={()=>setDateOpen(o=>!o)} style={{marginLeft:2,cursor:"pointer"}}>▾</span>
-                    {dateOpen&&(
-                      <div style={{position:"absolute",top:18,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
-                      <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
-                      <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/>
-                      <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
-                      <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={dateTo} onChange={e=>setDateTo(e.target.value)}/>
-                      <div style={{display:"flex",gap:6}}>
-                        <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setPage(1);setDateOpen(false);}}>Apply</button>
-                        <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setDateFrom("");setDateTo("");setPage(1);setDateOpen(false);}}>Clear</button>
-                      </div>
-                      </div>
-                    )}
-                  </span>
-                :<span key={l} onClick={()=>onSort(field)} style={{...S,fontSize:10,color:sortField===field?"#374151":"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined,cursor:"pointer",userSelect:"none"}}>{l}{sortField===field&&(sortDir==="asc"?" ▲":" ▼")}</span>
-            ))}
-          </div>
-        )}
+      {segment==="receipts"?(
         <div>
-        {paginated.length===0
-          ?<EmptyState text="No receipts yet"/>
-          :paginated.map((e,i)=>(
-            <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:i<paginated.length-1?"1px solid #f9fafb":undefined}}
-              onMouseEnter={ev=>ev.currentTarget.style.background="#f9fafb"}
-              onMouseLeave={ev=>ev.currentTarget.style.background="#fff"}>
-              <span style={{...S,fontSize:11,color:"#9ca3af",flexShrink:0,width:80}}>{formatDate(e.date_received)}</span>
-              <span style={{fontSize:13,fontWeight:500,color:"#1a1f2e",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.material_name}</span>
-              <span style={{fontSize:11,color:"#6b7280",flexShrink:0,width:110,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.supplier_name||"—"}</span>
-              <span style={{...S,fontSize:12,fontWeight:600,color:"#1a1f2e",flexShrink:0,width:70}}>{e.quantity} {e.unit}</span>
-              <span style={{...S,fontSize:11,color:e.po_number?"#1d4ed8":"#d1d5db",flexShrink:0,width:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.po_number||"—"}</span>
-              <span style={{fontSize:11,color:"#9ca3af",flexShrink:0,width:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.operator_name}</span>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:14,fontWeight:600}}>{ginHasActiveNarrowing?`${ginFiltered.length} of ${gins.length} receipt${gins.length!==1?"s":""}`:`${gins.length} receipt${gins.length!==1?"s":""}`}</div>
+            <div style={{display:"flex",gap:8}}>
+              {ginSorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportGinExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+              {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>Receive against PO</button>}
+              {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>}
             </div>
-          ))
-        }
-        </div>
-        {sorted.length>0&&(
-          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,padding:"8px 16px",borderTop:"1px solid #f3f4f6",fontSize:12,color:"#6b7280"}}>
-            <span>{sorted.length} receipt{sorted.length!==1?"s":""}</span>
-            <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
-            <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
-            <span>Page {pageSafe} of {totalPages}</span>
-            <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
-            <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
           </div>
-        )}
+
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+            {[["all","All"],...GIN_STATUSES.map(s=>[s,GIN_STATUS_LABELS[s]])].map(([v,l])=>(
+              <button key={v} onClick={()=>{setStatusFilter(v);setGinPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
+            ))}
+            <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setGinPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
+              <option value="all">All plants</option>
+              {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div style={{marginBottom:16}}>
+            <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by GIN number, vendor, PO, or challan no…" value={ginSearch} onChange={e=>{setGinSearch(e.target.value);setGinPage(1);}}/>
+          </div>
+
+          {gins.length===0
+            ?<EmptyState text="No receipts yet" sub={canCreate?"Click 'Receive against PO' to log an arrival":undefined}/>
+            :ginFiltered.length===0
+            ?<EmptyState text="No receipts match" sub={canCreate?"Try a different filter, or click 'Receive against PO' to log an arrival":undefined}/>
+            :<>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
+                  <thead>
+                    <tr style={{background:"#fafafa"}}>
+                      <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
+                      <SortTh label="GIN No." field="gin_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <SortTh label="Type" field="gin_type" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <SortTh label="PO No." field="po_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <SortTh label="Vendor name" field="vendor_name" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <SortTh label="Site" field="plant" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <DateRangeTh label="Date" field="created_at" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort} dateFrom={ginDateFrom} dateTo={ginDateTo} onApply={(f,t)=>{setGinDateFrom(f);setGinDateTo(t);setGinPage(1);}}/>
+                      <SortTh label="Status" field="status" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <SortTh label="Vehicle" field="vehicle_no" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                      <SortTh label="GRN" field="grn_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ginPaginated.map(gin=>(
+                      <GINTableRow key={gin.id} gin={gin} selected={selectedId===gin.id} onSelect={()=>selectRow(gin.id)}/>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
+                  <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&ginEditability(gins.find(g=>g.id===selectedId)||{},canCreate).canEdit?1:.4,cursor:selectedId&&ginEditability(gins.find(g=>g.id===selectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!selectedId||!ginEditability(gins.find(g=>g.id===selectedId)||{},canCreate).canEdit} onClick={openEdit}>Edit</button>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+                  <span>{ginSorted.length} receipt{ginSorted.length!==1?"s":""}</span>
+                  <button aria-label="First page" disabled={ginPageSafe<=1} onClick={()=>setGinPage(1)} style={{...pagerBtnStyle,opacity:ginPageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+                  <button aria-label="Previous page" disabled={ginPageSafe<=1} onClick={()=>setGinPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:ginPageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+                  <span>Page {ginPageSafe} of {ginTotalPages}</span>
+                  <button aria-label="Next page" disabled={ginPageSafe>=ginTotalPages} onClick={()=>setGinPage(p=>Math.min(ginTotalPages,p+1))} style={{...pagerBtnStyle,opacity:ginPageSafe>=ginTotalPages?.4:1}}><PagerIcon dir="next"/></button>
+                  <button aria-label="Last page" disabled={ginPageSafe>=ginTotalPages} onClick={()=>setGinPage(ginTotalPages)} style={{...pagerBtnStyle,opacity:ginPageSafe>=ginTotalPages?.4:1}}><PagerIcon dir="last"/></button>
+                </div>
+              </div>
+            </>
+          }
         </div>
+      ):(
+        <div>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:14,fontWeight:600}}>{entries.length} receipt{entries.length!==1?"s":""} posted</div>
+            <div style={{display:"flex",gap:8}}>
+              {historySorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportHistoryExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+              {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>}
+            </div>
+          </div>
+
+          <div className="card" style={{padding:0,overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f3f4f6",flexWrap:"wrap"}}>
+              <span style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",flex:1}}>Posted Receipt History</span>
+              <input style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 11px",fontSize:12,outline:"none",width:200}} placeholder="Search material / supplier / PO…" value={historySearch} onChange={e=>{setHistorySearch(e.target.value);setHistoryPage(1);}}/>
+            </div>
+            <div style={{overflowX:"auto"}}>
+            <div style={{minWidth:560}}>
+            {historySorted.length>0&&(
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6"}}>
+                {[["DATE",80,"date_received"],["MATERIAL","1","material_name"],["SUPPLIER",110,"supplier_name"],["QTY",70,"quantity"],["PO #",90,"po_number"],["BY",90,"operator_name"]].map(([l,w,field])=>(
+                  field==="date_received"
+                    ?<span key={l} style={{...S,fontSize:10,color:(historySortField===field||historyDateFrom||historyDateTo)?"#374151":"#9ca3af",width:w,minWidth:w,position:"relative"}}>
+                        <span style={{userSelect:"none"}}>{l}</span>
+                        <span onClick={()=>setHistoryDateOpen(o=>!o)} style={{marginLeft:2,cursor:"pointer"}}>▾</span>
+                        {historyDateOpen&&(
+                          <div style={{position:"absolute",top:18,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
+                          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
+                          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)}/>
+                          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
+                          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={historyDateTo} onChange={e=>setHistoryDateTo(e.target.value)}/>
+                          <div style={{display:"flex",gap:6}}>
+                            <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setHistoryPage(1);setHistoryDateOpen(false);}}>Apply</button>
+                            <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setHistoryDateFrom("");setHistoryDateTo("");setHistoryPage(1);setHistoryDateOpen(false);}}>Clear</button>
+                          </div>
+                          </div>
+                        )}
+                      </span>
+                    :<span key={l} onClick={()=>onHistorySort(field)} style={{...S,fontSize:10,color:historySortField===field?"#374151":"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined,cursor:"pointer",userSelect:"none"}}>{l}{historySortField===field&&(historySortDir==="asc"?" ▲":" ▼")}</span>
+                ))}
+              </div>
+            )}
+            <div>
+            {historyPaginated.length===0
+              ?<EmptyState text="No receipts posted yet"/>
+              :historyPaginated.map((e,i)=>(
+                <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:i<historyPaginated.length-1?"1px solid #f9fafb":undefined}}
+                  onMouseEnter={ev=>ev.currentTarget.style.background="#f9fafb"}
+                  onMouseLeave={ev=>ev.currentTarget.style.background="#fff"}>
+                  <span style={{...S,fontSize:11,color:"#9ca3af",flexShrink:0,width:80}}>{formatDate(e.date_received)}</span>
+                  <span style={{fontSize:13,fontWeight:500,color:"#1a1f2e",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.material_name}</span>
+                  <span style={{fontSize:11,color:"#6b7280",flexShrink:0,width:110,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.supplier_name||"—"}</span>
+                  <span style={{...S,fontSize:12,fontWeight:600,color:"#1a1f2e",flexShrink:0,width:70}}>{e.quantity} {e.unit}</span>
+                  <span style={{...S,fontSize:11,color:e.po_number?"#1d4ed8":"#d1d5db",flexShrink:0,width:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.po_number||"—"}</span>
+                  <span style={{fontSize:11,color:"#9ca3af",flexShrink:0,width:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.operator_name}</span>
+                </div>
+              ))
+            }
+            </div>
+            {historySorted.length>0&&(
+              <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,padding:"8px 16px",borderTop:"1px solid #f3f4f6",fontSize:12,color:"#6b7280"}}>
+                <span>{historySorted.length} receipt{historySorted.length!==1?"s":""}</span>
+                <button aria-label="First page" disabled={historyPageSafe<=1} onClick={()=>setHistoryPage(1)} style={{...pagerBtnStyle,opacity:historyPageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+                <button aria-label="Previous page" disabled={historyPageSafe<=1} onClick={()=>setHistoryPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:historyPageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+                <span>Page {historyPageSafe} of {historyTotalPages}</span>
+                <button aria-label="Next page" disabled={historyPageSafe>=historyTotalPages} onClick={()=>setHistoryPage(p=>Math.min(historyTotalPages,p+1))} style={{...pagerBtnStyle,opacity:historyPageSafe>=historyTotalPages?.4:1}}><PagerIcon dir="next"/></button>
+                <button aria-label="Last page" disabled={historyPageSafe>=historyTotalPages} onClick={()=>setHistoryPage(historyTotalPages)} style={{...pagerBtnStyle,opacity:historyPageSafe>=historyTotalPages?.4:1}}><PagerIcon dir="last"/></button>
+              </div>
+            )}
+            </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -247,133 +452,395 @@ function PagerIcon({dir}){
   );
 }
 
-// ─── Receive against PO ─────────────────────────────────────────────────────
-function ReceiveAgainstPO({profile,pos,showToast,onClose}){
-  const [plant,setPlant]=useState("Bidadi");
-  const [poId,setPoId]=useState("");
-  const [qtyByLine,setQtyByLine]=useState({});
-  const [remarks,setRemarks]=useState("");
-  const [dateRcvd,setDateRcvd]=useState(new Date().toISOString().split("T")[0]);
-  const [saving,setSaving]=useState(false);
-  const [error,setError]=useState("");
+function SortTh({label,field,sortField,sortDir,onSort,align}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
 
-  const receivablePOs=pos.filter(p=>p.plant===plant&&["approved","partially_received"].includes(p.status));
-  const po=pos.find(p=>p.id===poId);
+function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApply}){
+  const active=sortField===field;
+  const filtered=!!(dateFrom||dateTo);
+  const [open,setOpen]=useState(false);
+  const [from,setFrom]=useState(dateFrom);
+  const [to,setTo]=useState(dateTo);
+  return(
+    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
+      <span style={{userSelect:"none"}}>{label}</span>
+      <span onClick={()=>{setFrom(dateFrom);setTo(dateTo);setOpen(o=>!o);}} style={{marginLeft:4,cursor:"pointer",color:filtered?"#1a1f2e":"#9ca3af"}}>▾</span>
+      {open&&(
+        <div style={{position:"absolute",top:26,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
+          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={from} onChange={e=>setFrom(e.target.value)}/>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
+          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={to} onChange={e=>setTo(e.target.value)}/>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{onApply(from,to);setOpen(false);}}>Apply</button>
+            <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setFrom("");setTo("");onApply("","");setOpen(false);}}>Clear</button>
+          </div>
+        </div>
+      )}
+    </th>
+  );
+}
 
-  function remaining(it){return Math.max(0,(parseFloat(it.qty)||0)-(it.received_qty||0));}
+// ─── GIN table row — select circle only; View/Edit buttons open full detail ─
+function GINTableRow({gin,selected,onSelect}){
+  const sc=GIN_STATUS_COLORS[gin.status]||{bg:"#f3f4f6",c:"#6b7280"};
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
-  async function post(){
-    if(!po){setError("Select a purchase order");return;}
-    const linesToPost=(po.line_items||[]).map((it,idx)=>({idx,it,qty:parseFloat(qtyByLine[idx])||0})).filter(l=>l.qty>0);
-    if(linesToPost.length===0){setError("Enter a received quantity for at least one line");return;}
-    for(const l of linesToPost){
-      if(l.qty>remaining(l.it)){setError(`${l.it.material_name}: received qty exceeds remaining (${remaining(l.it)} ${l.it.unit})`);return;}
-    }
-    setError("");setSaving(true);
+  return(
+    <tr style={{background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center",cursor:"pointer"}} onClick={onSelect}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{gin.gin_number}</td>
+      <td style={cellStyle}>{gin.gin_type||"—"}</td>
+      <td style={cellStyle}>{gin.po_number||"—"}</td>
+      <td style={cellStyle} title={gin.vendor_name}>{gin.vendor_name}</td>
+      <td style={cellStyle}>{gin.plant}</td>
+      <td style={cellStyle}>{formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at)}</td>
+      <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{GIN_STATUS_LABELS[gin.status]}</span></td>
+      <td style={cellStyle}>{gin.vehicle_no||"—"}</td>
+      <td style={cellStyle}>{gin.grn_number||"—"}</td>
+    </tr>
+  );
+}
+
+function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEdit,onCancel}){
+  const [busy,setBusy]=useState(false);
+  const [rejectRemark,setRejectRemark]=useState("");
+
+  async function submitForApproval(){
+    setBusy(true);
+    try{
+      await updateDoc(doc(db,"goods_inward_notes",gin.id),{status:"pending_approval",updated_at:serverTimestamp()});
+      showToast(`${gin.gin_number} submitted for approval`);
+    }finally{setBusy(false);}
+  }
+
+  async function approveAndSendToQGIN(){
+    setBusy(true);
     try{
       const now=serverTimestamp();
-      const grnNumber=await generateGRNNumber(plant);
       const operatorName=profile.name||auth.currentUser.email;
       const operatorUid=auth.currentUser.uid;
+      const linesToSend=(gin.line_items||[]).filter(it=>(parseFloat(it.accepted_qty)||0)>0);
+      if(linesToSend.length===0){showToast("No accepted quantity on any line — nothing to send to QGIN","error");setBusy(false);return;}
 
-      for(const l of linesToPost){
-        await addDoc(collection(db,"goods_inward"),{
-          material_id:l.it.material_id||null,material_name:l.it.material_name,
-          supplier_id:po.vendor_id,supplier_name:po.vendor_name,
-          quantity:l.qty,unit:l.it.unit,date_received:dateRcvd,
-          po_id:po.id,po_number:po.po_number,grn_number:grnNumber,plant,
-          remarks:remarks||null,operator_uid:operatorUid,operator_name:operatorName,created_at:now,
+      const qginNumbers=[];
+      for(const it of linesToSend){
+        const acceptedQty=parseFloat(it.accepted_qty)||0;
+        const qginNumber=await generateQGINNumber(gin.plant);
+        qginNumbers.push(qginNumber);
+        await addDoc(collection(db,"quality_gins"),{
+          qgin_number:qginNumber, plant:gin.plant,
+          item_code:it.item_code||"", material_id:it.material_id||null, material_name:it.material_name, base_uom:it.unit,
+          gin_id:gin.id, gin_number:gin.gin_number, po_id:gin.po_id||null, po_number:gin.po_number||null,
+          vendor_id:gin.vendor_id||null, vendor_name:gin.vendor_name||null,
+          quality_type:null, gin_qty:acceptedQty, testing_qty:null,
+          accepted_location:null, rejected_location:null,
+          accepted_qty:acceptedQty, rejected_qty:parseFloat(it.rejected_qty)||0, rework_qty:0, scrap_qty:0, pending_qty:0,
+          parameters:[], remarks:null, reasons:null,
+          status:"pending_approval",
+          created_by:operatorUid, created_by_name:operatorName, created_at:now,
         });
-        if(l.it.material_id){
-          const matRef=doc(db,"rm_inventory",l.it.material_id);
-          // Read-modify-write is acceptable here: GRN posting is a deliberate,
-          // low-frequency, single-operator action, not a high-contention path.
-          const matSnap=await getDoc(matRef);
-          const current=matSnap.exists()?(matSnap.data().current_stock||0):0;
-          await updateDoc(matRef,{current_stock:current+l.qty,updated_at:now});
-        }
       }
 
-      const updatedLines=(po.line_items||[]).map((it,idx)=>{
-        const posted=linesToPost.find(l=>l.idx===idx);
-        return posted?{...it,received_qty:(it.received_qty||0)+posted.qty}:it;
+      await updateDoc(doc(db,"goods_inward_notes",gin.id),{
+        status:"approved", qgin_numbers:qginNumbers,
+        approved_by:profile.name||auth.currentUser.email, approved_at:now,
       });
-      await updateDoc(doc(db,"purchase_orders",po.id),{line_items:updatedLines,status:poReceivedStatus(updatedLines),updated_at:now});
+      showToast(`${gin.gin_number} approved — ${qginNumbers.length} QGIN${qginNumbers.length>1?"s":""} sent for QC`);
+    }catch(e){showToast("Error: "+e.message,"error");}
+    finally{setBusy(false);}
+  }
 
-      showToast(`${grnNumber} posted against ${po.po_number}`);
-      onClose();
-    }catch(e){setError("Error: "+e.message);}
-    finally{setSaving(false);}
+  async function reject(){
+    setBusy(true);
+    try{
+      await updateDoc(doc(db,"goods_inward_notes",gin.id),{status:"rejected",rejection_remarks:rejectRemark||null,rejected_by:profile.name||auth.currentUser.email,rejected_at:serverTimestamp()});
+      showToast(`${gin.gin_number} rejected`);
+      setRejectRemark("");
+    }finally{setBusy(false);}
   }
 
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
-        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Receive Against Purchase Order</div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printGoodsInwardNote(gin)}><Icon name="clipboard" size={12}/>Print GIN</button>
+        {canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>Edit</button>}
+        {gin.status==="draft"&&canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={submitForApproval}><Icon name="check" size={12}/>Submit for Approval</button>}
+        {gin.status==="pending_approval"&&canApprove&&<button className="btn-primary" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={approveAndSendToQGIN}><Icon name="check" size={12}/>Approve & Send to QGIN</button>}
+        {canCancel&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px",color:"#dc2626"}} onClick={onCancel}>Cancel GIN</button>}
       </div>
 
-      <div className="card" style={{padding:20,marginBottom:16}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:14,marginBottom:14}}>
-          <div>
-            <label style={labelStyle}>Plant</label>
-            <select style={fieldStyle} value={plant} onChange={e=>{setPlant(e.target.value);setPoId("");}}>
-              {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
-            </select>
+      {gin.status==="pending_approval"&&canApprove&&(
+        <div className="card" style={{padding:16,marginBottom:16,background:"#fffbeb",border:"1px solid #fde68a"}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#92400e",marginBottom:8}}>Reject this GIN?</div>
+          <div style={{display:"flex",gap:8}}>
+            <input style={{...fieldStyle,flex:1,fontSize:12}} placeholder="Reason (optional)" value={rejectRemark} onChange={e=>setRejectRemark(e.target.value)}/>
+            <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px",color:"#dc2626",flexShrink:0}} disabled={busy} onClick={reject}>Reject</button>
           </div>
-          <div>
-            <label style={labelStyle}>Purchase order *</label>
-            <select style={fieldStyle} value={poId} onChange={e=>{setPoId(e.target.value);setQtyByLine({});}}>
-              <option value="">— Select an approved PO —</option>
-              {receivablePOs.map(p=><option key={p.id} value={p.id}>{p.po_number} — {p.vendor_name} ({PO_STATUS_LABELS[p.status]})</option>)}
-            </select>
-            {receivablePOs.length===0&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>No approved POs awaiting receipt for {plant}.</div>}
-          </div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-          <div>
-            <label style={labelStyle}>Date received</label>
-            <input type="date" style={fieldStyle} value={dateRcvd} onChange={e=>setDateRcvd(e.target.value)}/>
-          </div>
-          <div>
-            <label style={labelStyle}>Remarks</label>
-            <input style={fieldStyle} placeholder="Optional notes" value={remarks} onChange={e=>setRemarks(e.target.value)}/>
-          </div>
-        </div>
-      </div>
-
-      {po&&(
-        <div className="card" style={{padding:0,marginBottom:16,overflow:"hidden"}}>
-          <div style={{display:"flex",gap:8,padding:"8px 14px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase"}}>
-            <span style={{flex:1}}>Item</span><span style={{width:80,textAlign:"right"}}>Ordered</span><span style={{width:80,textAlign:"right"}}>Remaining</span><span style={{width:110,textAlign:"right"}}>Receive now</span>
-          </div>
-          {(po.line_items||[]).map((it,idx)=>{
-            const rem=remaining(it);
-            return(
-              <div key={idx} style={{display:"flex",gap:8,padding:"10px 14px",borderBottom:idx<po.line_items.length-1?"1px solid #f9fafb":undefined,alignItems:"center",fontSize:12}}>
-                <span style={{flex:1,fontWeight:500}}>{it.material_name}</span>
-                <span style={{width:80,textAlign:"right",...S}}>{it.qty} {it.unit}</span>
-                <span style={{width:80,textAlign:"right",...S,color:rem===0?"#16a34a":"#6b7280"}}>{rem} {it.unit}</span>
-                <span style={{width:110}}>
-                  <input type="number" min="0" max={rem} step="0.01" disabled={rem===0} style={{...fieldStyle,padding:"5px 9px",fontSize:12,textAlign:"right"}} value={qtyByLine[idx]||""} onChange={e=>setQtyByLine(p=>({...p,[idx]:e.target.value}))} placeholder="0"/>
-                </span>
-              </div>
-            );
-          })}
         </div>
       )}
 
-      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+      {gin.rejection_remarks&&(
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#dc2626"}}>
+          Rejected: "{gin.rejection_remarks}"
+        </div>
+      )}
 
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <button className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" disabled={saving||!po} onClick={post}><Icon name="check" size={14}/>{saving?"Posting…":"Post GRN"}</button>
+      <div className="card" style={{padding:16,marginBottom:14,background:"#fff"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <div>
+            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Vendor / PO</div>
+            <div style={{fontSize:13,fontWeight:600}}>{gin.vendor_name}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Code: {gin.vendor_code||"—"}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>PO: {gin.po_number||"—"}{gin.po_ver?` (Ver ${gin.po_ver})`:""}</div>
+          </div>
+          <div>
+            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Transport</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>LR: {gin.lr_no||"—"} {gin.lr_date?`(${formatDate(gin.lr_date)})`:""}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Vehicle: {gin.vehicle_no||"—"} · {gin.delivery_mode||"—"}</div>
+          </div>
+          <div>
+            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Challan / Bill</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Challan: {gin.challan_no||"—"} {gin.challan_date?`(${formatDate(gin.challan_date)})`:""}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Bill: {gin.bill_no||"—"} {gin.bill_date?`(${formatDate(gin.bill_date)})`:""}</div>
+          </div>
+          <div>
+            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Received</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>By: {gin.received_by||"—"} ({gin.received_by_code||"—"})</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:0,marginBottom:14,overflow:"hidden",background:"#fff"}}>
+        <div style={{display:"flex",padding:"8px 14px",background:"#f9fafb",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase",letterSpacing:".05em"}}>
+          <span style={{flex:1}}>Item</span><span style={{width:70,textAlign:"right"}}>Challan</span><span style={{width:70,textAlign:"right"}}>Accepted</span><span style={{width:70,textAlign:"right"}}>Rejected</span>
+        </div>
+        {(gin.line_items||[]).map((it,i)=>(
+          <div key={i} style={{display:"flex",padding:"10px 14px",borderTop:"1px solid #f3f4f6",fontSize:12,alignItems:"center"}}>
+            <span style={{flex:1}}>
+              <div style={{fontWeight:500}}>{it.item_code&&<span style={{...S,color:"#6b7280"}}>{it.item_code} — </span>}{it.material_name}</div>
+              {it.remarks&&<div style={{...S,fontSize:10,color:"#9ca3af"}}>{it.remarks}</div>}
+            </span>
+            <span style={{width:70,textAlign:"right",...S}}>{it.challan_qty} {it.unit}</span>
+            <span style={{width:70,textAlign:"right",...S,color:"#16a34a"}}>{it.accepted_qty} {it.unit}</span>
+            <span style={{width:70,textAlign:"right",...S,color:(parseFloat(it.rejected_qty)||0)>0?"#dc2626":"#9ca3af"}}>{it.rejected_qty||0} {it.unit}</span>
+          </div>
+        ))}
+        {gin.qgin_numbers?.length>0&&(
+          <div style={{padding:"8px 14px",borderTop:"1px solid #f3f4f6",fontSize:11,color:"#6b7280",background:"#fafafa"}}>
+            Sent to QC: {gin.qgin_numbers.map(n=><span key={n} style={{...S,background:"#eef2ff",color:"#4338ca",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600,marginRight:6}}>{n}</span>)}
+          </div>
+        )}
+      </div>
+
+      {gin.remarks&&<div style={{fontSize:12,color:"#6b7280",marginBottom:4}}><span style={{color:"#9ca3af"}}>Remarks:</span> {gin.remarks}</div>}
+      {gin.comments&&<div style={{fontSize:12,color:"#6b7280",marginBottom:8}}><span style={{color:"#9ca3af"}}>Comments:</span> {gin.comments}</div>}
+      <div style={{fontSize:11,color:"#9ca3af"}}>
+        Prepared by {gin.created_by_name} on {formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at)}
+        {gin.approved_by&&` · Approved by ${gin.approved_by}`}
+        {gin.rejected_by&&` · Rejected by ${gin.rejected_by}`}
+        {gin.cancelled_by&&` · Cancelled by ${gin.cancelled_by}`}
       </div>
     </div>
   );
 }
 
-// ─── Direct receipt (no PO) ─────────────────────────────────────────────────
+// ─── GIN create / edit form — this IS "Receive against PO" now ─────────────
+function GINForm({profile,pos,existing,showToast,onClose}){
+  const isEdit=!!existing;
+  const qtyLocked=(existing?.qgin_numbers?.length||0)>0;
+  const [plant,setPlant]=useState(existing?.plant||"Bidadi");
+  const [ginType,setGinType]=useState(existing?.gin_type||"Domestic");
+  const [poId,setPoId]=useState(existing?.po_id||"");
+  const [receivedByCode,setReceivedByCode]=useState(existing?.received_by_code||"");
+  const [receivedBy,setReceivedBy]=useState(existing?.received_by||"");
+  const [lrNo,setLrNo]=useState(existing?.lr_no||"");
+  const [lrDate,setLrDate]=useState(existing?.lr_date||"");
+  const [challanNo,setChallanNo]=useState(existing?.challan_no||"");
+  const [challanDate,setChallanDate]=useState(existing?.challan_date||"");
+  const [billNo,setBillNo]=useState(existing?.bill_no||"");
+  const [billDate,setBillDate]=useState(existing?.bill_date||"");
+  const [vehicleNo,setVehicleNo]=useState(existing?.vehicle_no||"");
+  const [deliveryMode,setDeliveryMode]=useState(existing?.delivery_mode||"Road");
+  const [lineItems,setLineItems]=useState(existing?.line_items?.length?existing.line_items:[]);
+  const [remarks,setRemarks]=useState(existing?.remarks||"");
+  const [comments,setComments]=useState(existing?.comments||"");
+  const [saving,setSaving]=useState(false);
+  const [errors,setErrors]=useState([]);
+
+  const receivablePOs=pos.filter(p=>p.plant===plant&&["approved","partially_received"].includes(p.status));
+  const po=pos.find(p=>p.id===poId);
+
+  function onSelectPO(id){
+    setPoId(id);
+    const selected=pos.find(p=>p.id===id);
+    if(!selected||isEdit)return;
+    setLineItems((selected.line_items||[]).map(it=>{
+      const remaining=Math.max(0,(parseFloat(it.qty)||0)-(it.received_qty||0));
+      return {
+        item_code:it.part_code||"", material_id:it.material_id||"", material_name:it.material_name,
+        unit:it.unit, challan_qty:remaining||"", accepted_qty:remaining||"", rejected_qty:0,
+        actual_challan_qty:remaining||"", remarks:"",
+      };
+    }));
+  }
+
+  function updateLine(i,k,v){setLineItems(items=>items.map((it,idx)=>idx===i?{...it,[k]:v}:it));}
+
+  async function save(submitForApproval){
+    const errs=[];
+    if(!po)errs.push("Purchase order");
+    if(lineItems.length===0)errs.push("At least one line item");
+    if(errs.length){setErrors(errs);return;}
+    setErrors([]);setSaving(true);
+    try{
+      const payload={
+        plant, gin_type:ginType, po_id:po.id, po_number:po.po_number, po_ver:po.amd_no||0,
+        vendor_id:po.vendor_id||null, vendor_name:po.vendor_name||null, vendor_code:po.vendor_code||null,
+        received_by_code:receivedByCode||null, received_by:receivedBy||null,
+        lr_no:lrNo||null, lr_date:lrDate||null,
+        challan_no:challanNo||null, challan_date:challanDate||null,
+        bill_no:billNo||null, bill_date:billDate||null,
+        vehicle_no:vehicleNo||null, delivery_mode:deliveryMode||null,
+        line_items:lineItems.map(it=>({
+          ...it, challan_qty:parseFloat(it.challan_qty)||0, accepted_qty:parseFloat(it.accepted_qty)||0,
+          rejected_qty:parseFloat(it.rejected_qty)||0, actual_challan_qty:parseFloat(it.actual_challan_qty)||0,
+        })),
+        remarks:remarks||null, comments:comments||null,
+        updated_at:serverTimestamp(),
+      };
+      if(isEdit){
+        await updateDoc(doc(db,"goods_inward_notes",existing.id),{
+          ...payload, status:submitForApproval?"pending_approval":existing.status,
+        });
+        showToast(submitForApproval?`${existing.gin_number} submitted for approval`:`${existing.gin_number} updated`);
+      }else{
+        const ginNumber=await generateGINNumber(plant);
+        await addDoc(collection(db,"goods_inward_notes"),{
+          ...payload, gin_number:ginNumber, status:submitForApproval?"pending_approval":"draft",
+          created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
+        });
+        showToast(`${ginNumber} ${submitForApproval?"submitted for approval":"saved as draft"}`);
+      }
+      onClose();
+    }catch(e){setErrors([`Save failed: ${e.message}`]);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div>
+      {!isEdit&&<div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Receive against PO</div>
+      </div>}
+
+      <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          <div>
+            <label style={labelStyle}>Site / Plant *</label>
+            <select style={fieldStyle} value={plant} onChange={e=>{setPlant(e.target.value);if(!isEdit){setPoId("");setLineItems([]);}}}>
+              {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>GIN type *</label>
+            <select style={fieldStyle} value={ginType} onChange={e=>setGinType(e.target.value)}>
+              {GIN_TYPES.map(t=><option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{gridColumn:"1/-1"}}>
+            <label style={labelStyle}>Purchase order *</label>
+            <select style={fieldStyle} value={poId} onChange={e=>onSelectPO(e.target.value)} disabled={isEdit}>
+              <option value="">— Select an approved PO —</option>
+              {receivablePOs.map(p=><option key={p.id} value={p.id}>{p.po_number} — {p.vendor_name} ({PO_STATUS_LABELS[p.status]})</option>)}
+            </select>
+            {receivablePOs.length===0&&!isEdit&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>No approved POs awaiting receipt for {plant}.</div>}
+          </div>
+          <div>
+            <label style={labelStyle}>Received by (code)</label>
+            <input style={fieldStyle} value={receivedByCode} onChange={e=>setReceivedByCode(e.target.value)} placeholder="e.g. store1"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Received by (name)</label>
+            <input style={fieldStyle} value={receivedBy} onChange={e=>setReceivedBy(e.target.value)}/>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Transport & document detail</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:14}}>
+          <div><label style={labelStyle}>LR No</label><input style={fieldStyle} value={lrNo} onChange={e=>setLrNo(e.target.value)}/></div>
+          <div><label style={labelStyle}>LR Date</label><input type="date" style={fieldStyle} value={lrDate} onChange={e=>setLrDate(e.target.value)}/></div>
+          <div><label style={labelStyle}>Invoice No</label><input style={fieldStyle} value={challanNo} onChange={e=>setChallanNo(e.target.value)}/></div>
+          <div><label style={labelStyle}>Invoice Date</label><input type="date" style={fieldStyle} value={challanDate} onChange={e=>setChallanDate(e.target.value)}/></div>
+          <div><label style={labelStyle}>Bill No</label><input style={fieldStyle} value={billNo} onChange={e=>setBillNo(e.target.value)}/></div>
+          <div><label style={labelStyle}>Bill Date</label><input type="date" style={fieldStyle} value={billDate} onChange={e=>setBillDate(e.target.value)}/></div>
+          <div><label style={labelStyle}>Vehicle No</label><input style={fieldStyle} value={vehicleNo} onChange={e=>setVehicleNo(e.target.value)}/></div>
+          <div>
+            <label style={labelStyle}>Delivery mode</label>
+            <select style={fieldStyle} value={deliveryMode} onChange={e=>setDeliveryMode(e.target.value)}>
+              {["Road","Rail","Air","Sea","Courier","Hand Delivery"].map(m=><option key={m}>{m}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Line items {!po&&<span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>— select a PO above to load items</span>}</div>
+        {qtyLocked&&<div style={{fontSize:11,color:"#b45309",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:12}}>Qty fields are locked — QGIN(s) were already raised from these numbers. Remarks stay editable.</div>}
+        {lineItems.map((it,i)=>(
+          <div key={i} style={{borderTop:i>0?"1px solid #f3f4f6":undefined,paddingTop:i>0?14:0,marginTop:i>0?14:0}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{it.item_code&&<span style={{...S,color:"#6b7280"}}>{it.item_code} — </span>}{it.material_name}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 2fr",gap:10}}>
+              <div><label style={labelStyle}>Challan qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.challan_qty} onChange={e=>updateLine(i,"challan_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Accepted qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.accepted_qty} onChange={e=>updateLine(i,"accepted_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Rejected qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.rejected_qty} onChange={e=>updateLine(i,"rejected_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Actual challan qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.actual_challan_qty} onChange={e=>updateLine(i,"actual_challan_qty",e.target.value)}/></div>
+              <div><label style={labelStyle}>Remarks</label><input style={fieldStyle} value={it.remarks} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="e.g. LME rate, coil no."/></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16,background:"#fff"}}>
+        <div style={{marginBottom:14}}>
+          <label style={labelStyle}>Remarks</label>
+          <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={remarks} onChange={e=>setRemarks(e.target.value)}/>
+        </div>
+        <div>
+          <label style={labelStyle}>Comments</label>
+          <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={comments} onChange={e=>setComments(e.target.value)}/>
+        </div>
+      </div>
+
+      {errors.length>0&&(
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#dc2626"}}>
+          <strong>Please fix the following:</strong>
+          <ul style={{marginTop:6,paddingLeft:18}}>{errors.map((e,i)=><li key={i}>{e}</li>)}</ul>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-ghost" disabled={saving} onClick={()=>save(false)}>{saving?"Saving…":"Save as Draft"}</button>
+        <button className="btn-primary" disabled={saving} onClick={()=>save(true)}><Icon name="check" size={14}/>{saving?"Saving…":"Submit for Approval"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Direct receipt (no PO) — unchanged: posts stock immediately, skips QGIN ─
 function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
   const [plant,setPlant]=useState("Bidadi");
   const [matId,setMatId]=useState("");
