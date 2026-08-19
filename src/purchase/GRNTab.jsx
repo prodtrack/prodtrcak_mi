@@ -247,6 +247,7 @@ export default function GRNTab({profile,showToast}){
         "PO/CPO Number":e.po_number||"",
         "PO/CPO Date":linkedPo?.created_at?formatDate(linkedPo.created_at?.toDate?linkedPo.created_at.toDate():linkedPo.created_at):"",
         "Required Date":poLine?.required_date?formatDate(poLine.required_date):"",
+        "Item Rate":rate,
         "Item Amount":acceptedQty*rate,
       };
     });
