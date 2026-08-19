@@ -543,11 +543,8 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Vendor {vendor?"":<span style={{color:"#9ca3af",fontWeight:400}}>(optional — can be set later on the PO)</span>}</label>
-            <select style={fieldStyle} value={vendorId} onChange={e=>setVendorId(e.target.value)}>
-              <option value="">— Select vendor —</option>
-              {vendors.map(v=><option key={v.id} value={v.id}>{v.vendor_code} — {v.name}</option>)}
-            </select>
+            <FuzzyAutocomplete label="Vendor" value={vendor?.name||""} onChange={()=>{}} onSelect={m=>setVendorId(m.id)} options={vendors} displayKey="name" strict placeholder="— Select vendor —"/>
+            {!vendor&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Optional — can be set later on the PO</div>}
           </div>
           <div>
             <label style={labelStyle}>Requested by (code)</label>
