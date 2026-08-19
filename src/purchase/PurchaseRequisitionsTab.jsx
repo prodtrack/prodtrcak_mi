@@ -557,6 +557,10 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
                 <input style={fieldStyle} value={it.item_code||""} onChange={e=>updateLine(i,"item_code",e.target.value)} placeholder="e.g. F361"/>
               </div>
             </div>
+            <div style={{marginBottom:10}}>
+              <label style={labelStyle}>Item description</label>
+              <input style={fieldStyle} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line"/>
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div>
                 <label style={labelStyle}>Inventory qty</label>
