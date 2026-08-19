@@ -35,6 +35,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
   const [editingId,setEditingId]=useState(null);
   const [selectedId,setSelectedId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
+  const [copySeed,setCopySeed]=useState(null);
   const [sortField,setSortField]=useState("created_at");
   const [sortDir,setSortDir]=useState("desc");
   const [page,setPage]=useState(1);
@@ -116,6 +117,24 @@ export default function PurchaseOrdersTab({profile,showToast}){
   function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
   function closeDetail(){setExpandedId(null);setEditingId(null);}
 
+  function copyPO(){
+    if(!selectedId)return;
+    const po=pos.find(p=>p.id===selectedId);
+    if(!po)return;
+    setCopySeed({
+      plant:po.plant, vendor_id:po.vendor_id, vendor_name:po.vendor_name, vendor_code:po.vendor_code,
+      vendor_gstin:po.vendor_gstin, vendor_state_code:po.vendor_state_code, vendor_address:po.vendor_address,
+      vendor_phone:po.vendor_phone, vendor_email:po.vendor_email, vendor_pan:po.vendor_pan,
+      gst_rate:po.gst_rate, payment_terms:po.payment_terms, terms_of_delivery:po.terms_of_delivery,
+      mode_of_delivery:po.mode_of_delivery, po_type:po.po_type, remarks:po.remarks,
+      line_items:(po.line_items||[]).map(it=>({
+        part_code:it.part_code||"", material_id:it.material_id||"", material_name:it.material_name,
+        hsn_code:it.hsn_code||"", item_description:it.item_description||"",
+        rate:it.rate, unit:it.unit, qty:"", required_date:"", received_qty:0,
+      })),
+    });
+  }
+
   async function cancelPO(po){
     if(!window.confirm(`Cancel ${po.po_number}? This cannot be undone.`))return;
     await updateDoc(doc(db,"purchase_orders",po.id),{status:"cancelled",cancelled_by:profile.name||auth.currentUser.email,cancelled_at:serverTimestamp()});
@@ -159,8 +178,8 @@ export default function PurchaseOrdersTab({profile,showToast}){
     showToast("Exported to Excel");
   }
 
-  if(creatingNew){
-    return <POForm profile={profile} vendors={vendors} materials={materials} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
+  if(creatingNew||copySeed){
+    return <POForm profile={profile} vendors={vendors} materials={materials} existing={copySeed} showToast={showToast} onClose={()=>{setCreatingNew(false);setCopySeed(null);}}/>;
   }
 
   if(expandedId){
@@ -247,6 +266,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
             <div style={{display:"flex",gap:8}}>
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&poEditability(pos.find(p=>p.id===selectedId)||{},canCreate).canEdit?1:.4,cursor:selectedId&&poEditability(pos.find(p=>p.id===selectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!selectedId||!poEditability(pos.find(p=>p.id===selectedId)||{},canCreate).canEdit} onClick={openEdit}>Edit</button>
+              {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={copyPO} title="Copy — same vendor & items, new qty/dates"><Icon name="clipboard" size={12}/>Copy</button>}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
               <span>{sorted.length} purchase order{sorted.length!==1?"s":""}</span>
@@ -473,7 +493,7 @@ function PODetailPanel({po,profile,showToast,canApprove,canEdit,isAmendment,canC
 
 // ─── PO create / edit form ──────────────────────────────────────────────────
 function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClose}){
-  const isEdit=!!existing;
+  const isEdit=!!existing?.id;
   const [plant,setPlant]=useState(existing?.plant||"Bidadi");
   const [vendorId,setVendorId]=useState(existing?.vendor_id||"");
   const [lineItems,setLineItems]=useState(existing?.line_items?.length?existing.line_items:[emptyLineItem()]);

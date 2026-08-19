@@ -35,6 +35,7 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
   const [editingId,setEditingId]=useState(null);
   const [selectedId,setSelectedId]=useState(null);
   const [creatingNew,setCreatingNew]=useState(false);
+  const [copySeed,setCopySeed]=useState(null);
   const [sortField,setSortField]=useState("created_at");
   const [sortDir,setSortDir]=useState("desc");
   const [page,setPage]=useState(1);
@@ -111,6 +112,21 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
   function openEdit(){if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}
   function closeDetail(){setExpandedId(null);setEditingId(null);}
 
+  function copyPR(){
+    if(!selectedId)return;
+    const pr=prs.find(p=>p.id===selectedId);
+    if(!pr)return;
+    setCopySeed({
+      plant:pr.plant, requisition_type:pr.requisition_type,
+      vendor_id:pr.vendor_id, vendor_name:pr.vendor_name, vendor_code:pr.vendor_code, remarks:pr.remarks,
+      line_items:(pr.line_items||[]).map(it=>({
+        item_code:it.item_code||"", material_id:it.material_id||"", material_name:it.material_name,
+        item_description:it.item_description||"", last_po_rate:it.last_po_rate,
+        inventory_qty:"", qty:"", unit:it.unit, required_date:"", remarks:"",
+      })),
+    });
+  }
+
   async function cancelPR(pr){
     if(!window.confirm(`Cancel ${pr.pr_number}? This cannot be undone.`))return;
     await updateDoc(doc(db,"purchase_requisitions",pr.id),{status:"cancelled",cancelled_by:profile.name||auth.currentUser.email,cancelled_at:serverTimestamp()});
@@ -135,8 +151,8 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
     showToast("Exported to Excel");
   }
 
-  if(creatingNew){
-    return <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} showToast={showToast} onClose={()=>setCreatingNew(false)}/>;
+  if(creatingNew||copySeed){
+    return <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} existing={copySeed} showToast={showToast} onClose={()=>{setCreatingNew(false);setCopySeed(null);}}/>;
   }
 
   if(expandedId){
@@ -151,7 +167,7 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
           </div>
           {editingId===pr.id
             ? <PRForm profile={profile} vendors={vendors} materials={materials} purchaseOrders={purchaseOrders} existing={pr} showToast={showToast} onClose={closeDetail}/>
-            : <PRDetailPanel pr={pr} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
+            : <PRDetailPanel pr={pr} profile={profile} vendors={vendors} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
                 onEdit={openEdit} onCancel={()=>cancelPR(pr)} onDeleteDraft={()=>deleteDraft(pr)}/>
           }
         </div>
@@ -215,6 +231,7 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
             <div style={{display:"flex",gap:8}}>
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={openView}>View</button>
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&prEditability(prs.find(p=>p.id===selectedId)||{},canCreate).canEdit?1:.4,cursor:selectedId&&prEditability(prs.find(p=>p.id===selectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!selectedId||!prEditability(prs.find(p=>p.id===selectedId)||{},canCreate).canEdit} onClick={openEdit}>Edit</button>
+              {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={copyPR} title="Copy — same vendor & items, new qty/dates"><Icon name="clipboard" size={12}/>Copy</button>}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
               <span>{sorted.length} requisition{sorted.length!==1?"s":""}</span>
@@ -306,7 +323,7 @@ function PRTableRow({pr,selected,onSelect}){
   );
 }
 
-function PRDetailPanel({pr,profile,showToast,canApprove,canEdit,canCancel,onEdit,onCancel,onDeleteDraft}){
+function PRDetailPanel({pr,profile,vendors,showToast,canApprove,canEdit,canCancel,onEdit,onCancel,onDeleteDraft}){
   const [busy,setBusy]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
 
@@ -332,13 +349,15 @@ function PRDetailPanel({pr,profile,showToast,canApprove,canEdit,canCancel,onEdit
         hsn_code:"", qty:parseFloat(it.qty)||0, unit:it.unit, rate:it.last_po_rate||0,
         required_date:it.required_date||"", received_qty:0,
       }));
+      const vendorMaster=vendors.find(v=>v.id===pr.vendor_id);
       await addDoc(collection(db,"purchase_orders"),{
         plant:pr.plant, vendor_id:pr.vendor_id||null, vendor_name:pr.vendor_name||null, vendor_code:pr.vendor_code||null,
         vendor_gstin:pr.vendor_gstin||null, vendor_state_code:pr.vendor_state_code||null,
         vendor_address:pr.vendor_address||null, vendor_phone:pr.vendor_phone||null, vendor_email:pr.vendor_email||null, vendor_pan:pr.vendor_pan||null,
         line_items:poLineItems, gst_rate:DEFAULT_GST_RATE, total_amount:0,
         expected_delivery:(poLineItems.map(l=>l.required_date).filter(Boolean).sort()[0])||null,
-        your_reference:pr.pr_number, payment_terms:null, terms_of_delivery:null, mode_of_delivery:null,
+        your_reference:pr.pr_number, payment_terms:vendorMaster?.payment_terms||null,
+        terms_of_delivery:"FOR (freight paid by you)", mode_of_delivery:"Road", po_type:"Domestic",
         remarks:pr.remarks||null,
         po_number:poNumber, status:"draft", pr_reference:pr.pr_number,
         created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
@@ -433,7 +452,7 @@ function PRDetailPanel({pr,profile,showToast,canApprove,canEdit,canCancel,onEdit
 
 // ─── PR create / edit form ──────────────────────────────────────────────────
 function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onClose}){
-  const isEdit=!!existing;
+  const isEdit=!!existing?.id;
   const [plant,setPlant]=useState(existing?.plant||"Bidadi");
   const [requisitionType,setRequisitionType]=useState(existing?.requisition_type||"Internal");
   const [vendorId,setVendorId]=useState(existing?.vendor_id||"");
