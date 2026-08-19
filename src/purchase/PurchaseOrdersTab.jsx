@@ -132,16 +132,25 @@ export default function PurchaseOrdersTab({profile,showToast}){
   }
 
   function exportExcel(){
-    const rows=sorted.map(po=>{
+    const rows=[];
+    sorted.forEach(po=>{
       const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
-      const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
-      return{
-        "PO No.":po.po_number||"","Ver.":po.amd_no||0,"Ref./PR No.":po.your_reference||"",
-        "Vendor code":po.vendor_code||"","Vendor name":po.vendor_name||"","Site":po.plant||"",
-        "PO date":po.created_at?formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at):"",
-        "Status":PO_STATUS_LABELS[po.status]||po.status||"","Description":po.remarks||"","PO Type":po.po_type||"",
-        "Amount":totals.grandTotal,"Tax":tax,
-      };
+      (po.line_items||[]).forEach(it=>{
+        const qty=parseFloat(it.qty)||0,rate=parseFloat(it.rate)||0;
+        const itemAmount=qty*rate;
+        const itemTax=itemAmount*(totals.gstRate/100);
+        rows.push({
+          "PO No.":po.po_number||"","Ver.":po.amd_no||0,"Ref./PR No.":po.your_reference||"",
+          "Vendor code":po.vendor_code||"","Vendor name":po.vendor_name||"","Site":po.plant||"",
+          "PO date":po.created_at?formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at):"",
+          "Status":PO_STATUS_LABELS[po.status]||po.status||"","PO Type":po.po_type||"",
+          "Part code":it.part_code||"","Item Name":it.material_name||"","Item Description":it.item_description||"",
+          "HSN code":it.hsn_code||"","Qty":qty,"UOM":it.unit||"","Rate":rate,
+          "Item Amount":itemAmount,"Item Tax":itemTax,
+          "Req. date":it.required_date?formatDate(it.required_date):"",
+          "PO Description":po.remarks||"",
+        });
+      });
     });
     const ws=XLSX.utils.json_to_sheet(rows);
     const wb=XLSX.utils.book_new();
