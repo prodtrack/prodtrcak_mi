@@ -618,6 +618,12 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
                 <input style={fieldStyle} value={it.hsn_code} onChange={e=>updateLine(i,"hsn_code",e.target.value)} placeholder="82072000" readOnly={isAmendment}/>
               </div>
             </div>
+            <div style={{marginBottom:10}}>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
+                <label style={labelStyle}>Item description</label>
+                <input style={fieldStyle} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line" readOnly={isAmendment}/>
+              </div>
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Qty *</label>

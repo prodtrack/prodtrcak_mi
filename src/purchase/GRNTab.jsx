@@ -223,10 +223,33 @@ export default function GRNTab({profile,showToast}){
   }
 
   function exportHistoryExcel(){
-    const rows=historySorted.map(e=>({
-      "Date":e.date_received?formatDate(e.date_received):"","Material":e.material_name||"","Supplier":e.supplier_name||"",
-      "Quantity":e.quantity??"","Unit":e.unit||"","PO No.":e.po_number||"","GRN No.":e.grn_number||"","Received by":e.operator_name||"",
-    }));
+    const rows=historySorted.map(e=>{
+      const ginMatch=/^From (\S+) via/.exec(e.remarks||"");
+      const linkedGin=ginMatch?gins.find(g=>g.gin_number===ginMatch[1]):null;
+      const ginLine=linkedGin?.line_items?.find(it=>it.material_id===e.material_id);
+      const linkedPo=e.po_id?pos.find(p=>p.id===e.po_id):(e.po_number?pos.find(p=>p.po_number===e.po_number):null);
+      const poLine=linkedPo?.line_items?.find(it=>it.material_id===e.material_id);
+      const acceptedQty=parseFloat(e.quantity)||0;
+      const rate=parseFloat(poLine?.rate)||0;
+      return{
+        "Vendor Name":e.supplier_name||"",
+        "GRN Number":e.grn_number||"",
+        "GRN Date":e.date_received?formatDate(e.date_received):"",
+        "GRN Status":"Approved",
+        "Challan/Invoice No":linkedGin?.challan_no||"",
+        "Challan Date":linkedGin?.challan_date?formatDate(linkedGin.challan_date):"",
+        "Item Code":ginLine?.item_code||"",
+        "Item Name":e.material_name||"",
+        "Item Description":poLine?.item_description||"",
+        "GRN UOM":e.unit||"",
+        "Received Qty":ginLine?.challan_qty??"",
+        "Accepted Qty":acceptedQty,
+        "PO/CPO Number":e.po_number||"",
+        "PO/CPO Date":linkedPo?.created_at?formatDate(linkedPo.created_at?.toDate?linkedPo.created_at.toDate():linkedPo.created_at):"",
+        "Required Date":poLine?.required_date?formatDate(poLine.required_date):"",
+        "Item Amount":acceptedQty*rate,
+      };
+    });
     const ws=XLSX.utils.json_to_sheet(rows);
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"GRN");
