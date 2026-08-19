@@ -717,6 +717,7 @@ function GINForm({profile,pos,existing,showToast,onClose}){
         actual_challan_qty:remaining||"", remarks:"",
       };
     }));
+    if(!remarks&&selected.remarks)setRemarks(selected.remarks);
   }
 
   function updateLine(i,k,v){setLineItems(items=>items.map((it,idx)=>idx===i?{...it,[k]:v}:it));}

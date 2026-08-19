@@ -339,7 +339,7 @@ function PRDetailPanel({pr,profile,showToast,canApprove,canEdit,canCancel,onEdit
         line_items:poLineItems, gst_rate:DEFAULT_GST_RATE, total_amount:0,
         expected_delivery:(poLineItems.map(l=>l.required_date).filter(Boolean).sort()[0])||null,
         your_reference:pr.pr_number, payment_terms:null, terms_of_delivery:null, mode_of_delivery:null,
-        remarks:`Auto-generated from requisition ${pr.pr_number}${!pr.vendor_id?" — vendor not set on PR, select before submitting":""}`,
+        remarks:pr.remarks||null,
         po_number:poNumber, status:"draft", pr_reference:pr.pr_number,
         created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
       });
