@@ -4,6 +4,7 @@ import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy,
 import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import { PLANTS, UNITS, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS } from "./purchaseHelpers";
+import { printGRN } from "./GRNPrintView.jsx";
 
 export default function GRNTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
@@ -24,6 +25,9 @@ export default function GRNTab({profile,showToast}){
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
   const [dateOpen,setDateOpen]=useState(false);
+  const [selectedId,setSelectedId]=useState(null);
+  const [expandedId,setExpandedId]=useState(null);
+  const [editingId,setEditingId]=useState(null);
   const PAGE_SIZE=10;
 
   useEffect(()=>{
@@ -116,6 +120,24 @@ export default function GRNTab({profile,showToast}){
   if(mode==="po")return<ReceiveAgainstPO profile={profile} pos={pos} showToast={showToast} onClose={()=>setMode(null)}/>;
   if(mode==="direct")return<DirectReceipt profile={profile} materials={materials} suppliers={suppliers} showToast={showToast} onClose={()=>setMode(null)}/>;
 
+  if(expandedId){
+    const entry=entries.find(e=>e.id===expandedId);
+    if(entry){
+      return(
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={()=>{setExpandedId(null);setEditingId(null);}}><Icon name="arrow" size={14}/>Back</button>
+            <div style={{fontSize:14,fontWeight:600}}>{entry.grn_number||"GRN"}</div>
+          </div>
+          {editingId===entry.id
+            ? <GRNEditForm entry={entry} pos={pos} materials={materials} showToast={showToast} onClose={()=>{setExpandedId(null);setEditingId(null);}}/>
+            : <GRNDetailPanel entry={entry} canEdit={canReceive} onEdit={()=>setEditingId(entry.id)}/>
+          }
+        </div>
+      );
+    }
+  }
+
   return(
     <div>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
@@ -154,67 +176,52 @@ export default function GRNTab({profile,showToast}){
         </div>
       )}
 
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f3f4f6",flexWrap:"wrap"}}>
-          <span style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",flex:1}}>Receipt History</span>
-          <input style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:7,padding:"5px 11px",fontSize:12,outline:"none",width:200}} placeholder="Search material / supplier / PO…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
-        </div>
-        <div style={{overflowX:"auto"}}>
-        <div style={{minWidth:560}}>
-        {sorted.length>0&&(
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 16px",background:"#fafafa",borderBottom:"1px solid #f3f4f6"}}>
-            {[["DATE",80,"date_received"],["MATERIAL","1","material_name"],["SUPPLIER",110,"supplier_name"],["QTY",70,"quantity"],["PO #",90,"po_number"],["BY",90,"operator_name"]].map(([l,w,field])=>(
-              field==="date_received"
-                ?<span key={l} style={{...S,fontSize:10,color:(sortField===field||dateFrom||dateTo)?"#374151":"#9ca3af",width:w,minWidth:w,position:"relative"}}>
-                    <span style={{userSelect:"none"}}>{l}</span>
-                    <span onClick={()=>setDateOpen(o=>!o)} style={{marginLeft:2,cursor:"pointer"}}>▾</span>
-                    {dateOpen&&(
-                      <div style={{position:"absolute",top:18,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
-                      <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
-                      <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/>
-                      <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
-                      <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={dateTo} onChange={e=>setDateTo(e.target.value)}/>
-                      <div style={{display:"flex",gap:6}}>
-                        <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setPage(1);setDateOpen(false);}}>Apply</button>
-                        <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setDateFrom("");setDateTo("");setPage(1);setDateOpen(false);}}>Clear</button>
-                      </div>
-                      </div>
-                    )}
-                  </span>
-                :<span key={l} onClick={()=>onSort(field)} style={{...S,fontSize:10,color:sortField===field?"#374151":"#9ca3af",flexShrink:l==="MATERIAL"?0:undefined,flex:l==="MATERIAL"?1:undefined,width:l!=="MATERIAL"?w:undefined,minWidth:l!=="MATERIAL"?w:undefined,cursor:"pointer",userSelect:"none"}}>{l}{sortField===field&&(sortDir==="asc"?" ▲":" ▼")}</span>
-            ))}
-          </div>
-        )}
-        <div>
-        {paginated.length===0
-          ?<EmptyState text="No receipts yet"/>
-          :paginated.map((e,i)=>(
-            <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",borderBottom:i<paginated.length-1?"1px solid #f9fafb":undefined}}
-              onMouseEnter={ev=>ev.currentTarget.style.background="#f9fafb"}
-              onMouseLeave={ev=>ev.currentTarget.style.background="#fff"}>
-              <span style={{...S,fontSize:11,color:"#9ca3af",flexShrink:0,width:80}}>{formatDate(e.date_received)}</span>
-              <span style={{fontSize:13,fontWeight:500,color:"#1a1f2e",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.material_name}</span>
-              <span style={{fontSize:11,color:"#6b7280",flexShrink:0,width:110,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.supplier_name||"—"}</span>
-              <span style={{...S,fontSize:12,fontWeight:600,color:"#1a1f2e",flexShrink:0,width:70}}>{e.quantity} {e.unit}</span>
-              <span style={{...S,fontSize:11,color:e.po_number?"#1d4ed8":"#d1d5db",flexShrink:0,width:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.po_number||"—"}</span>
-              <span style={{fontSize:11,color:"#9ca3af",flexShrink:0,width:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.operator_name}</span>
-            </div>
-          ))
-        }
-        </div>
-        {sorted.length>0&&(
-          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:10,padding:"8px 16px",borderTop:"1px solid #f3f4f6",fontSize:12,color:"#6b7280"}}>
-            <span>{sorted.length} receipt{sorted.length!==1?"s":""}</span>
-            <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
-            <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
-            <span>Page {pageSafe} of {totalPages}</span>
-            <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
-            <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
-          </div>
-        )}
-        </div>
-        </div>
+      <div style={{marginBottom:16}}>
+        <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search material / supplier / PO…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
       </div>
+
+      {entries.length===0
+        ?<EmptyState text="No receipts yet"/>
+        :filtered.length===0
+        ?<EmptyState text="No receipts match"/>
+        :<>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
+              <thead>
+                <tr style={{background:"#fafafa"}}>
+                  <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
+                  <DateRangeTh label="Date" field="date_received" sortField={sortField} sortDir={sortDir} onSort={onSort} dateFrom={dateFrom} dateTo={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);setPage(1);}}/>
+                  <SortTh label="Material" field="material_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Supplier" field="supplier_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="Qty" field="quantity" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right"/>
+                  <SortTh label="PO #" field="po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="GRN No." field="grn_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <SortTh label="By" field="operator_name" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map(e=>(
+                  <GRNTableRow key={e.id} entry={e} selected={selectedId===e.id} onSelect={()=>{setSelectedId(prev=>prev===e.id?null:e.id);}}/>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId?1:.4,cursor:selectedId?"pointer":"default"}} disabled={!selectedId} onClick={()=>{if(selectedId){setExpandedId(selectedId);setEditingId(null);}}}>View</button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:selectedId&&canReceive?1:.4,cursor:selectedId&&canReceive?"pointer":"default"}} disabled={!selectedId||!canReceive} onClick={()=>{if(selectedId){setExpandedId(selectedId);setEditingId(selectedId);}}}>Edit</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+              <span>{sorted.length} receipt{sorted.length!==1?"s":""}</span>
+              <button aria-label="First page" disabled={pageSafe<=1} onClick={()=>setPage(1)} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+              <button aria-label="Previous page" disabled={pageSafe<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:pageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+              <span>Page {pageSafe} of {totalPages}</span>
+              <button aria-label="Next page" disabled={pageSafe>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="next"/></button>
+              <button aria-label="Last page" disabled={pageSafe>=totalPages} onClick={()=>setPage(totalPages)} style={{...pagerBtnStyle,opacity:pageSafe>=totalPages?.4:1}}><PagerIcon dir="last"/></button>
+            </div>
+          </div>
+        </>
+      }
     </div>
   );
 }
@@ -230,6 +237,215 @@ function PagerIcon({dir}){
       {dir==="first"&&<><polyline points="18 17 12 12 18 7"/><polyline points="11 17 5 12 11 7"/></>}
       {dir==="last"&&<><polyline points="6 17 12 12 6 7"/><polyline points="13 17 19 12 13 7"/></>}
     </svg>
+  );
+}
+
+function SortTh({label,field,sortField,sortDir,onSort,align}){
+  const active=sortField===field;
+  return(
+    <th onClick={()=>onSort(field)} style={{padding:"8px 6px",textAlign:align||"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",cursor:"pointer",userSelect:"none",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",...S}}>
+      {label}{active&&<span style={{marginLeft:4}}>{sortDir==="asc"?"▲":"▼"}</span>}
+    </th>
+  );
+}
+
+function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApply}){
+  const active=sortField===field;
+  const filtered=!!(dateFrom||dateTo);
+  const [open,setOpen]=useState(false);
+  const [from,setFrom]=useState(dateFrom);
+  const [to,setTo]=useState(dateTo);
+  return(
+    <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",fontSize:11,color:"#6b7280",whiteSpace:"nowrap",position:"relative",...S}}>
+      <span style={{userSelect:"none"}}>{label}</span>
+      <span onClick={()=>{setFrom(dateFrom);setTo(dateTo);setOpen(o=>!o);}} style={{marginLeft:4,cursor:"pointer",color:filtered?"#1a1f2e":"#9ca3af"}}>▾</span>
+      {open&&(
+        <div style={{position:"absolute",top:26,left:0,background:"#fff",border:"1px solid #d1d5db",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.1)",padding:12,zIndex:20,width:200,textTransform:"none",fontWeight:400}} onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>From</div>
+          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:8}} value={from} onChange={e=>setFrom(e.target.value)}/>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:4}}>To</div>
+          <input type="date" style={{...fieldStyle,padding:"5px 8px",fontSize:12,marginBottom:10}} value={to} onChange={e=>setTo(e.target.value)}/>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn-primary" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{onApply(from,to);setOpen(false);}}>Apply</button>
+            <button className="btn-ghost" style={{flex:1,fontSize:11,padding:"5px 8px"}} onClick={()=>{setFrom("");setTo("");onApply("","");setOpen(false);}}>Clear</button>
+          </div>
+        </div>
+      )}
+    </th>
+  );
+}
+
+// ─── GRN table row — select circle only; View/Edit buttons open full detail ─
+function GRNTableRow({entry,selected,onSelect}){
+  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
+  return(
+    <tr style={{background:selected?"#f5f7fa":"transparent"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
+      <td style={{...cellStyle,textAlign:"center",cursor:"pointer"}} onClick={onSelect}>
+        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
+      </td>
+      <td style={cellStyle}>{formatDate(entry.date_received)}</td>
+      <td style={{...cellStyle,fontWeight:500,color:"#1a1f2e"}} title={entry.material_name}>{entry.material_name}</td>
+      <td style={cellStyle}>{entry.supplier_name||"—"}</td>
+      <td style={{...cellStyle,...S,textAlign:"right"}}>{entry.quantity} {entry.unit}</td>
+      <td style={cellStyle}>{entry.po_number||"—"}</td>
+      <td style={{...cellStyle,...S}}>{entry.grn_number||"—"}</td>
+      <td style={cellStyle}>{entry.operator_name}</td>
+    </tr>
+  );
+}
+
+// ─── GRN detail panel — read-only View, with Edit and Print actions ────────
+function GRNDetailPanel({entry,canEdit,onEdit}){
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printGRN(entry)}><Icon name="clipboard" size={12}/>Print GRN</button>
+        {canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>Edit</button>}
+      </div>
+      <div className="card" style={{padding:16,marginBottom:14,background:"#fff"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <div>
+            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Receipt</div>
+            <div style={{fontSize:13,fontWeight:600}}>{entry.material_name}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Qty: {entry.quantity} {entry.unit}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Date: {formatDate(entry.date_received)}</div>
+          </div>
+          <div>
+            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Source</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>Supplier: {entry.supplier_name||"—"}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>PO: {entry.po_number||"—"}</div>
+            <div style={{fontSize:11,color:"#9ca3af"}}>GRN No: {entry.grn_number||"—"}</div>
+          </div>
+        </div>
+      </div>
+      {entry.remarks&&<div style={{fontSize:12,color:"#6b7280",marginBottom:8}}><span style={{color:"#9ca3af"}}>Remarks:</span> {entry.remarks}</div>}
+      <div style={{fontSize:11,color:"#9ca3af"}}>Received by {entry.operator_name}</div>
+    </div>
+  );
+}
+
+// ─── GRN edit form — allows correcting a posted receipt, including quantity,
+// adjusting rm_inventory stock (and the linked PO's received_qty, if any) by
+// the delta between the old and new quantity ─────────────────────────────
+function GRNEditForm({entry,pos,materials,showToast,onClose}){
+  const [materialId,setMaterialId]=useState(entry.material_id||"");
+  const [materialName,setMaterialName]=useState(entry.material_name||"");
+  const [supplierName,setSupplierName]=useState(entry.supplier_name||"");
+  const [quantity,setQuantity]=useState(entry.quantity??"");
+  const [unit,setUnit]=useState(entry.unit||"kg");
+  const [dateReceived,setDateReceived]=useState(entry.date_received||"");
+  const [poNumber,setPoNumber]=useState(entry.po_number||"");
+  const [remarks,setRemarks]=useState(entry.remarks||"");
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+
+  function selectMaterial(id){
+    setMaterialId(id);
+    const m=materials.find(m=>m.id===id);
+    if(m){setMaterialName(m.material_name);setUnit(m.unit||unit);}
+  }
+
+  async function save(){
+    const newQty=parseFloat(quantity);
+    if(!newQty||newQty<=0){setError("Enter a valid quantity");return;}
+    setError("");setSaving(true);
+    try{
+      const now=serverTimestamp();
+      const oldQty=parseFloat(entry.quantity)||0;
+      const oldMaterialId=entry.material_id||null;
+
+      // Reverse the old posting's stock effect, then apply the new one —
+      // handles both a plain quantity change and a change of material.
+      if(oldMaterialId){
+        const oldRef=doc(db,"rm_inventory",oldMaterialId);
+        const oldSnap=await getDoc(oldRef);
+        if(oldSnap.exists())await updateDoc(oldRef,{current_stock:(oldSnap.data().current_stock||0)-oldQty,updated_at:now});
+      }
+      if(materialId){
+        const newRef=doc(db,"rm_inventory",materialId);
+        const newSnap=await getDoc(newRef);
+        const current=newSnap.exists()?(newSnap.data().current_stock||0):0;
+        await updateDoc(newRef,{current_stock:current+newQty,updated_at:now});
+      }
+
+      // If this entry is linked to a PO, reflect the same delta on that
+      // PO's line item and recalculate its status.
+      if(entry.po_id){
+        const poSnap=await getDoc(doc(db,"purchase_orders",entry.po_id));
+        if(poSnap.exists()){
+          const poData=poSnap.data();
+          const updatedLines=(poData.line_items||[]).map(pit=>{
+            if(oldMaterialId&&pit.material_id===oldMaterialId&&(!materialId||materialId===oldMaterialId)){
+              return {...pit,received_qty:Math.max(0,(pit.received_qty||0)-oldQty+newQty)};
+            }
+            if(materialId&&materialId!==oldMaterialId&&pit.material_id===materialId){
+              return {...pit,received_qty:(pit.received_qty||0)+newQty};
+            }
+            if(oldMaterialId&&materialId&&materialId!==oldMaterialId&&pit.material_id===oldMaterialId){
+              return {...pit,received_qty:Math.max(0,(pit.received_qty||0)-oldQty)};
+            }
+            return pit;
+          });
+          await updateDoc(doc(db,"purchase_orders",entry.po_id),{line_items:updatedLines,status:poReceivedStatus(updatedLines),updated_at:now});
+        }
+      }
+
+      await updateDoc(doc(db,"goods_inward",entry.id),{
+        material_id:materialId||null,material_name:materialName,
+        supplier_name:supplierName||"",quantity:newQty,unit,
+        date_received:dateReceived,po_number:poNumber||null,
+        remarks:remarks||null,updated_at:now,
+      });
+      showToast("Receipt updated");
+      onClose();
+    }catch(e){setError("Error: "+e.message);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div className="card animate-in" style={{padding:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <div>
+          <label style={labelStyle}>Material</label>
+          <select style={fieldStyle} value={materialId} onChange={e=>selectMaterial(e.target.value)}>
+            <option value="">— {materialName||"Unlinked"} —</option>
+            {materials.map(m=><option key={m.id} value={m.id}>{m.material_name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Supplier</label>
+          <input style={fieldStyle} value={supplierName} onChange={e=>setSupplierName(e.target.value)}/>
+        </div>
+        <div>
+          <label style={labelStyle}>Quantity *</label>
+          <div style={{display:"flex",gap:8}}>
+            <input type="number" style={{...fieldStyle,flex:1}} min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)}/>
+            <select style={{...fieldStyle,width:80,flex:"none"}} value={unit} onChange={e=>setUnit(e.target.value)}>
+              {UNITS.map(u=><option key={u}>{u}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Date Received</label>
+          <input type="date" style={fieldStyle} value={dateReceived} onChange={e=>setDateReceived(e.target.value)}/>
+        </div>
+        <div>
+          <label style={labelStyle}>PO No.</label>
+          <input style={fieldStyle} value={poNumber} onChange={e=>setPoNumber(e.target.value)}/>
+        </div>
+        <div style={{gridColumn:"1/-1"}}>
+          <label style={labelStyle}>Remarks</label>
+          <input style={fieldStyle} value={remarks} onChange={e=>setRemarks(e.target.value)}/>
+        </div>
+      </div>
+      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#dc2626",marginBottom:14}}>{error}</div>}
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={13}/>{saving?"Saving…":"Save changes"}</button>
+      </div>
+    </div>
   );
 }
 
