@@ -20,6 +20,18 @@ import {
 import { printPurchaseOrder } from "./POPrintView.jsx";
 import SelectOrCustom from "./PurchaseFormControls.jsx";
 
+// A PO line item's own item_remarks wins if set; otherwise, for POs that
+// were auto-generated from a PR (po.pr_reference), fall back to that PR's
+// matching line item's remarks — covers every PO created before this field
+// existed on the PO itself, with no database migration needed.
+function resolveItemRemarks(po,it,prs){
+  if(it.item_remarks)return it.item_remarks;
+  if(!po.pr_reference||!it.material_id)return "";
+  const pr=prs.find(p=>p.pr_number===po.pr_reference);
+  const prLine=pr?.line_items?.find(pl=>pl.material_id===it.material_id);
+  return prLine?.remarks||"";
+}
+
 export default function PurchaseOrdersTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
   const canCreate=isAdmin||!!profile.can_purchase;
@@ -28,6 +40,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
   const [pos,setPos]=useState([]);
   const [vendors,setVendors]=useState([]);
   const [materials,setMaterials]=useState([]);
+  const [prs,setPrs]=useState([]);
   const [statusFilter,setStatusFilter]=useState("all");
   const [plantFilter,setPlantFilter]=useState("all");
   const [search,setSearch]=useState("");
@@ -49,6 +62,9 @@ export default function PurchaseOrdersTab({profile,showToast}){
   },[]);
   useEffect(()=>onSnapshot(collection(db,"supplier_master"),s=>setVendors(s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.active!==false))),[]);
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),s=>setMaterials(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
+  // Read-only, purely to fall back to the originating PR's item remarks for
+  // POs created before the "Item remarks" field existed on the PO itself.
+  useEffect(()=>onSnapshot(collection(db,"purchase_requisitions"),s=>setPrs(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
   const q=search.trim().toLowerCase();
   const filtered=pos.filter(p=>{
@@ -129,7 +145,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
       mode_of_delivery:po.mode_of_delivery, po_type:po.po_type, remarks:po.remarks,
       line_items:(po.line_items||[]).map(it=>({
         part_code:it.part_code||"", material_id:it.material_id||"", material_name:it.material_name,
-        hsn_code:it.hsn_code||"", item_description:it.item_description||"",
+        hsn_code:it.hsn_code||"", item_description:it.item_description||"", item_remarks:it.item_remarks||"",
         rate:it.rate, unit:it.unit, qty:"", required_date:"", received_qty:0,
       })),
     });
@@ -163,7 +179,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
           "Vendor code":po.vendor_code||"","Vendor name":po.vendor_name||"","Site":po.plant||"",
           "PO date":po.created_at?formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at):"",
           "Status":PO_STATUS_LABELS[po.status]||po.status||"","PO Type":po.po_type||"",
-          "Part code":it.part_code||"","Item Name":it.material_name||"","Item Description":it.item_description||"",
+          "Part code":it.part_code||"","Item Name":it.material_name||"","Item Description":it.item_description||"","Item Remarks":resolveItemRemarks(po,it,prs),
           "HSN code":it.hsn_code||"","Qty":qty,"UOM":it.unit||"","Rate":rate,
           "Item Amount":itemAmount,"Item Tax":itemTax,
           "Req. date":it.required_date?formatDate(it.required_date):"",
@@ -194,7 +210,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
           </div>
           {editingId===po.id
             ? <POForm profile={profile} vendors={vendors} materials={materials} existing={po} isAmendment={isAmendment} showToast={showToast} onClose={closeDetail}/>
-            : <PODetailPanel po={po} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
+            : <PODetailPanel po={po} profile={profile} prs={prs} showToast={showToast} canApprove={canApprove} canEdit={canEdit} isAmendment={isAmendment} canCancel={canCancel}
                 onEdit={openEdit} onCancel={()=>cancelPO(po)} onDeleteDraft={()=>deleteDraft(po)} onClose={()=>closePO(po)}/>
           }
         </div>
@@ -363,7 +379,7 @@ function POTableRow({po,selected,onSelect}){
   );
 }
 
-function PODetailPanel({po,profile,showToast,canApprove,canEdit,isAmendment,canCancel,onEdit,onCancel,onDeleteDraft,onClose}){
+function PODetailPanel({po,profile,prs,showToast,canApprove,canEdit,isAmendment,canCancel,onEdit,onCancel,onDeleteDraft,onClose}){
   const [busy,setBusy]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
@@ -395,7 +411,7 @@ function PODetailPanel({po,profile,showToast,canApprove,canEdit,isAmendment,canC
   return(
     <div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printPurchaseOrder(po)}><Icon name="clipboard" size={12}/>Print PO</button>
+        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printPurchaseOrder({...po,line_items:(po.line_items||[]).map(it=>({...it,item_remarks:resolveItemRemarks(po,it,prs)}))})}><Icon name="clipboard" size={12}/>Print PO</button>
         {canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>{isAmendment?"Amend":"Edit"}</button>}
         {canEdit&&!isAmendment&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={submitForApproval}><Icon name="check" size={12}/>Submit for Approval</button>}
         {po.status==="pending_approval"&&canApprove&&<button className="btn-primary" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={approve}><Icon name="check" size={12}/>Approve</button>}
@@ -455,18 +471,22 @@ function PODetailPanel({po,profile,showToast,canApprove,canEdit,isAmendment,canC
         <div style={{display:"flex",gap:8,padding:"8px 14px",background:"#fafafa",borderBottom:"1px solid #f3f4f6",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase"}}>
           <span style={{flex:1}}>Item</span><span style={{width:70,textAlign:"right"}}>Qty</span><span style={{width:70,textAlign:"right"}}>Received</span><span style={{width:80,textAlign:"right"}}>Rate</span><span style={{width:90,textAlign:"right"}}>Amount</span>
         </div>
-        {(po.line_items||[]).map((it,i)=>(
+        {(po.line_items||[]).map((it,i)=>{
+          const itemRemarks=resolveItemRemarks(po,it,prs);
+          return(
           <div key={i} style={{display:"flex",gap:8,padding:"9px 14px",borderBottom:i<po.line_items.length-1?"1px solid #f9fafb":undefined,fontSize:12,alignItems:"center"}}>
             <span style={{flex:1}}>
               <div style={{fontWeight:500}}>{it.part_code&&<span style={{...S,color:"#6b7280"}}>{it.part_code} — </span>}{it.material_name}</div>
               <div style={{...S,fontSize:10,color:"#9ca3af"}}>{it.hsn_code&&`HSN ${it.hsn_code}`}{it.hsn_code&&it.required_date?" · ":""}{it.required_date&&`Req ${formatDate(it.required_date)}`}</div>
+              {itemRemarks&&<div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{itemRemarks}</div>}
             </span>
             <span style={{width:70,textAlign:"right",...S}}>{it.qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S,color:(it.received_qty||0)>=parseFloat(it.qty)?"#16a34a":"#6b7280"}}>{it.received_qty||0}</span>
             <span style={{width:80,textAlign:"right",...S}}>₹{it.rate}</span>
             <span style={{width:90,textAlign:"right",...S,fontWeight:600}}>₹{lineAmount(it).toLocaleString("en-IN")}</span>
           </div>
-        ))}
+          );
+        })}
         <div style={{padding:"10px 14px",background:"#fafafa"}}>
           <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.subtotal.toLocaleString("en-IN")}</span></div>
           {totals.treatment==="IGST"
@@ -651,6 +671,12 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Item description</label>
                 <input style={fieldStyle} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line" readOnly={isAmendment}/>
+              </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
+                <label style={labelStyle}>Item remarks</label>
+                <input style={fieldStyle} value={it.item_remarks||""} onChange={e=>updateLine(i,"item_remarks",e.target.value)} placeholder="Optional — e.g. LME rate, coil no., special instruction" readOnly={isAmendment}/>
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>

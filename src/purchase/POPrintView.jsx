@@ -32,6 +32,8 @@ export function printPurchaseOrder(po){
       <td>
         <div class="partcode">${esc(it.part_code||"")}</div>
         <div>${esc(it.material_name)}</div>
+        ${it.item_description?`<div class="itemsub">${esc(it.item_description)}</div>`:""}
+        ${it.item_remarks?`<div class="itemsub">${esc(it.item_remarks)}</div>`:""}
       </td>
       <td class="c">${esc(it.hsn_code||"")}</td>
       <td class="c">${fmtDate(it.required_date)}</td>
@@ -79,6 +81,7 @@ export function printPurchaseOrder(po){
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
   .items-table td{border-bottom:1px solid #000;font-size:11px;}
   .items-table .partcode{font-weight:700;font-size:10.5px;}
+  .items-table .itemsub{font-size:9.5px;color:#4b5563;margin-top:1px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
   .items-table thead{display:table-header-group;}
