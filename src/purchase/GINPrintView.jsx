@@ -32,20 +32,21 @@ export function printGoodsInwardNote(gin){
 <title>${escapeHtml(gin.gin_number)}</title>
 <meta charset="utf-8"/>
 <style>
-  @page { size: A4; margin: 8mm; }
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
+  @page { size: A4; margin: 10mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin:0; }
-  .letterhead { text-align:center; border:1px solid #000; border-bottom:none; padding:6px; }
+  .sheet { width:94%; margin:0 auto; }
+  .letterhead { text-align:center; border:1px solid #000; border-bottom:none; padding:8px 6px 6px; }
   .letterhead .name { font-size:16px; font-weight:700; }
   .letterhead .addr { font-size:11px; margin-top:3px; }
   .letterhead .contact { display:flex; justify-content:center; gap:32px; margin-top:5px; font-size:10.5px; }
   .title-bar { border:1px solid #000; border-top:none; text-align:center; font-weight:700; font-size:13px; padding:4px; }
   table.header-table { width:100%; border-collapse:collapse; }
-  .header-table td { border:1px solid #000; border-top:none; padding:3px 8px; vertical-align:top; font-size:11.5px; }
+  .header-table td { border:1px solid #000; border-top:none; padding:3px 8px; vertical-align:top; font-size:11px; }
   .header-table .label { display:inline-block; width:120px; color:#374151; }
   .items { width:100%; border-collapse:collapse; margin-top:-1px; }
-  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:11px; }
-  .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:10px; }
+  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:10.5px; }
+  .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:9.5px; }
   .r { text-align:right; } .c { text-align:center; }
   .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:26px; }
   .footer-box .label { font-size:11px; margin-bottom:3px; }
@@ -59,6 +60,7 @@ export function printGoodsInwardNote(gin){
 <body>
   <button class="print-btn" onclick="window.print()">Print</button>
 
+  <div class="sheet">
   <div class="letterhead">
     <div class="name">${escapeHtml(company.name||"Mahendra Industries")}</div>
     <div class="addr">${escapeHtml(company.address||"")}</div>
@@ -119,6 +121,7 @@ export function printGoodsInwardNote(gin){
   <div class="footer-box"><div class="label">Remarks</div>${escapeHtml(gin.remarks||"")}</div>
   <div class="footer-box"><div class="label">Comments</div>${escapeHtml(gin.comments||"")}</div>
   <div class="sign-row"><div>Prepared By</div><div>Approved By</div></div>
+  </div>
 
   <script>window.onload = () => window.focus();</script>
 </body>

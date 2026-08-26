@@ -37,10 +37,11 @@ export function printQualityGIN(qgin){
 <title>${esc(qgin.qgin_number)}</title>
 <meta charset="utf-8"/>
 <style>
-  @page { size: A4; margin: 8mm; }
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
+  @page { size: A4; margin: 10mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin:0; }
-  .letterhead { position:relative; text-align:center; border:1px solid #000; border-bottom:none; padding:6px; }
+  .sheet { width:94%; margin:0 auto; }
+  .letterhead { position:relative; text-align:center; border:1px solid #000; border-bottom:none; padding:8px 6px 6px; }
   .letterhead .name { font-size:16px; font-weight:700; }
   .letterhead .addr { font-size:11px; margin-top:3px; }
   .letterhead .page { position:absolute; top:6px; right:12px; font-size:11px; }
@@ -65,6 +66,7 @@ export function printQualityGIN(qgin){
 <body>
   <button class="print-btn" onclick="window.print()">Print</button>
 
+  <div class="sheet">
   <div class="letterhead">
     <div class="page">Page 1 of 1</div>
     <div class="name">${esc(company.name||"Mahendra Industries")}</div>
@@ -130,6 +132,7 @@ export function printQualityGIN(qgin){
   <div class="sign-row">
     <div>Prepared By</div>
     <div>Approved By</div>
+  </div>
   </div>
 
   <script>window.onload = () => window.focus();</script>
