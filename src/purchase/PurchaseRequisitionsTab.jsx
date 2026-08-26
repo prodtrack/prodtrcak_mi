@@ -473,13 +473,15 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
     setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_name:text,material_id:""}:it));
   }
   function onItemSelect(i,m){
-    const lastRate=lastPORateForMaterial(purchaseOrders,m.id,m.material_name);
+    const lastRate=m.standard_rate??lastPORateForMaterial(purchaseOrders,m.id,m.material_name);
     setLineItems(items=>items.map((it,idx)=>idx===i?{
       // Inventory Qty stays manual-only again — the live system figure is
       // shown separately (read-only "Current Stock") so it's visible as a
       // reference, but never auto-fills or overwrites what's typed here.
-      // Last PO rate IS auto-filled from catalog selection, but the field
-      // itself stays editable so the user can override it afterward.
+      // Last PO rate is auto-filled from the material's Standard Rate if
+      // one's been set (i.e. a rate was typed on some PR/PO for this item
+      // before), falling back to the PO-history-derived rate otherwise.
+      // The field itself stays editable so the user can override it.
       ...it, material_id:m.id, material_name:m.material_name||it.material_name,
       unit:m.unit||it.unit, current_stock:m.current_stock??0, last_po_rate:lastRate,
     }:it));
@@ -515,6 +517,15 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
           created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
         });
         showToast(`${prNumber} ${submitForApproval?"submitted for approval":"saved as draft"}`);
+      }
+      // Whatever rate was typed on each line becomes that material's new
+      // Standard Rate — the next PR or PO for the same item will auto-fill
+      // with this value first, ahead of any PO-history-derived rate.
+      for(const it of cleanLines){
+        const rate=parseFloat(it.last_po_rate);
+        if(it.material_id&&!isNaN(rate)){
+          updateDoc(doc(db,"rm_inventory",it.material_id),{standard_rate:rate}).catch(()=>{});
+        }
       }
       onClose();
     }catch(e){setErrors([`Save failed: ${e.message}`]);}

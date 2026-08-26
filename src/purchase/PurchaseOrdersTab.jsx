@@ -547,7 +547,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
     setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_name:text,material_id:""}:it));
   }
   function onMaterialSelect(i,m){
-    setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_id:m.id,material_name:m.material_name||it.material_name,unit:m.unit||it.unit}:it));
+    setLineItems(items=>items.map((it,idx)=>idx===i?{...it,material_id:m.id,material_name:m.material_name||it.material_name,unit:m.unit||it.unit,rate:m.standard_rate??it.rate}:it));
   }
 
   async function save(submitForApproval){
@@ -592,6 +592,15 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
           created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
         });
         showToast(`${poNumber} ${submitForApproval?"submitted for approval":"saved as draft"}`);
+      }
+      // Whatever rate was typed on each line becomes that material's new
+      // Standard Rate — the next PR or PO for the same item will auto-fill
+      // with this value first, ahead of any PO-history-derived rate.
+      for(const it of cleanLines){
+        const rate=parseFloat(it.rate);
+        if(it.material_id&&!isNaN(rate)){
+          updateDoc(doc(db,"rm_inventory",it.material_id),{standard_rate:rate}).catch(()=>{});
+        }
       }
       onClose();
     }catch(e){setErrors([`Save failed: ${e.message}`]);}
