@@ -26,13 +26,17 @@ export function printPurchaseOrder(po){
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
   const items=po.line_items||[];
 
-  const rows=items.map((it,i)=>`
+  const rows=items.map((it,i)=>{
+    const desc=(it.item_description||"").trim();
+    const name=(it.material_name||"").trim();
+    const isDuplicateDesc=desc&&name&&desc.toLowerCase()===name.toLowerCase();
+    return `
     <tr>
       <td class="c">${i+1}</td>
       <td>
         <div class="partcode">${esc(it.part_code||"")}</div>
         <div>${esc(it.material_name)}</div>
-        ${it.item_description?`<div class="itemsub">${esc(it.item_description)}</div>`:""}
+        ${(desc&&!isDuplicateDesc)?`<div class="itemsub">${esc(it.item_description)}</div>`:""}
         ${it.item_remarks?`<div class="itemsub">${esc(it.item_remarks)}</div>`:""}
       </td>
       <td class="c">${esc(it.hsn_code||"")}</td>
@@ -41,7 +45,8 @@ export function printPurchaseOrder(po){
       <td class="c">${esc((it.unit||"").toUpperCase())}</td>
       <td class="r">${Number(it.rate).toFixed(2)}</td>
       <td class="r">${lineAmount(it).toFixed(2)}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   const gstRows=totals.treatment==="IGST"
     ? `<tr><td colspan="7" class="r label">Purchase IGST-${totals.gstRate}%</td><td class="r">${totals.igst.toFixed(2)}</td></tr>`
