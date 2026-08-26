@@ -62,6 +62,8 @@ export function printPurchaseRequisition(pr){
   .items-table td{border-bottom:1px solid #000;font-size:11px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
+  .items-table thead{display:table-header-group;}
+  .items-table tr{break-inside:avoid;page-break-inside:avoid;}
   .remarks-row{border-top:1px solid #000;min-height:28px;padding:4px 8px;font-size:11px;}
   .remarks-row:last-child{border-bottom:1px solid #000;}
   .remarks-row b{font-weight:700;}

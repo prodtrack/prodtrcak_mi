@@ -81,6 +81,8 @@ export function printPurchaseOrder(po){
   .items-table .partcode{font-weight:700;font-size:10.5px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
+  .items-table thead{display:table-header-group;}
+  .items-table tr{break-inside:avoid;page-break-inside:avoid;}
   .label{font-weight:600;}
   .totalrow td{border-top:1px solid #000;font-weight:700;background:#f5f5f5;}
   .words-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:4px 8px;font-size:11px;}
