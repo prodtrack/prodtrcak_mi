@@ -8,6 +8,7 @@ import { useState } from "react";
 import { SectionHeader } from "../shared.jsx";
 import PurchaseRequisitionsTab from "./PurchaseRequisitionsTab.jsx";
 import PurchaseOrdersTab from "./PurchaseOrdersTab.jsx";
+import GINTab from "./GINTab.jsx";
 import QGINTab from "./QGINTab.jsx";
 import GRNTab from "./GRNTab.jsx";
 import PurchaseVendorsTab from "./PurchaseVendorsTab.jsx";
@@ -16,8 +17,9 @@ import MRPQueueTab from "./MRPQueueTab.jsx";
 const SUBTABS=[
   {id:"requisitions", label:"Requisitions"},
   {id:"orders", label:"Purchase Orders"},
-  {id:"grn",    label:"GIN/GRN"},
+  {id:"gin",    label:"Goods Inward"},
   {id:"qgin",   label:"Quality GIN"},
+  {id:"grn",    label:"GRN"},
   {id:"vendors",label:"Vendors"},
   {id:"mrp",    label:"MRP Queue"},
 ];
@@ -39,6 +41,7 @@ export default function PurchaseTab({profile,showToast}){
 
       {subtab==="requisitions" &&<PurchaseRequisitionsTab profile={profile} showToast={showToast}/>}
       {subtab==="orders" &&<PurchaseOrdersTab profile={profile} showToast={showToast}/>}
+      {subtab==="gin"    &&<GINTab            profile={profile} showToast={showToast}/>}
       {subtab==="qgin"   &&<QGINTab           profile={profile} showToast={showToast}/>}
       {subtab==="grn"    &&<GRNTab            profile={profile} showToast={showToast}/>}
       {subtab==="vendors"&&<PurchaseVendorsTab profile={profile} showToast={showToast}/>}
