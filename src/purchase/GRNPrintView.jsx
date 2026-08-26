@@ -30,10 +30,11 @@ export function printGRN(entry){
 <title>${esc(entry.grn_number||"GRN")}</title>
 <meta charset="utf-8"/>
 <style>
-  @page { size: A4; margin: 8mm; }
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
+  @page { size: A4; margin: 10mm; }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
   body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin:0; }
-  .letterhead { position:relative; text-align:center; border:1px solid #000; border-bottom:none; padding:6px; }
+  .sheet { width:94%; margin:0 auto; }
+  .letterhead { position:relative; text-align:center; border:1px solid #000; border-bottom:none; padding:8px 6px 6px; }
   .letterhead .name { font-size:16px; font-weight:700; }
   .letterhead .addr { font-size:10.5px; margin-top:3px; }
   .letterhead .page { position:absolute; top:6px; right:12px; font-size:11px; }
@@ -48,9 +49,9 @@ export function printGRN(entry){
   .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:10.5px; }
   .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:9.5px; }
   .r { text-align:right; } .c { text-align:center; }
-  .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:26px; }
+  .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:60px; }
   .footer-box .label { font-size:11px; margin-bottom:3px; }
-  .sign-row { display:flex; border:1px solid #000; border-top:none; }
+  .sign-row { display:flex; border:1px solid #000; border-top:none; margin-top:40px; }
   .sign-row div { flex:1; padding:14px 8px 6px; font-size:11px; text-align:center; }
   .sign-row div:not(:last-child) { border-right:1px solid #000; }
   .sign-row .signee { font-size:10px; color:#6b7280; margin-bottom:2px; }
@@ -61,6 +62,7 @@ export function printGRN(entry){
 <body>
   <button class="print-btn" onclick="window.print()">Print</button>
 
+  <div class="sheet">
   <div class="letterhead">
     <div class="page">Page 1 of 1</div>
     <div class="name">${esc(company.name||"Mahendra Industries")}</div>
@@ -144,6 +146,7 @@ export function printGRN(entry){
     <div><div class="signee">${esc(entry.operator_name||"")}</div>Prepared By</div>
     <div><div class="signee">&nbsp;</div>Checked By</div>
     <div style="flex:2"><b>For ${esc(company.name||"MAHENDRA INDUSTRIES")}</b><br/><br/>Authorised Signatory</div>
+  </div>
   </div>
 
   <script>window.onload = () => window.focus();</script>
