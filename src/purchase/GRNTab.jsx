@@ -1011,15 +1011,13 @@ function GRNEditForm({entry,pos,materials,showToast,onClose}){
           <label style={labelStyle}>Supplier</label>
           <input style={fieldStyle} value={supplierName} onChange={e=>setSupplierName(e.target.value)}/>
         </div>
-        <div>
-          <label style={labelStyle}>Quantity *</label>
-          <div style={{display:"flex",gap:8}}>
-            <input type="number" style={{...fieldStyle,flex:1}} min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)}/>
-            <select style={{...fieldStyle,width:80,flex:"none"}} value={unit} onChange={e=>setUnit(e.target.value)}>
-              {UNITS.map(u=><option key={u}>{u}</option>)}
-            </select>
+          <div>
+            <label style={labelStyle}>Quantity *</label>
+            <div style={{display:"flex",gap:8}}>
+              <input type="number" style={{...fieldStyle,flex:1}} min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)}/>
+              <div style={{width:110,flexShrink:0}}><UomField value={unit} onChange={setUnit}/></div>
+            </div>
           </div>
-        </div>
         <div>
           <label style={labelStyle}>Date Received</label>
           <input type="date" style={fieldStyle} value={dateReceived} onChange={e=>setDateReceived(e.target.value)}/>
@@ -1149,9 +1147,7 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
             <label style={labelStyle}>Quantity *</label>
             <div style={{display:"flex",gap:8}}>
               <input type="number" style={{...fieldStyle,flex:1}} placeholder="0" value={qty} onChange={e=>setQty(e.target.value)} min="0"/>
-              <select style={{...fieldStyle,width:80,flex:"none"}} value={unit} onChange={e=>setUnit(e.target.value)}>
-                {UNITS.map(u=><option key={u}>{u}</option>)}
-              </select>
+              <div style={{width:110,flexShrink:0}}><UomField value={unit} onChange={setUnit}/></div>
             </div>
           </div>
 
@@ -1169,5 +1165,24 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── UOM field with a "Other (specify)" escape hatch ───────────────────────
+function UomField({value,onChange}){
+  const isCustom=!!value&&!UNITS.includes(value);
+  if(isCustom){
+    return(
+      <div style={{display:"flex",gap:4}}>
+        <input style={{...fieldStyle,flex:1}} value={value} onChange={e=>onChange(e.target.value)} placeholder="Unit"/>
+        <button type="button" className="btn-ghost" style={{padding:"0 8px",flexShrink:0}} title="Choose from list" onClick={()=>onChange(UNITS[0])}><Icon name="arrow" size={11}/></button>
+      </div>
+    );
+  }
+  return(
+    <select style={fieldStyle} value={value} onChange={e=>onChange(e.target.value==="__other__"?"":e.target.value)}>
+      {UNITS.map(u=><option key={u}>{u}</option>)}
+      <option value="__other__">Other (specify)</option>
+    </select>
   );
 }

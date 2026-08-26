@@ -660,9 +660,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
               </div>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>UOM</label>
-                <select style={fieldStyle} value={it.unit} onChange={e=>updateLine(i,"unit",e.target.value)} disabled={isAmendment}>
-                  {UNITS.map(u=><option key={u}>{u}</option>)}
-                </select>
+                <UomField value={it.unit} onChange={v=>updateLine(i,"unit",v)} disabled={isAmendment}/>
               </div>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Rate *</label>
@@ -711,5 +709,24 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         }
       </div>
     </div>
+  );
+}
+
+// ─── UOM field with a "Other (specify)" escape hatch ───────────────────────
+function UomField({value,onChange,disabled}){
+  const isCustom=!!value&&!UNITS.includes(value);
+  if(isCustom){
+    return(
+      <div style={{display:"flex",gap:4}}>
+        <input style={{...fieldStyle,flex:1}} value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} placeholder="Unit"/>
+        <button type="button" className="btn-ghost" style={{padding:"0 8px",flexShrink:0}} title="Choose from list" disabled={disabled} onClick={()=>onChange(UNITS[0])}><Icon name="arrow" size={11}/></button>
+      </div>
+    );
+  }
+  return(
+    <select style={fieldStyle} value={value} disabled={disabled} onChange={e=>onChange(e.target.value==="__other__"?"":e.target.value)}>
+      {UNITS.map(u=><option key={u}>{u}</option>)}
+      <option value="__other__">Other (specify)</option>
+    </select>
   );
 }

@@ -591,9 +591,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
               </div>
               <div>
                 <label style={labelStyle}>UOM</label>
-                <select style={fieldStyle} value={it.unit} onChange={e=>updateLine(i,"unit",e.target.value)}>
-                  {UNITS.map(u=><option key={u}>{u}</option>)}
-                </select>
+                <UomField value={it.unit} onChange={v=>updateLine(i,"unit",v)}/>
               </div>
               <div>
                 <label style={labelStyle}>Required date</label>
@@ -637,5 +635,24 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
         <button className="btn-primary" disabled={saving} onClick={()=>save(true)}><Icon name="check" size={14}/>{saving?"Saving…":"Submit for Approval"}</button>
       </div>
     </div>
+  );
+}
+
+// ─── UOM field with a "Other (specify)" escape hatch ───────────────────────
+function UomField({value,onChange}){
+  const isCustom=!!value&&!UNITS.includes(value);
+  if(isCustom){
+    return(
+      <div style={{display:"flex",gap:4}}>
+        <input style={{...fieldStyle,flex:1}} value={value} onChange={e=>onChange(e.target.value)} placeholder="Unit"/>
+        <button type="button" className="btn-ghost" style={{padding:"0 8px",flexShrink:0}} title="Choose from list" onClick={()=>onChange(UNITS[0])}><Icon name="arrow" size={11}/></button>
+      </div>
+    );
+  }
+  return(
+    <select style={fieldStyle} value={value} onChange={e=>onChange(e.target.value==="__other__"?"":e.target.value)}>
+      {UNITS.map(u=><option key={u}>{u}</option>)}
+      <option value="__other__">Other (specify)</option>
+    </select>
   );
 }
