@@ -133,12 +133,34 @@ export default function GRNTab({profile,showToast}){
   }
 
   function exportGinExcel(){
-    const rows=ginSorted.map(gin=>({
-      "GIN No.":gin.gin_number||"","Type":gin.gin_type||"","PO No.":gin.po_number||"","Vendor name":gin.vendor_name||"",
-      "Site":gin.plant||"","Date":gin.created_at?formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at):"",
-      "Status":GIN_STATUS_LABELS[gin.status]||gin.status||"","Vehicle":gin.vehicle_no||"","Challan No.":gin.challan_no||"",
-      "Challan Date":gin.challan_date?formatDate(gin.challan_date):"","GRN":gin.grn_number||"",
-    }));
+    const rows=[];
+    ginSorted.forEach(gin=>{
+      const po=gin.po_id?pos.find(p=>p.id===gin.po_id):null;
+      const poDate=po?.created_at?formatDate(po.created_at?.toDate?po.created_at.toDate():po.created_at):"";
+      (gin.line_items||[]).forEach(it=>{
+        const poLine=po?.line_items?.find(pl=>pl.material_id===it.material_id);
+        const acceptedQty=parseFloat(it.accepted_qty)||0;
+        const rate=parseFloat(poLine?.rate)||0;
+        rows.push({
+          "Vendor Name":gin.vendor_name||"",
+          "GRN Number":gin.grn_number||"",
+          "GRN Date":gin.created_at?formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at):"",
+          "GRN Status":GIN_STATUS_LABELS[gin.status]||gin.status||"",
+          "Challan/Invoice No":gin.challan_no||"",
+          "Challan Date":gin.challan_date?formatDate(gin.challan_date):"",
+          "Item Code":it.item_code||"",
+          "Item Name":it.material_name||"",
+          "Item Description":it.item_description||"",
+          "GRN UOM":it.unit||"",
+          "Received Qty":it.actual_challan_qty??"",
+          "Accepted Qty":acceptedQty,
+          "PO/CPO Number":gin.po_number||"",
+          "PO/CPO Date":poDate,
+          "Required Date":poLine?.required_date?formatDate(poLine.required_date):"",
+          "Item Amount":acceptedQty*rate,
+        });
+      });
+    });
     const ws=XLSX.utils.json_to_sheet(rows);
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Receipts");
