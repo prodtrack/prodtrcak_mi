@@ -731,7 +731,7 @@ function GINForm({profile,pos,existing,showToast,onClose}){
               <div><label style={labelStyle}>Accepted qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.accepted_qty} onChange={e=>updateLine(i,"accepted_qty",e.target.value)}/></div>
               <div><label style={labelStyle}>Rejected qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.rejected_qty} onChange={e=>updateLine(i,"rejected_qty",e.target.value)}/></div>
               <div><label style={labelStyle}>Actual challan qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.actual_challan_qty} onChange={e=>updateLine(i,"actual_challan_qty",e.target.value)}/></div>
-              <div><label style={labelStyle}>Remarks</label><input style={fieldStyle} value={it.remarks} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="e.g. LME rate, coil no."/></div>
+              <div><label style={labelStyle}>Remarks</label><textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.remarks} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="e.g. LME rate, coil no."/></div>
             </div>
           </div>
         ))}

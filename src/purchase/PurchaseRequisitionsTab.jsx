@@ -13,6 +13,7 @@ import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocompl
 import {
   PLANTS, UNITS, REQUISITION_TYPES, PR_STATUSES, PR_STATUS_LABELS, PR_STATUS_COLORS,
   generatePRNumber, generatePONumber, emptyPRLineItem, lastPORateForMaterial, DEFAULT_GST_RATE,
+  resolveOrCreateMaterialId,
 } from "./purchaseHelpers";
 import { printPurchaseRequisition } from "./PRPrintView.jsx";
 
@@ -495,13 +496,24 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
     if(errs.length){setErrors(errs);return;}
     setErrors([]);setSaving(true);
     try{
+      // Any line item typed freeform (no material_id, since it wasn't
+      // picked from the catalog) gets a brand-new rm_inventory entry
+      // created on the spot, so it becomes part of the item master going
+      // forward — matched by name first, in case two lines in this same
+      // PR happen to introduce the same new item.
+      const materialCache=new Map();
+      const resolvedLines=[];
+      for(const it of cleanLines){
+        const materialId=it.material_id||await resolveOrCreateMaterialId(it.material_name,it.unit,materials,materialCache);
+        resolvedLines.push({...it,material_id:materialId});
+      }
       const payload={
         plant, requisition_type:requisitionType,
         vendor_id:vendor?.id||null, vendor_name:vendor?.name||null, vendor_code:vendor?.vendor_code||null,
         vendor_gstin:vendor?.gstin||null, vendor_state_code:vendor?.state_code||null,
         vendor_address:vendor?.address||null, vendor_phone:vendor?.phone||null, vendor_email:vendor?.email||null, vendor_pan:vendor?.pan||null,
         requested_by_code:requestedByCode||null, job_order:jobOrder||null,
-        line_items:cleanLines.map(it=>({...it,qty:parseFloat(it.qty),inventory_qty:materials.find(m=>m.id===it.material_id)?.current_stock??0})),
+        line_items:resolvedLines.map(it=>({...it,qty:parseFloat(it.qty),inventory_qty:materials.find(m=>m.id===it.material_id)?.current_stock??0})),
         remarks:remarks||null, comments:comments||null,
         updated_at:serverTimestamp(),
       };
@@ -521,7 +533,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
       // Whatever rate was typed on each line becomes that material's new
       // Standard Rate — the next PR or PO for the same item will auto-fill
       // with this value first, ahead of any PO-history-derived rate.
-      for(const it of cleanLines){
+      for(const it of resolvedLines){
         const rate=parseFloat(it.last_po_rate);
         if(it.material_id&&!isNaN(rate)){
           updateDoc(doc(db,"rm_inventory",it.material_id),{standard_rate:rate}).catch(()=>{});
@@ -587,7 +599,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
             </div>
             <div style={{marginBottom:10}}>
               <label style={labelStyle}>Item description</label>
-              <input style={fieldStyle} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line"/>
+              <textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line"/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div>
@@ -615,7 +627,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
             </div>
             <div style={{marginTop:10}}>
               <label style={labelStyle}>Item remarks</label>
-              <input style={fieldStyle} value={it.remarks||""} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="Optional"/>
+              <textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.remarks||""} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="Optional"/>
             </div>
           </div>
         ))}

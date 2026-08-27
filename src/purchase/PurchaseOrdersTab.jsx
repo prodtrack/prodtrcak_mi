@@ -15,7 +15,7 @@ import {
   PLANTS, COMPANY_INFO, UNITS, PO_STATUSES, PO_STATUS_LABELS, PO_STATUS_COLORS,
   generatePONumber, lineAmount, poTotals, emptyLineItem, DEFAULT_GST_RATE,
   GST_RATE_OPTIONS, DELIVERY_TERMS_OPTIONS, DELIVERY_MODE_OPTIONS, PAYMENT_TERMS_OPTIONS,
-  earliestRequiredDate,
+  earliestRequiredDate, resolveOrCreateMaterialId,
 } from "./purchaseHelpers";
 import { printPurchaseOrder } from "./POPrintView.jsx";
 import SelectOrCustom from "./PurchaseFormControls.jsx";
@@ -562,11 +562,22 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
     if(isAmendment&&!window.confirm(`This PO is already approved. Saving will create Amendment #${(existing.amd_no||0)+1} and send it back for re-approval. Continue?`))return;
     setErrors([]);setSaving(true);
     try{
+      // Any line item typed freeform (no material_id, since it wasn't
+      // picked from the catalog) gets a brand-new rm_inventory entry
+      // created on the spot, so it becomes part of the item master going
+      // forward — matched by name first, in case two lines in this same
+      // PO happen to introduce the same new item.
+      const materialCache=new Map();
+      const resolvedLines=[];
+      for(const it of cleanLines){
+        const materialId=it.material_id||await resolveOrCreateMaterialId(it.material_name,it.unit,materials,materialCache);
+        resolvedLines.push({...it,material_id:materialId});
+      }
       const payload={
         plant, vendor_id:vendor.id, vendor_name:vendor.name, vendor_code:vendor.vendor_code||null,
         vendor_gstin:vendor.gstin||null, vendor_state_code:vendor.state_code||null,
         vendor_address:vendor.address||null, vendor_phone:vendor.phone||null, vendor_email:vendor.email||null, vendor_pan:vendor.pan||null,
-        line_items:cleanLines.map(it=>({...it,qty:parseFloat(it.qty),rate:parseFloat(it.rate),received_qty:it.received_qty||0})),
+        line_items:resolvedLines.map(it=>({...it,qty:parseFloat(it.qty),rate:parseFloat(it.rate),received_qty:it.received_qty||0})),
         gst_rate:parseFloat(gstRate)||0,
         total_amount:totals.grandTotal,
         expected_delivery:earliestRequiredDate(cleanLines), your_reference:yourReference||null,
@@ -596,7 +607,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
       // Whatever rate was typed on each line becomes that material's new
       // Standard Rate — the next PR or PO for the same item will auto-fill
       // with this value first, ahead of any PO-history-derived rate.
-      for(const it of cleanLines){
+      for(const it of resolvedLines){
         const rate=parseFloat(it.rate);
         if(it.material_id&&!isNaN(rate)){
           updateDoc(doc(db,"rm_inventory",it.material_id),{standard_rate:rate}).catch(()=>{});
@@ -679,13 +690,13 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
             <div style={{marginBottom:10}}>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Item description</label>
-                <input style={fieldStyle} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line" readOnly={isAmendment}/>
+                <textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.item_description||""} onChange={e=>updateLine(i,"item_description",e.target.value)} placeholder="Optional — free-text description for this line" readOnly={isAmendment}/>
               </div>
             </div>
             <div style={{marginBottom:10}}>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Item remarks</label>
-                <input style={fieldStyle} value={it.item_remarks||""} onChange={e=>updateLine(i,"item_remarks",e.target.value)} placeholder="Optional — e.g. LME rate, coil no., special instruction" readOnly={isAmendment}/>
+                <textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.item_remarks||""} onChange={e=>updateLine(i,"item_remarks",e.target.value)} placeholder="Optional — e.g. LME rate, coil no., special instruction" readOnly={isAmendment}/>
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
