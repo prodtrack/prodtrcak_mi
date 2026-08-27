@@ -15,7 +15,7 @@ import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle } from "../shar
 import {
   PLANTS, QGIN_STATUSES, QGIN_STATUS_LABELS, QGIN_STATUS_COLORS,
   QUALITY_TYPES, INSPECTION_LOCATIONS, QGIN_PARAMETERS, emptyQGINParameter, UNITS,
-  generateGRNNumber, generateQGINNumber, poReceivedStatus, COMPANY_INFO,
+  generateQGINNumber, poReceivedStatus, COMPANY_INFO,
 } from "./purchaseHelpers";
 import { printQualityGIN } from "./QGINPrintView.jsx";
 import SelectOrCustom from "./PurchaseFormControls.jsx";
@@ -365,80 +365,52 @@ function QGINDetailPanel({qgin,profile,showToast,canApprove,canEdit,canCancel,on
     try{
       const now=serverTimestamp();
       const operatorName=profile.name||auth.currentUser.email;
-      const operatorUid=auth.currentUser.uid;
       const acceptedQty=parseFloat(qgin.accepted_qty)||0;
       if(acceptedQty<=0){showToast("Accepted qty must be greater than 0 to post a GRN","error");setBusy(false);return;}
 
-      const grnNumber=await generateGRNNumber(qgin.plant);
-      let ginChallanNo=null,ginChallanDate=null,ginBillNo=null,ginBillDate=null,ginLrNo=null,ginLrDate=null,
-          ginVehicleNo=null,ginReceivedBy=null,ginReceivedByCode=null,ginType=null,ginDate=null,ginComments=null,
-          ginReceivedQty=null,ginChallanQty=null,ginRejectedQty=null,vendorCode=null,vendorAddress=null;
-      if(qgin.gin_id){
-        const ginSnap=await getDoc(doc(db,"goods_inward_notes",qgin.gin_id));
-        if(ginSnap.exists()){
-          const ginData=ginSnap.data();
-          ginChallanNo=ginData.challan_no||null;
-          ginChallanDate=ginData.challan_date||null;
-          ginBillNo=ginData.bill_no||null;
-          ginBillDate=ginData.bill_date||null;
-          ginLrNo=ginData.lr_no||null;
-          ginLrDate=ginData.lr_date||null;
-          ginVehicleNo=ginData.vehicle_no||null;
-          ginReceivedBy=ginData.received_by||null;
-          ginReceivedByCode=ginData.received_by_code||null;
-          ginType=ginData.gin_type||null;
-          ginDate=ginData.created_at?.toDate?ginData.created_at.toDate().toISOString().split("T")[0]:null;
-          ginComments=ginData.comments||null;
-          vendorCode=ginData.vendor_code||null;
-          const ginLine=(ginData.line_items||[]).find(gl=>qgin.material_id&&gl.material_id===qgin.material_id);
-          ginReceivedQty=ginLine?.actual_challan_qty??null;
-          ginChallanQty=ginLine?.challan_qty??null;
-          ginRejectedQty=ginLine?.rejected_qty??null;
-        }
-      }
-      let poRequiredDate=null,poRate=null,poData=null,poQty=null,poDate=null;
-      if(qgin.po_id){
-        const poSnap=await getDoc(doc(db,"purchase_orders",qgin.po_id));
-        if(poSnap.exists()){
-          poData=poSnap.data();
-          const poLine=(poData.line_items||[]).find(pl=>qgin.material_id&&pl.material_id===qgin.material_id);
-          poRequiredDate=poLine?.required_date||null;
-          poRate=poLine?.rate??null;
-          poQty=poLine?.qty??null;
-          poDate=poData.created_at?.toDate?poData.created_at.toDate().toISOString().split("T")[0]:null;
-          vendorAddress=poData.vendor_address||null;
-          if(!vendorCode)vendorCode=poData.vendor_code||null;
-        }
-      }
-      const qginDate=qgin.created_at?.toDate?qgin.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0];
-      await addDoc(collection(db,"goods_inward"),{
-        material_id:qgin.material_id||null,material_name:qgin.material_name,
-        item_code:qgin.item_code||null,item_description:qgin.item_description||null,
-        supplier_id:qgin.vendor_id||null,supplier_name:qgin.vendor_name,vendor_code:vendorCode,vendor_address:vendorAddress,
-        quantity:acceptedQty,unit:qgin.base_uom,date_received:new Date().toISOString().split("T")[0],
-        po_id:qgin.po_id||null,po_number:qgin.po_number||null,po_required_date:poRequiredDate,po_rate:poRate,po_qty:poQty,po_date:poDate,
-        gin_id:qgin.gin_id||null,gin_number:qgin.gin_number||null,gin_date:ginDate,gin_type:ginType,
-        challan_no:ginChallanNo,challan_date:ginChallanDate,bill_no:ginBillNo,bill_date:ginBillDate,
-        lr_no:ginLrNo,lr_date:ginLrDate,vehicle_no:ginVehicleNo,received_by:ginReceivedBy,received_by_code:ginReceivedByCode,
-        qgin_id:qgin.id||null,qgin_number:qgin.qgin_number||null,qgin_date:qginDate,
-        received_qty:ginReceivedQty,challan_qty:ginChallanQty,rejected_qty:ginRejectedQty,comments:ginComments,
-        grn_number:grnNumber,plant:qgin.plant,
-        remarks:`From ${qgin.gin_number} via ${qgin.qgin_number}`,
-        operator_uid:operatorUid,operator_name:operatorName,created_at:now,
+      // GIN and GRN are the same record now — the GRN number was already
+      // assigned when the GIN was created, so approving a QGIN never
+      // generates a second number or a second document. It just marks
+      // that specific line as posted (updates stock + the linked PO) and
+      // records which QGIN posted it, directly on the GIN's own line item.
+      if(!qgin.gin_id){showToast("This QGIN has no linked GIN — cannot post","error");setBusy(false);return;}
+      const ginSnap=await getDoc(doc(db,"goods_inward_notes",qgin.gin_id));
+      if(!ginSnap.exists()){showToast("Linked GIN not found","error");setBusy(false);return;}
+      const ginData=ginSnap.data();
+      const grnNumber=ginData.grn_number||ginData.gin_number;
+
+      const updatedGinLines=(ginData.line_items||[]).map(gl=>
+        (qgin.material_id&&gl.material_id===qgin.material_id)
+          ?{...gl,posted:true,posted_qty:acceptedQty,posted_at:now,posted_by:operatorName,qgin_number:qgin.qgin_number}
+          :gl
+      );
+      // Once every line that was actually sent to QC (accepted_qty > 0) has
+      // been posted, the whole GIN/GRN record is done — flip its status to
+      // "completed" so it reads as finished in the unified list, rather
+      // than staying stuck on "Approved (QC in progress)" forever.
+      const allPosted=updatedGinLines.every(gl=>(parseFloat(gl.accepted_qty)||0)<=0||gl.posted);
+      await updateDoc(doc(db,"goods_inward_notes",qgin.gin_id),{
+        line_items:updatedGinLines,
+        ...(allPosted?{status:"completed"}:{}),
       });
+
       if(qgin.material_id){
         const matRef=doc(db,"rm_inventory",qgin.material_id);
         const matSnap=await getDoc(matRef);
         const current=matSnap.exists()?(matSnap.data().current_stock||0):0;
         await updateDoc(matRef,{current_stock:current+acceptedQty,updated_at:now});
       }
-      if(qgin.po_id&&poData){
-        const updatedLines=(poData.line_items||[]).map(pit=>
-          (qgin.material_id&&pit.material_id===qgin.material_id)
-            ?{...pit,received_qty:(pit.received_qty||0)+acceptedQty}
-            :pit
-        );
-        await updateDoc(doc(db,"purchase_orders",qgin.po_id),{line_items:updatedLines,status:poReceivedStatus(updatedLines),updated_at:now});
+      if(qgin.po_id){
+        const poSnap=await getDoc(doc(db,"purchase_orders",qgin.po_id));
+        if(poSnap.exists()){
+          const poData=poSnap.data();
+          const updatedLines=(poData.line_items||[]).map(pit=>
+            (qgin.material_id&&pit.material_id===qgin.material_id)
+              ?{...pit,received_qty:(pit.received_qty||0)+acceptedQty}
+              :pit
+          );
+          await updateDoc(doc(db,"purchase_orders",qgin.po_id),{line_items:updatedLines,status:poReceivedStatus(updatedLines),updated_at:now});
+        }
       }
       await updateDoc(doc(db,"quality_gins",qgin.id),{
         status:"approved", grn_number:grnNumber,

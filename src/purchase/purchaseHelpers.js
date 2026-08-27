@@ -3,9 +3,30 @@
 // in /purchase. Change PO/GRN behaviour here — nothing outside this folder
 // should need to know how a PO or GRN number is generated.
 
-import { doc, runTransaction } from "firebase/firestore";
+import { doc, runTransaction, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { getFY } from "../shared.jsx";
+
+// Resolves a freeform-typed item name to a material_id — matching an
+// existing catalog entry by name (case/whitespace-insensitive) if one
+// exists, or creating a brand-new rm_inventory entry on the spot if not.
+// `cache` (a Map of lowercase name -> id) is optional and lets a caller
+// avoid creating duplicate entries when resolving several line items in
+// the same operation that happen to share a new item name.
+export async function resolveOrCreateMaterialId(materialName,unit,existingMaterials,cache){
+  const trimmed=(materialName||"").trim();
+  if(!trimmed)return null;
+  const key=trimmed.toLowerCase();
+  if(cache?.has(key))return cache.get(key);
+  const match=existingMaterials.find(m=>(m.material_name||"").trim().toLowerCase()===key);
+  if(match){cache?.set(key,match.id);return match.id;}
+  const newDoc=await addDoc(collection(db,"rm_inventory"),{
+    material_name:trimmed, unit:unit||"kg", current_stock:0, low_stock_threshold:0,
+    created_at:serverTimestamp(),
+  });
+  cache?.set(key,newDoc.id);
+  return newDoc.id;
+}
 
 // ─── Plants ─────────────────────────────────────────────────────────────────
 // No dedicated `plants` collection yet — this is the single source of truth
@@ -153,15 +174,16 @@ export function lastPORateForMaterial(purchaseOrders,materialId,materialName){
 // GRNTab's exact existing receipt/stock-update logic) — GIN itself never
 // writes to rm_inventory directly.
 export const GIN_TYPES = ["Domestic","Import"];
-export const GIN_STATUSES = ["draft","pending_approval","approved","rejected","cancelled"];
+export const GIN_STATUSES = ["draft","pending_approval","approved","completed","rejected","cancelled"];
 export const GIN_STATUS_LABELS = {
-  draft:"Draft", pending_approval:"Pending Approval", approved:"Approved",
-  rejected:"Rejected", cancelled:"Cancelled",
+  draft:"Draft", pending_approval:"Pending Approval", approved:"Approved (QC in progress)",
+  completed:"Completed", rejected:"Rejected", cancelled:"Cancelled",
 };
 export const GIN_STATUS_COLORS = {
   draft:{bg:"#f3f4f6",c:"#6b7280"},
   pending_approval:{bg:"#fffbeb",c:"#b45309"},
-  approved:{bg:"#f0fdf4",c:"#16a34a"},
+  approved:{bg:"#eef2ff",c:"#4338ca"},
+  completed:{bg:"#f0fdf4",c:"#16a34a"},
   rejected:{bg:"#fef2f2",c:"#dc2626"},
   cancelled:{bg:"#fef2f2",c:"#dc2626"},
 };

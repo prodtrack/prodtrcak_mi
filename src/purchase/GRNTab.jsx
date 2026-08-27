@@ -21,24 +21,20 @@ import {
   generateGINNumber, generateQGINNumber, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS,
 } from "./purchaseHelpers";
 import { printGoodsInwardNote } from "./GINPrintView.jsx";
-import { printGRN } from "./GRNPrintView.jsx";
 
 export default function GRNTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
   const canCreate=isAdmin||["store"].includes(profile.role)||!!profile.can_purchase;
   const canApprove=isAdmin||!!profile.isPurchaseManager;
 
-  const [segment,setSegment]=useState("receipts"); // "receipts" | "history"
-
   // ── shared data ──
   const [gins,setGins]=useState([]);
   const [pos,setPos]=useState([]);
   const [materials,setMaterials]=useState([]);
   const [suppliers,setSuppliers]=useState([]);
-  const [entries,setEntries]=useState([]);
   const [holds,setHolds]=useState([]);
 
-  // ── Receipts (GIN) view state ──
+  // ── unified list view state ──
   const [statusFilter,setStatusFilter]=useState("all");
   const [plantFilter,setPlantFilter]=useState("all");
   const [ginSearch,setGinSearch]=useState("");
@@ -53,20 +49,9 @@ export default function GRNTab({profile,showToast}){
   const [ginDateTo,setGinDateTo]=useState("");
   const GIN_PAGE_SIZE=10;
 
-  // ── Posted History (GRN) view state ──
   const [mode,setMode]=useState(null); // null | "direct"
-  const [historySearch,setHistorySearch]=useState("");
   const [holdRemark,setHoldRemark]=useState({});
   const [holdSaving,setHoldSaving]=useState({});
-  const [historySortField,setHistorySortField]=useState("date_received");
-  const [historySortDir,setHistorySortDir]=useState("desc");
-  const [historyPage,setHistoryPage]=useState(1);
-  const [historyDateFrom,setHistoryDateFrom]=useState("");
-  const [historyDateTo,setHistoryDateTo]=useState("");
-  const [historySelectedId,setHistorySelectedId]=useState(null);
-  const [historyExpandedId,setHistoryExpandedId]=useState(null);
-  const [historyEditingId,setHistoryEditingId]=useState(null);
-  const HISTORY_PAGE_SIZE=10;
 
   useEffect(()=>{
     const q=query(collection(db,"goods_inward_notes"),orderBy("created_at","desc"));
@@ -79,15 +64,11 @@ export default function GRNTab({profile,showToast}){
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),s=>setMaterials(s.docs.map(d=>({id:d.id,...d.data()})))),[]);
   useEffect(()=>onSnapshot(collection(db,"supplier_master"),s=>setSuppliers(s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.active!==false))),[]);
   useEffect(()=>{
-    const q=query(collection(db,"goods_inward"),orderBy("created_at","desc"));
-    return onSnapshot(q,s=>setEntries(s.docs.map(d=>({id:d.id,...d.data()}))));
-  },[]);
-  useEffect(()=>{
     const q=query(collection(db,"grn_holds"),orderBy("created_at","desc"));
     return onSnapshot(q,s=>setHolds(s.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
 
-  // ── Receipts (GIN) derived state ──
+  // ── derived state ──
   const gq=ginSearch.trim().toLowerCase();
   const ginFiltered=gins.filter(g=>{
     const d=g.created_at?.toDate?g.created_at.toDate():(g.created_at?new Date(g.created_at):null);
@@ -170,20 +151,29 @@ export default function GRNTab({profile,showToast}){
     setHoldSaving(p=>({...p,[hold.id]:true}));
     try{
       const now=serverTimestamp();
+      const operatorName=profile.name||auth.currentUser.email;
       const newRef=await addDoc(collection(db,"rm_inventory"),{
         material_name:hold.material_name,unit:hold.unit||"kg",
         current_stock:hold.quantity,low_stock_threshold:0,
         created_at:now,
       });
-      await addDoc(collection(db,"goods_inward"),{
-        material_id:newRef.id,material_name:hold.material_name,
-        supplier_name:hold.supplier_name||"",quantity:hold.quantity,unit:hold.unit||"kg",
-        date_received:hold.date_received,po_ref:hold.po_ref||null,
-        remarks:holdRemark[hold.id]||hold.remarks||null,
-        operator_uid:hold.operator_uid,operator_name:hold.operator_name,
-        created_at:now,
+      const grnNumber=await generateGRNNumber(hold.plant);
+      await addDoc(collection(db,"goods_inward_notes"),{
+        gin_number:null,grn_number:grnNumber,source:"direct",
+        plant:hold.plant,vendor_id:null,vendor_name:hold.supplier_name||"",
+        po_id:null,po_number:null,
+        line_items:[{
+          item_code:"",material_id:newRef.id,material_name:hold.material_name,
+          item_description:"",unit:hold.unit||"kg",
+          challan_qty:hold.quantity,accepted_qty:hold.quantity,rejected_qty:0,actual_challan_qty:hold.quantity,
+          remarks:holdRemark[hold.id]||hold.remarks||"",
+          posted:true,posted_qty:hold.quantity,posted_at:now,posted_by:hold.operator_name,
+        }],
+        remarks:holdRemark[hold.id]||hold.remarks||null,comments:null,
+        status:"completed",
+        created_by:hold.operator_uid,created_by_name:hold.operator_name,created_at:now,
       });
-      await updateDoc(doc(db,"grn_holds",hold.id),{status:"approved",approved_at:now,approved_by:profile.name||auth.currentUser.email,admin_remarks:holdRemark[hold.id]||null});
+      await updateDoc(doc(db,"grn_holds",hold.id),{status:"approved",approved_at:now,approved_by:operatorName,admin_remarks:holdRemark[hold.id]||null});
       showToast(`${hold.material_name} approved & added to inventory`);
     }catch(e){showToast("Error: "+e.message,"error");}
     finally{setHoldSaving(p=>({...p,[hold.id]:false}));}
@@ -194,73 +184,6 @@ export default function GRNTab({profile,showToast}){
   }
 
   const pendingHolds=holds.filter(h=>h.status==="pending");
-  const historyFiltered=entries.filter(e=>
-    (!historySearch||e.material_name?.toLowerCase().includes(historySearch.toLowerCase())||e.supplier_name?.toLowerCase().includes(historySearch.toLowerCase())||e.po_number?.toLowerCase().includes(historySearch.toLowerCase()))&&
-    (!historyDateFrom||(e.date_received&&e.date_received>=historyDateFrom))&&
-    (!historyDateTo||(e.date_received&&e.date_received<=historyDateTo))
-  );
-
-  function entryField(e,field){
-    switch(field){
-      case "date_received":return e.date_received?new Date(e.date_received).getTime():0;
-      case "material_name":return e.material_name||"";
-      case "supplier_name":return e.supplier_name||"";
-      case "quantity":return parseFloat(e.quantity)||0;
-      case "po_number":return e.po_number||"";
-      case "operator_name":return e.operator_name||"";
-      default:return "";
-    }
-  }
-  const historySorted=[...historyFiltered].sort((a,b)=>{
-    const va=entryField(a,historySortField),vb=entryField(b,historySortField);
-    const cmp=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));
-    return historySortDir==="asc"?cmp:-cmp;
-  });
-  const historyTotalPages=Math.max(1,Math.ceil(historySorted.length/HISTORY_PAGE_SIZE));
-  const historyPageSafe=Math.min(historyPage,historyTotalPages);
-  const historyPaginated=historySorted.slice((historyPageSafe-1)*HISTORY_PAGE_SIZE,historyPageSafe*HISTORY_PAGE_SIZE);
-
-  function onHistorySort(field){
-    if(historySortField===field)setHistorySortDir(d=>d==="asc"?"desc":"asc");
-    else{setHistorySortField(field);setHistorySortDir("asc");}
-    setHistoryPage(1);
-  }
-
-  function exportHistoryExcel(){
-    const rows=historySorted.map(e=>{
-      const ginMatch=/^From (\S+) via/.exec(e.remarks||"");
-      const linkedGin=e.gin_id?gins.find(g=>g.id===e.gin_id):(ginMatch?gins.find(g=>g.gin_number===ginMatch[1]):null);
-      const ginLine=linkedGin?.line_items?.find(it=>it.material_id===e.material_id);
-      const linkedPo=e.po_id?pos.find(p=>p.id===e.po_id):(e.po_number?pos.find(p=>p.po_number===e.po_number):null);
-      const poLine=linkedPo?.line_items?.find(it=>it.material_id===e.material_id);
-      const acceptedQty=parseFloat(e.quantity)||0;
-      const rate=e.po_rate??(parseFloat(poLine?.rate)||0);
-      return{
-        "Vendor Name":e.supplier_name||"",
-        "GRN Number":e.grn_number||"",
-        "GRN Date":e.date_received?formatDate(e.date_received):"",
-        "GRN Status":"Approved",
-        "Challan/Invoice No":e.challan_no||linkedGin?.challan_no||"",
-        "Challan Date":(e.challan_date||linkedGin?.challan_date)?formatDate(e.challan_date||linkedGin.challan_date):"",
-        "Item Code":e.item_code||ginLine?.item_code||"",
-        "Item Name":e.material_name||"",
-        "Item Description":e.item_description||poLine?.item_description||"",
-        "GRN UOM":e.unit||"",
-        "Received Qty":e.received_qty??(ginLine?.challan_qty??""),
-        "Accepted Qty":acceptedQty,
-        "PO/CPO Number":e.po_number||"",
-        "PO/CPO Date":e.po_date?formatDate(e.po_date):(linkedPo?.created_at?formatDate(linkedPo.created_at?.toDate?linkedPo.created_at.toDate():linkedPo.created_at):""),
-        "Required Date":(e.po_required_date||poLine?.required_date)?formatDate(e.po_required_date||poLine.required_date):"",
-        "Item Rate":rate,
-        "Item Amount":acceptedQty*rate,
-      };
-    });
-    const ws=XLSX.utils.json_to_sheet(rows);
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,"GRN");
-    XLSX.writeFile(wb,`GRN_History_${new Date().toISOString().split("T")[0]}.xlsx`);
-    showToast("Exported to Excel");
-  }
 
   // ── Full-page detail / form / mode overrides ──
   if(creatingNew){
@@ -281,25 +204,8 @@ export default function GRNTab({profile,showToast}){
           </div>
           {ginEditingId===gin.id
             ? <GINForm profile={profile} pos={pos} existing={gin} showToast={showToast} onClose={closeGinDetail}/>
-            : <GINDetailPanel gin={gin} profile={profile} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
+            : <GINDetailPanel gin={gin} profile={profile} pos={pos} showToast={showToast} canApprove={canApprove} canEdit={canEdit} canCancel={canCancel}
                 onEdit={openGinEdit} onCancel={()=>cancelGIN(gin)}/>
-          }
-        </div>
-      );
-    }
-  }
-  if(historyExpandedId){
-    const entry=entries.find(e=>e.id===historyExpandedId);
-    if(entry){
-      return(
-        <div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={()=>{setHistoryExpandedId(null);setHistoryEditingId(null);}}><Icon name="arrow" size={14}/>Back</button>
-            <div style={{fontSize:14,fontWeight:600}}>{entry.grn_number||"GRN"}</div>
-          </div>
-          {historyEditingId===entry.id
-            ? <GRNEditForm entry={entry} pos={pos} materials={materials} showToast={showToast} onClose={()=>{setHistoryExpandedId(null);setHistoryEditingId(null);}}/>
-            : <GRNDetailPanel entry={entry} canEdit={canCreate} onEdit={()=>setHistoryEditingId(entry.id)}/>
           }
         </div>
       );
@@ -308,11 +214,6 @@ export default function GRNTab({profile,showToast}){
 
   return(
     <div>
-      <div style={{display:"inline-flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,padding:3,marginBottom:16}}>
-        <button onClick={()=>setSegment("receipts")} style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:segment==="receipts"?600:400,background:segment==="receipts"?"#fff":"transparent",color:segment==="receipts"?"#1a1f2e":"#6b7280",fontFamily:"'Roboto',sans-serif",boxShadow:segment==="receipts"?"0 1px 2px rgba(0,0,0,.06)":"none"}}>Receipts</button>
-        <button onClick={()=>setSegment("history")} style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:segment==="history"?600:400,background:segment==="history"?"#fff":"transparent",color:segment==="history"?"#1a1f2e":"#6b7280",fontFamily:"'Roboto',sans-serif",boxShadow:segment==="history"?"0 1px 2px rgba(0,0,0,.06)":"none"}}>Posted History</button>
-      </div>
-
       {isAdmin&&pendingHolds.length>0&&(
         <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"14px 16px",marginBottom:20}}>
           <div style={{...S,fontSize:11,color:"#92400e",fontWeight:700,marginBottom:12}}>⚠ {pendingHolds.length} GRN Hold{pendingHolds.length>1?"s":""} pending review</div>
@@ -336,134 +237,75 @@ export default function GRNTab({profile,showToast}){
         </div>
       )}
 
-      {segment==="receipts"?(
-        <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-            <div style={{fontSize:14,fontWeight:600}}>{ginHasActiveNarrowing?`${ginFiltered.length} of ${gins.length} receipt${gins.length!==1?"s":""}`:`${gins.length} receipt${gins.length!==1?"s":""}`}</div>
-            <div style={{display:"flex",gap:8}}>
-              {ginSorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportGinExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
-              {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>Receive against PO</button>}
-              {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>}
-            </div>
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+          <div style={{fontSize:14,fontWeight:600}}>{ginHasActiveNarrowing?`${ginFiltered.length} of ${gins.length} receipt${gins.length!==1?"s":""}`:`${gins.length} receipt${gins.length!==1?"s":""}`}</div>
+          <div style={{display:"flex",gap:8}}>
+            {ginSorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportGinExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+            {canCreate&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>Receive against PO</button>}
+            {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>}
           </div>
-
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-            {[["all","All"],...GIN_STATUSES.map(s=>[s,GIN_STATUS_LABELS[s]])].map(([v,l])=>(
-              <button key={v} onClick={()=>{setStatusFilter(v);setGinPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
-            ))}
-            <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setGinPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
-              <option value="all">All plants</option>
-              {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-
-          <div style={{marginBottom:16}}>
-            <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by GIN number, vendor, PO, or challan no…" value={ginSearch} onChange={e=>{setGinSearch(e.target.value);setGinPage(1);}}/>
-          </div>
-
-          {gins.length===0
-            ?<EmptyState text="No receipts yet" sub={canCreate?"Click 'Receive against PO' to log an arrival":undefined}/>
-            :ginFiltered.length===0
-            ?<EmptyState text="No receipts match" sub={canCreate?"Try a different filter, or click 'Receive against PO' to log an arrival":undefined}/>
-            :<>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
-                  <thead>
-                    <tr style={{background:"#fafafa"}}>
-                      <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
-                      <SortTh label="GIN No." field="gin_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <SortTh label="Type" field="gin_type" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <SortTh label="PO No." field="po_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <SortTh label="Vendor name" field="vendor_name" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <SortTh label="Site" field="plant" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <DateRangeTh label="Date" field="created_at" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort} dateFrom={ginDateFrom} dateTo={ginDateTo} onApply={(f,t)=>{setGinDateFrom(f);setGinDateTo(t);setGinPage(1);}}/>
-                      <SortTh label="Status" field="status" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <SortTh label="Vehicle" field="vehicle_no" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                      <SortTh label="GRN" field="grn_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ginPaginated.map(gin=>(
-                      <GINTableRow key={gin.id} gin={gin} selected={ginSelectedId===gin.id} onSelect={()=>selectGinRow(gin.id)}/>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
-                <div style={{display:"flex",gap:8}}>
-                  <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:ginSelectedId?1:.4,cursor:ginSelectedId?"pointer":"default"}} disabled={!ginSelectedId} onClick={openGinView}>View</button>
-                  <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:ginSelectedId&&ginEditability(gins.find(g=>g.id===ginSelectedId)||{},canCreate).canEdit?1:.4,cursor:ginSelectedId&&ginEditability(gins.find(g=>g.id===ginSelectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!ginSelectedId||!ginEditability(gins.find(g=>g.id===ginSelectedId)||{},canCreate).canEdit} onClick={openGinEdit}>Edit</button>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
-                  <span>{ginSorted.length} receipt{ginSorted.length!==1?"s":""}</span>
-                  <button aria-label="First page" disabled={ginPageSafe<=1} onClick={()=>setGinPage(1)} style={{...pagerBtnStyle,opacity:ginPageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
-                  <button aria-label="Previous page" disabled={ginPageSafe<=1} onClick={()=>setGinPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:ginPageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
-                  <span>Page {ginPageSafe} of {ginTotalPages}</span>
-                  <button aria-label="Next page" disabled={ginPageSafe>=ginTotalPages} onClick={()=>setGinPage(p=>Math.min(ginTotalPages,p+1))} style={{...pagerBtnStyle,opacity:ginPageSafe>=ginTotalPages?.4:1}}><PagerIcon dir="next"/></button>
-                  <button aria-label="Last page" disabled={ginPageSafe>=ginTotalPages} onClick={()=>setGinPage(ginTotalPages)} style={{...pagerBtnStyle,opacity:ginPageSafe>=ginTotalPages?.4:1}}><PagerIcon dir="last"/></button>
-                </div>
-              </div>
-            </>
-          }
         </div>
-      ):(
-        <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-            <div style={{fontSize:14,fontWeight:600}}>{entries.length} receipt{entries.length!==1?"s":""} posted</div>
-            <div style={{display:"flex",gap:8}}>
-              {historySorted.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportHistoryExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
-              {canCreate&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setMode("direct")}><Icon name="inbox" size={12}/>Direct Receipt</button>}
-            </div>
-          </div>
 
-          <div style={{marginBottom:16}}>
-            <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search material / supplier / PO…" value={historySearch} onChange={e=>{setHistorySearch(e.target.value);setHistoryPage(1);}}/>
-          </div>
-
-          {entries.length===0
-            ?<EmptyState text="No receipts posted yet"/>
-            :historyFiltered.length===0
-            ?<EmptyState text="No receipts match"/>
-            :<>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
-                  <thead>
-                    <tr style={{background:"#fafafa"}}>
-                      <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
-                      <DateRangeTh label="Date" field="date_received" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort} dateFrom={historyDateFrom} dateTo={historyDateTo} onApply={(f,t)=>{setHistoryDateFrom(f);setHistoryDateTo(t);setHistoryPage(1);}}/>
-                      <SortTh label="Material" field="material_name" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort}/>
-                      <SortTh label="Supplier" field="supplier_name" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort}/>
-                      <SortTh label="Qty" field="quantity" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort} align="right"/>
-                      <SortTh label="PO #" field="po_number" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort}/>
-                      <SortTh label="GRN No." field="grn_number" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort}/>
-                      <SortTh label="By" field="operator_name" sortField={historySortField} sortDir={historySortDir} onSort={onHistorySort}/>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyPaginated.map(e=>(
-                      <GRNTableRow key={e.id} entry={e} selected={historySelectedId===e.id} onSelect={()=>setHistorySelectedId(prev=>prev===e.id?null:e.id)}/>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
-                <div style={{display:"flex",gap:8}}>
-                  <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:historySelectedId?1:.4,cursor:historySelectedId?"pointer":"default"}} disabled={!historySelectedId} onClick={()=>{if(historySelectedId){setHistoryExpandedId(historySelectedId);setHistoryEditingId(null);}}}>View</button>
-                  <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:historySelectedId&&canCreate?1:.4,cursor:historySelectedId&&canCreate?"pointer":"default"}} disabled={!historySelectedId||!canCreate} onClick={()=>{if(historySelectedId){setHistoryExpandedId(historySelectedId);setHistoryEditingId(historySelectedId);}}}>Edit</button>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
-                  <span>{historySorted.length} receipt{historySorted.length!==1?"s":""}</span>
-                  <button aria-label="First page" disabled={historyPageSafe<=1} onClick={()=>setHistoryPage(1)} style={{...pagerBtnStyle,opacity:historyPageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
-                  <button aria-label="Previous page" disabled={historyPageSafe<=1} onClick={()=>setHistoryPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:historyPageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
-                  <span>Page {historyPageSafe} of {historyTotalPages}</span>
-                  <button aria-label="Next page" disabled={historyPageSafe>=historyTotalPages} onClick={()=>setHistoryPage(p=>Math.min(historyTotalPages,p+1))} style={{...pagerBtnStyle,opacity:historyPageSafe>=historyTotalPages?.4:1}}><PagerIcon dir="next"/></button>
-                  <button aria-label="Last page" disabled={historyPageSafe>=historyTotalPages} onClick={()=>setHistoryPage(historyTotalPages)} style={{...pagerBtnStyle,opacity:historyPageSafe>=historyTotalPages?.4:1}}><PagerIcon dir="last"/></button>
-                </div>
-              </div>
-            </>
-          }
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+          {[["all","All"],...GIN_STATUSES.map(s=>[s,GIN_STATUS_LABELS[s]])].map(([v,l])=>(
+            <button key={v} onClick={()=>{setStatusFilter(v);setGinPage(1);}} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"#1a1f2e":"#d1d5db"}`,background:statusFilter===v?"#1a1f2e":"#fff",color:statusFilter===v?"#fff":"#6b7280",fontSize:11,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
+          ))}
+          <select value={plantFilter} onChange={e=>{setPlantFilter(e.target.value);setGinPage(1);}} style={{...fieldStyle,width:"auto",padding:"5px 10px",fontSize:12}}>
+            <option value="all">All plants</option>
+            {PLANTS.map(p=><option key={p} value={p}>{p}</option>)}
+          </select>
         </div>
-      )}
+
+        <div style={{marginBottom:16}}>
+          <input style={{...fieldStyle,width:"100%",maxWidth:420,padding:"8px 14px",fontSize:13}} placeholder="Search by GIN number, vendor, PO, or challan no…" value={ginSearch} onChange={e=>{setGinSearch(e.target.value);setGinPage(1);}}/>
+        </div>
+
+        {gins.length===0
+          ?<EmptyState text="No receipts yet" sub={canCreate?"Click 'Receive against PO' or 'Direct Receipt' to log an arrival":undefined}/>
+          :ginFiltered.length===0
+          ?<EmptyState text="No receipts match" sub={canCreate?"Try a different filter":undefined}/>
+          :<>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,border:"1px solid #9ca3af"}}>
+                <thead>
+                  <tr style={{background:"#fafafa"}}>
+                    <th style={{padding:"8px 6px",borderBottom:"1px solid #9ca3af",width:28}}></th>
+                    <SortTh label="GIN No." field="gin_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <SortTh label="GRN No." field="grn_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <SortTh label="Type" field="gin_type" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <SortTh label="PO No." field="po_number" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <SortTh label="Vendor name" field="vendor_name" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <SortTh label="Site" field="plant" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <DateRangeTh label="Date" field="created_at" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort} dateFrom={ginDateFrom} dateTo={ginDateTo} onApply={(f,t)=>{setGinDateFrom(f);setGinDateTo(t);setGinPage(1);}}/>
+                    <SortTh label="Status" field="status" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                    <SortTh label="Vehicle" field="vehicle_no" sortField={ginSortField} sortDir={ginSortDir} onSort={onGinSort}/>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ginPaginated.map(gin=>(
+                    <GINTableRow key={gin.id} gin={gin} selected={ginSelectedId===gin.id} onSelect={()=>selectGinRow(gin.id)}/>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,flexWrap:"wrap",gap:10}}>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:ginSelectedId?1:.4,cursor:ginSelectedId?"pointer":"default"}} disabled={!ginSelectedId} onClick={openGinView}>View</button>
+                <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",opacity:ginSelectedId&&ginEditability(gins.find(g=>g.id===ginSelectedId)||{},canCreate).canEdit?1:.4,cursor:ginSelectedId&&ginEditability(gins.find(g=>g.id===ginSelectedId)||{},canCreate).canEdit?"pointer":"default"}} disabled={!ginSelectedId||!ginEditability(gins.find(g=>g.id===ginSelectedId)||{},canCreate).canEdit} onClick={openGinEdit}>Edit</button>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:"#6b7280"}}>
+                <span>{ginSorted.length} receipt{ginSorted.length!==1?"s":""}</span>
+                <button aria-label="First page" disabled={ginPageSafe<=1} onClick={()=>setGinPage(1)} style={{...pagerBtnStyle,opacity:ginPageSafe<=1?.4:1}}><PagerIcon dir="first"/></button>
+                <button aria-label="Previous page" disabled={ginPageSafe<=1} onClick={()=>setGinPage(p=>Math.max(1,p-1))} style={{...pagerBtnStyle,opacity:ginPageSafe<=1?.4:1}}><PagerIcon dir="prev"/></button>
+                <span>Page {ginPageSafe} of {ginTotalPages}</span>
+                <button aria-label="Next page" disabled={ginPageSafe>=ginTotalPages} onClick={()=>setGinPage(p=>Math.min(ginTotalPages,p+1))} style={{...pagerBtnStyle,opacity:ginPageSafe>=ginTotalPages?.4:1}}><PagerIcon dir="next"/></button>
+                <button aria-label="Last page" disabled={ginPageSafe>=ginTotalPages} onClick={()=>setGinPage(ginTotalPages)} style={{...pagerBtnStyle,opacity:ginPageSafe>=ginTotalPages?.4:1}}><PagerIcon dir="last"/></button>
+              </div>
+            </div>
+          </>
+        }
+      </div>
     </div>
   );
 }
@@ -529,7 +371,8 @@ function GINTableRow({gin,selected,onSelect}){
       <td style={{...cellStyle,textAlign:"center",cursor:"pointer"}} onClick={onSelect}>
         <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
       </td>
-      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{gin.gin_number}</td>
+      <td style={{...cellStyle,...S,fontWeight:700,color:"#1a1f2e"}}>{gin.gin_number||"—"}</td>
+      <td style={{...cellStyle,...S}}>{gin.grn_number||"—"}</td>
       <td style={cellStyle}>{gin.gin_type||"—"}</td>
       <td style={cellStyle}>{gin.po_number||"—"}</td>
       <td style={cellStyle} title={gin.vendor_name}>{gin.vendor_name}</td>
@@ -537,12 +380,11 @@ function GINTableRow({gin,selected,onSelect}){
       <td style={cellStyle}>{formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at)}</td>
       <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{GIN_STATUS_LABELS[gin.status]}</span></td>
       <td style={cellStyle}>{gin.vehicle_no||"—"}</td>
-      <td style={cellStyle}>{gin.grn_number||"—"}</td>
     </tr>
   );
 }
 
-function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEdit,onCancel}){
+function GINDetailPanel({gin,profile,pos,showToast,canApprove,canEdit,canCancel,onEdit,onCancel}){
   const [busy,setBusy]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
 
@@ -564,6 +406,7 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
       if(linesToSend.length===0){showToast("No accepted quantity on any line — nothing to send to QGIN","error");setBusy(false);return;}
 
       const qginNumbers=[];
+      const qginDate=new Date().toISOString().split("T")[0];
       for(const it of linesToSend){
         const acceptedQty=parseFloat(it.accepted_qty)||0;
         const qginNumber=await generateQGINNumber(gin.plant);
@@ -583,8 +426,16 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
         });
       }
 
+      // Stamp each line that was sent with its own QGIN No./Date, so the
+      // print (and any per-line QC status display) can reference it
+      // directly off the GIN/GRN record without a separate lookup.
+      const updatedLines=(gin.line_items||[]).map(it=>{
+        const idx=linesToSend.indexOf(it);
+        return idx===-1?it:{...it,qgin_number:qginNumbers[idx],qgin_date:qginDate};
+      });
+
       await updateDoc(doc(db,"goods_inward_notes",gin.id),{
-        status:"approved", qgin_numbers:qginNumbers,
+        status:"approved", qgin_numbers:qginNumbers, line_items:updatedLines,
         approved_by:profile.name||auth.currentUser.email, approved_at:now,
       });
       showToast(`${gin.gin_number} approved — ${qginNumbers.length} QGIN${qginNumbers.length>1?"s":""} sent for QC`);
@@ -604,7 +455,17 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
   return(
     <div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printGoodsInwardNote(gin)}><Icon name="clipboard" size={12}/>Print GIN</button>
+        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>{
+          const po=gin.po_id?pos.find(p=>p.id===gin.po_id):null;
+          printGoodsInwardNote({
+            ...gin,
+            po_date:po?.created_at?.toDate?po.created_at.toDate().toISOString().split("T")[0]:(po?.created_at||null),
+            line_items:(gin.line_items||[]).map(it=>({
+              ...it,
+              po_qty:po?.line_items?.find(pl=>pl.material_id===it.material_id)?.qty??null,
+            })),
+          });
+        }}><Icon name="clipboard" size={12}/>Print</button>
         {canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>Edit</button>}
         {gin.status==="draft"&&canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={submitForApproval}><Icon name="check" size={12}/>Submit for Approval</button>}
         {gin.status==="pending_approval"&&canApprove&&<button className="btn-primary" style={{fontSize:12,padding:"6px 12px"}} disabled={busy} onClick={approveAndSendToQGIN}><Icon name="check" size={12}/>Approve & Send to QGIN</button>}
@@ -654,7 +515,7 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
 
       <div className="card" style={{padding:0,marginBottom:14,overflow:"hidden",background:"#fff"}}>
         <div style={{display:"flex",padding:"8px 14px",background:"#f9fafb",fontSize:10,color:"#9ca3af",...S,textTransform:"uppercase",letterSpacing:".05em"}}>
-          <span style={{flex:1}}>Item</span><span style={{width:70,textAlign:"right"}}>Challan</span><span style={{width:70,textAlign:"right"}}>Accepted</span><span style={{width:70,textAlign:"right"}}>Rejected</span>
+          <span style={{flex:1}}>Item</span><span style={{width:70,textAlign:"right"}}>Challan</span><span style={{width:70,textAlign:"right"}}>Accepted</span><span style={{width:70,textAlign:"right"}}>Rejected</span><span style={{width:80,textAlign:"right"}}>QC</span>
         </div>
         {(gin.line_items||[]).map((it,i)=>(
           <div key={i} style={{display:"flex",padding:"10px 14px",borderTop:"1px solid #f3f4f6",fontSize:12,alignItems:"center"}}>
@@ -665,6 +526,14 @@ function GINDetailPanel({gin,profile,showToast,canApprove,canEdit,canCancel,onEd
             <span style={{width:70,textAlign:"right",...S}}>{it.challan_qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S,color:"#16a34a"}}>{it.accepted_qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S,color:(parseFloat(it.rejected_qty)||0)>0?"#dc2626":"#9ca3af"}}>{it.rejected_qty||0} {it.unit}</span>
+            <span style={{width:80,textAlign:"right"}}>
+              {it.posted
+                ?<span style={{...S,background:"#f0fdf4",color:"#16a34a",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>Posted</span>
+                :it.qgin_number
+                ?<span style={{...S,background:"#fffbeb",color:"#b45309",padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:600}}>Pending QC</span>
+                :<span style={{fontSize:10,color:"#d1d5db"}}>—</span>
+              }
+            </span>
           </div>
         ))}
         {gin.qgin_numbers?.length>0&&(
@@ -738,7 +607,7 @@ function GINForm({profile,pos,existing,showToast,onClose}){
     try{
       const payload={
         plant, gin_type:ginType, po_id:po.id, po_number:po.po_number, po_ver:po.amd_no||0,
-        vendor_id:po.vendor_id||null, vendor_name:po.vendor_name||null, vendor_code:po.vendor_code||null,
+        vendor_id:po.vendor_id||null, vendor_name:po.vendor_name||null, vendor_code:po.vendor_code||null, vendor_address:po.vendor_address||null,
         received_by_code:receivedByCode||null, received_by:receivedBy||null,
         lr_no:lrNo||null, lr_date:lrDate||null,
         challan_no:challanNo||null, challan_date:challanDate||null,
@@ -758,11 +627,12 @@ function GINForm({profile,pos,existing,showToast,onClose}){
         showToast(submitForApproval?`${existing.gin_number} submitted for approval`:`${existing.gin_number} updated`);
       }else{
         const ginNumber=await generateGINNumber(plant);
+        const grnNumber=await generateGRNNumber(plant);
         await addDoc(collection(db,"goods_inward_notes"),{
-          ...payload, gin_number:ginNumber, status:submitForApproval?"pending_approval":"draft",
+          ...payload, gin_number:ginNumber, grn_number:grnNumber, status:submitForApproval?"pending_approval":"draft",
           created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
         });
-        showToast(`${ginNumber} ${submitForApproval?"submitted for approval":"saved as draft"}`);
+        showToast(`${ginNumber} (${grnNumber}) ${submitForApproval?"submitted for approval":"saved as draft"}`);
       }
       onClose();
     }catch(e){setErrors([`Save failed: ${e.message}`]);}
@@ -872,174 +742,6 @@ function GINForm({profile,pos,existing,showToast,onClose}){
   );
 }
 
-// ─── GRN table row — select circle only; View/Edit buttons open full detail ─
-function GRNTableRow({entry,selected,onSelect}){
-  const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
-  return(
-    <tr style={{background:selected?"#f5f7fa":"transparent"}}
-      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background="#fafafa";}}
-      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background="transparent";}}>
-      <td style={{...cellStyle,textAlign:"center",cursor:"pointer"}} onClick={onSelect}>
-        <span style={{display:"inline-block",width:13,height:13,borderRadius:"50%",border:`1.5px solid ${selected?"#1a1f2e":"#d1d5db"}`,background:selected?"#1a1f2e":"transparent"}}/>
-      </td>
-      <td style={cellStyle}>{formatDate(entry.date_received)}</td>
-      <td style={{...cellStyle,fontWeight:500,color:"#1a1f2e"}} title={entry.material_name}>{entry.material_name}</td>
-      <td style={cellStyle}>{entry.supplier_name||"—"}</td>
-      <td style={{...cellStyle,...S,textAlign:"right"}}>{entry.quantity} {entry.unit}</td>
-      <td style={cellStyle}>{entry.po_number||"—"}</td>
-      <td style={{...cellStyle,...S}}>{entry.grn_number||"—"}</td>
-      <td style={cellStyle}>{entry.operator_name}</td>
-    </tr>
-  );
-}
-
-// ─── GRN detail panel — read-only View, with Edit and Print actions ────────
-function GRNDetailPanel({entry,canEdit,onEdit}){
-  return(
-    <div>
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>printGRN(entry)}><Icon name="clipboard" size={12}/>Print GRN</button>
-        {canEdit&&<button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={onEdit}><Icon name="edit" size={12}/>Edit</button>}
-      </div>
-      <div className="card" style={{padding:16,marginBottom:14,background:"#fff"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          <div>
-            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Receipt</div>
-            <div style={{fontSize:13,fontWeight:600}}>{entry.material_name}</div>
-            <div style={{fontSize:11,color:"#9ca3af"}}>Qty: {entry.quantity} {entry.unit}</div>
-            <div style={{fontSize:11,color:"#9ca3af"}}>Date: {formatDate(entry.date_received)}</div>
-          </div>
-          <div>
-            <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>Source</div>
-            <div style={{fontSize:11,color:"#9ca3af"}}>Supplier: {entry.supplier_name||"—"}</div>
-            <div style={{fontSize:11,color:"#9ca3af"}}>PO: {entry.po_number||"—"}</div>
-            <div style={{fontSize:11,color:"#9ca3af"}}>GRN No: {entry.grn_number||"—"}</div>
-          </div>
-        </div>
-      </div>
-      {entry.remarks&&<div style={{fontSize:12,color:"#6b7280",marginBottom:8}}><span style={{color:"#9ca3af"}}>Remarks:</span> {entry.remarks}</div>}
-      <div style={{fontSize:11,color:"#9ca3af"}}>Received by {entry.operator_name}</div>
-    </div>
-  );
-}
-
-// ─── GRN edit form — allows correcting a posted receipt, including quantity,
-// adjusting rm_inventory stock (and the linked PO's received_qty, if any) by
-// the delta between the old and new quantity ─────────────────────────────
-function GRNEditForm({entry,pos,materials,showToast,onClose}){
-  const [materialId,setMaterialId]=useState(entry.material_id||"");
-  const [materialName,setMaterialName]=useState(entry.material_name||"");
-  const [supplierName,setSupplierName]=useState(entry.supplier_name||"");
-  const [quantity,setQuantity]=useState(entry.quantity??"");
-  const [unit,setUnit]=useState(entry.unit||"kg");
-  const [dateReceived,setDateReceived]=useState(entry.date_received||"");
-  const [poNumber,setPoNumber]=useState(entry.po_number||"");
-  const [remarks,setRemarks]=useState(entry.remarks||"");
-  const [saving,setSaving]=useState(false);
-  const [error,setError]=useState("");
-
-  function selectMaterial(id){
-    setMaterialId(id);
-    const m=materials.find(m=>m.id===id);
-    if(m){setMaterialName(m.material_name);setUnit(m.unit||unit);}
-  }
-
-  async function save(){
-    const newQty=parseFloat(quantity);
-    if(!newQty||newQty<=0){setError("Enter a valid quantity");return;}
-    setError("");setSaving(true);
-    try{
-      const now=serverTimestamp();
-      const oldQty=parseFloat(entry.quantity)||0;
-      const oldMaterialId=entry.material_id||null;
-
-      if(oldMaterialId){
-        const oldRef=doc(db,"rm_inventory",oldMaterialId);
-        const oldSnap=await getDoc(oldRef);
-        if(oldSnap.exists())await updateDoc(oldRef,{current_stock:(oldSnap.data().current_stock||0)-oldQty,updated_at:now});
-      }
-      if(materialId){
-        const newRef=doc(db,"rm_inventory",materialId);
-        const newSnap=await getDoc(newRef);
-        const current=newSnap.exists()?(newSnap.data().current_stock||0):0;
-        await updateDoc(newRef,{current_stock:current+newQty,updated_at:now});
-      }
-
-      if(entry.po_id){
-        const poSnap=await getDoc(doc(db,"purchase_orders",entry.po_id));
-        if(poSnap.exists()){
-          const poData=poSnap.data();
-          const updatedLines=(poData.line_items||[]).map(pit=>{
-            if(oldMaterialId&&pit.material_id===oldMaterialId&&(!materialId||materialId===oldMaterialId)){
-              return {...pit,received_qty:Math.max(0,(pit.received_qty||0)-oldQty+newQty)};
-            }
-            if(materialId&&materialId!==oldMaterialId&&pit.material_id===materialId){
-              return {...pit,received_qty:(pit.received_qty||0)+newQty};
-            }
-            if(oldMaterialId&&materialId&&materialId!==oldMaterialId&&pit.material_id===oldMaterialId){
-              return {...pit,received_qty:Math.max(0,(pit.received_qty||0)-oldQty)};
-            }
-            return pit;
-          });
-          await updateDoc(doc(db,"purchase_orders",entry.po_id),{line_items:updatedLines,status:poReceivedStatus(updatedLines),updated_at:now});
-        }
-      }
-
-      await updateDoc(doc(db,"goods_inward",entry.id),{
-        material_id:materialId||null,material_name:materialName,
-        supplier_name:supplierName||"",quantity:newQty,unit,
-        date_received:dateReceived,po_number:poNumber||null,
-        remarks:remarks||null,updated_at:now,
-      });
-      showToast("Receipt updated");
-      onClose();
-    }catch(e){setError("Error: "+e.message);}
-    finally{setSaving(false);}
-  }
-
-  return(
-    <div className="card animate-in" style={{padding:20}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-        <div>
-          <label style={labelStyle}>Material</label>
-          <select style={fieldStyle} value={materialId} onChange={e=>selectMaterial(e.target.value)}>
-            <option value="">— {materialName||"Unlinked"} —</option>
-            {materials.map(m=><option key={m.id} value={m.id}>{m.material_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Supplier</label>
-          <input style={fieldStyle} value={supplierName} onChange={e=>setSupplierName(e.target.value)}/>
-        </div>
-          <div>
-            <label style={labelStyle}>Quantity *</label>
-            <div style={{display:"flex",gap:8}}>
-              <input type="number" style={{...fieldStyle,flex:1}} min="0" step="0.01" value={quantity} onChange={e=>setQuantity(e.target.value)}/>
-              <div style={{width:110,flexShrink:0}}><UomField value={unit} onChange={setUnit}/></div>
-            </div>
-          </div>
-        <div>
-          <label style={labelStyle}>Date Received</label>
-          <input type="date" style={fieldStyle} value={dateReceived} onChange={e=>setDateReceived(e.target.value)}/>
-        </div>
-        <div>
-          <label style={labelStyle}>PO No.</label>
-          <input style={fieldStyle} value={poNumber} onChange={e=>setPoNumber(e.target.value)}/>
-        </div>
-        <div style={{gridColumn:"1/-1"}}>
-          <label style={labelStyle}>Remarks</label>
-          <input style={fieldStyle} value={remarks} onChange={e=>setRemarks(e.target.value)}/>
-        </div>
-      </div>
-      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#dc2626",marginBottom:14}}>{error}</div>}
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <button className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={13}/>{saving?"Saving…":"Save changes"}</button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Direct receipt (no PO) — unchanged: posts stock immediately, skips QGIN ─
 function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
   const [plant,setPlant]=useState("Bidadi");
@@ -1084,11 +786,19 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
         if(!matId){setError("Select a material");setSaving(false);return;}
         const mat=materials.find(m=>m.id===matId);
         const grnNumber=await generateGRNNumber(plant);
-        await addDoc(collection(db,"goods_inward"),{
-          material_id:matId,material_name:mat?.material_name||"",
-          supplier_id:suppId||null,supplier_name:suppName||suppId||"",
-          quantity:qtyNum,unit,date_received:dateRcvd,plant,grn_number:grnNumber,
-          remarks:remarks||null,operator_uid:operatorUid,operator_name:operatorName,created_at:now,
+        await addDoc(collection(db,"goods_inward_notes"),{
+          gin_number:null,grn_number:grnNumber,source:"direct",
+          plant,vendor_id:suppId||null,vendor_name:suppName||suppId||"",
+          po_id:null,po_number:null,
+          line_items:[{
+            item_code:"",material_id:matId,material_name:mat?.material_name||"",
+            item_description:"",unit,
+            challan_qty:qtyNum,accepted_qty:qtyNum,rejected_qty:0,actual_challan_qty:qtyNum,
+            remarks:remarks||"",posted:true,posted_qty:qtyNum,posted_at:now,posted_by:operatorName,
+          }],
+          remarks:remarks||null,comments:null,
+          status:"completed",
+          created_by:operatorUid,created_by_name:operatorName,created_at:now,
         });
         const newStock=(mat?.current_stock||0)+qtyNum;
         await updateDoc(doc(db,"rm_inventory",matId),{current_stock:newStock,updated_at:now});
