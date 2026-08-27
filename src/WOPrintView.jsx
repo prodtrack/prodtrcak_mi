@@ -65,7 +65,7 @@ export function printWorkOrder(order){
   .ins-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
   .ins-table th,.ins-table td{border-left:1px solid #000;border-bottom:1px solid #000;font-size:11px;}
   .ins-table th:first-child,.ins-table td:first-child{border-left:none;}
-  .remarks-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:6px 8px;font-size:11px;min-height:36px;}
+  .remarks-row{border-top:1px solid #000;border-bottom:1px solid #000;padding:6px 8px;font-size:11px;min-height:36px;white-space:pre-line;}
   .sign-row{display:flex;}
   .sign-row>div{flex:1;padding:18px 8px 6px;text-align:center;font-size:11px;border-right:1px solid #000;}
   .sign-row>div:last-child{border-right:none;}

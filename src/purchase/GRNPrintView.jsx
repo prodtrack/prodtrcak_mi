@@ -51,7 +51,7 @@ export function printGRN(entry){
   .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:10.5px; }
   .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:9.5px; }
   .r { text-align:right; } .c { text-align:center; }
-  .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:60px; }
+  .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:60px; white-space:pre-line; }
   .footer-box .label { font-size:11px; margin-bottom:3px; }
   .sign-row { display:flex; border:1px solid #000; border-top:none; margin-top:40px; }
   .sign-row div { flex:1; padding:14px 8px 6px; font-size:11px; text-align:center; }
@@ -137,7 +137,7 @@ export function printGRN(entry){
         <td class="r">${entry.received_qty??"-"}</td>
         <td class="r">${entry.quantity??0}</td>
         <td class="r">${entry.rejected_qty??0}</td>
-        <td>${esc(entry.remarks_line||"")}</td>
+        <td style="white-space:pre-line;">${esc(entry.remarks_line||"")}</td>
       </tr>
     </tbody>
   </table>

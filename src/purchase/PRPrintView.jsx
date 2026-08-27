@@ -100,6 +100,7 @@ export function printPurchaseRequisition(pr){
       <div>Requisition No: <b>${esc(pr.pr_number)}</b></div>
       <div>Site: <b>${esc(company.name||pr.plant)}</b></div>
       <div>Requisition Type: <b>${esc(pr.requisition_type||"")}</b></div>
+      ${pr.requisition_type==="Import"?`<div>Inco Terms: <b>${esc(pr.inco_terms||"-")}</b></div>`:""}
       <div>Requested By Code: <b>${esc(pr.requested_by_code||"—")}</b></div>
     </div>
     <div>

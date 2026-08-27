@@ -358,7 +358,9 @@ function PRDetailPanel({pr,profile,vendors,showToast,canApprove,canEdit,canCance
         line_items:poLineItems, gst_rate:DEFAULT_GST_RATE, total_amount:0,
         expected_delivery:(poLineItems.map(l=>l.required_date).filter(Boolean).sort()[0])||null,
         your_reference:pr.pr_number, payment_terms:vendorMaster?.payment_terms||null,
-        terms_of_delivery:"FOR (freight paid by you)", mode_of_delivery:"Road", po_type:"Domestic",
+        terms_of_delivery:"FOR (freight paid by you)", mode_of_delivery:"Road",
+        po_type:pr.requisition_type==="Import"?"Import":"Domestic",
+        inco_terms:pr.requisition_type==="Import"?(pr.inco_terms||null):null,
         remarks:pr.remarks||null,
         po_number:poNumber, status:"draft", pr_reference:pr.pr_number,
         created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),
@@ -456,6 +458,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
   const isEdit=!!existing?.id;
   const [plant,setPlant]=useState(existing?.plant||"Bidadi");
   const [requisitionType,setRequisitionType]=useState(existing?.requisition_type||"Internal");
+  const [incoTerms,setIncoTerms]=useState(existing?.inco_terms||"");
   const [vendorId,setVendorId]=useState(existing?.vendor_id||"");
   const [requestedByCode,setRequestedByCode]=useState(existing?.requested_by_code||"");
   const [jobOrder,setJobOrder]=useState(existing?.job_order||"");
@@ -509,6 +512,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
       }
       const payload={
         plant, requisition_type:requisitionType,
+        inco_terms:requisitionType==="Import"?(incoTerms.trim()||null):null,
         vendor_id:vendor?.id||null, vendor_name:vendor?.name||null, vendor_code:vendor?.vendor_code||null,
         vendor_gstin:vendor?.gstin||null, vendor_state_code:vendor?.state_code||null,
         vendor_address:vendor?.address||null, vendor_phone:vendor?.phone||null, vendor_email:vendor?.email||null, vendor_pan:vendor?.pan||null,
@@ -565,6 +569,12 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
               {REQUISITION_TYPES.map(t=><option key={t}>{t}</option>)}
             </select>
           </div>
+          {requisitionType==="Import"&&(
+            <div>
+              <label style={labelStyle}>Inco Terms</label>
+              <input style={fieldStyle} value={incoTerms} onChange={e=>setIncoTerms(e.target.value)} placeholder="e.g. FOB, CIF, EXW"/>
+            </div>
+          )}
           <div>
             <FuzzyAutocomplete label="Vendor" value={vendor?.name||""} onChange={()=>{}} onSelect={m=>setVendorId(m.id)} options={vendors} displayKey="name" strict placeholder="— Select vendor —"/>
             {!vendor&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>Optional — can be set later on the PO</div>}

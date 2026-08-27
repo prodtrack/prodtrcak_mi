@@ -103,7 +103,7 @@ export function printEnquiry(enquiry){
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:90px;flex-shrink:0;font-weight:600;}
   .final-price{padding:8px 0 3px 16px;font-size:13px;font-weight:700;}
-  .item-remarks{padding:6px 0 0 16px;font-size:12px;}
+  .item-remarks{padding:6px 0 0 16px;font-size:12px;white-space:pre-line;}
   .enq-no-line{padding:8px 16px 0;font-size:12px;font-weight:600;}
   .offer-intro{padding:6px 16px 3px;font-size:13px;font-weight:600;}
   @media print{

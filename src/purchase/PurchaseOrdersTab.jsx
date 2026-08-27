@@ -522,6 +522,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
   const [termsOfDelivery,setTermsOfDelivery]=useState(existing?.terms_of_delivery||"FOR (freight paid by you)");
   const [modeOfDelivery,setModeOfDelivery]=useState(existing?.mode_of_delivery||"Road");
   const [poType,setPoType]=useState(existing?.po_type||"Domestic");
+  const [incoTerms,setIncoTerms]=useState(existing?.inco_terms||"");
   const [remarks,setRemarks]=useState(existing?.remarks||"");
   const [gstRate,setGstRate]=useState(existing?.gst_rate??(isEdit?"":DEFAULT_GST_RATE));
   const [saving,setSaving]=useState(false);
@@ -582,6 +583,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         total_amount:totals.grandTotal,
         expected_delivery:earliestRequiredDate(cleanLines), your_reference:yourReference||null,
         payment_terms:paymentTerms||null, terms_of_delivery:termsOfDelivery||null, mode_of_delivery:modeOfDelivery||null, po_type:poType||null,
+        inco_terms:poType==="Import"?(incoTerms.trim()||null):null,
         remarks:remarks||null,
         updated_at:serverTimestamp(),
       };
@@ -660,6 +662,12 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
           <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
             <SelectOrCustom label="PO Type" value={poType} onChange={setPoType} options={["Domestic","Import"]} placeholder="— Select PO type —"/>
           </div>
+          {poType==="Import"&&(
+            <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
+              <label style={labelStyle}>Inco Terms</label>
+              <input style={fieldStyle} value={incoTerms} onChange={e=>setIncoTerms(e.target.value)} placeholder="e.g. FOB, CIF, EXW" readOnly={isAmendment}/>
+            </div>
+          )}
         </div>
       </div>
 
