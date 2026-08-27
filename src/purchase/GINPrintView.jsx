@@ -22,6 +22,13 @@ import { formatDate } from "../shared.jsx";
 function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+// Collapses any blank/empty lines out of a multi-line field (e.g. a
+// remarks textarea saved with paragraph-separating double line breaks),
+// so the print shows tight, consecutive lines with no visible gaps —
+// while still keeping every genuine line break the person typed.
+function tightLines(s){
+  return String(s??"").split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+}
 function fd(d){return d?formatDate(d):"-";}
 function fmtQty(v){
   const n=parseFloat(v);
@@ -53,7 +60,7 @@ export function printGoodsInwardNote(gin){
       <td class="r">${fmtQty(it.actual_challan_qty)}</td>
       <td class="r">${fmtQty(it.accepted_qty)}</td>
       <td class="r">${fmtQty(it.rejected_qty)}</td>
-      <td style="white-space:pre-line;">${esc(it.remarks||"")}</td>
+      <td style="white-space:pre-line;">${esc(tightLines(it.remarks))}</td>
     </tr>`).join("");
 
   win.document.write(`
@@ -162,8 +169,8 @@ export function printGoodsInwardNote(gin){
     </tbody>
   </table>
 
-  <div class="footer-box"><div class="label">Remarks :</div>${esc(gin.remarks||"")}</div>
-  <div class="footer-box"><div class="label">Comments :</div>${esc(gin.comments||"")}</div>
+  <div class="footer-box"><div class="label">Remarks :</div>${esc(tightLines(gin.remarks))}</div>
+  <div class="footer-box"><div class="label">Comments :</div>${esc(tightLines(gin.comments))}</div>
   <div class="sign-row">
     <div>Prepared By</div>
     <div>Checked By</div>

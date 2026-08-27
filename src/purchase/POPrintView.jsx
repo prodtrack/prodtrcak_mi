@@ -14,6 +14,13 @@ import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
 function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+// Collapses any blank/empty lines out of a multi-line field (e.g. a
+// remarks textarea saved with paragraph-separating double line breaks),
+// so the print shows tight, consecutive lines with no visible gaps —
+// while still keeping every genuine line break the person typed.
+function tightLines(s){
+  return String(s??"").split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+}
 function fmtDate(d){
   if(!d)return"-";
   const dt=new Date(d);
@@ -36,8 +43,8 @@ export function printPurchaseOrder(po){
       <td>
         <div class="partcode">${esc(it.part_code||"")}</div>
         <div>${esc(it.material_name)}</div>
-        ${(desc&&!isDuplicateDesc)?`<div class="itemsub">${esc(it.item_description)}</div>`:""}
-        ${it.item_remarks?`<div class="itemsub">${esc(it.item_remarks)}</div>`:""}
+        ${(desc&&!isDuplicateDesc)?`<div class="itemsub">${esc(tightLines(it.item_description))}</div>`:""}
+        ${it.item_remarks?`<div class="itemsub">${esc(tightLines(it.item_remarks))}</div>`:""}
       </td>
       <td class="c">${esc(it.hsn_code||"")}</td>
       <td class="c">${fmtDate(it.required_date)}</td>

@@ -11,6 +11,13 @@ import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
 function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+// Collapses any blank/empty lines out of a multi-line field (e.g. a
+// remarks textarea saved with paragraph-separating double line breaks),
+// so the print shows tight, consecutive lines with no visible gaps —
+// while still keeping every genuine line break the person typed.
+function tightLines(s){
+  return String(s??"").split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+}
 function fmtDate(d){
   if(!d)return"-";
   const dt=new Date(d);
@@ -32,7 +39,7 @@ export function printPurchaseRequisition(pr){
       <td class="c">${esc((it.unit||"").toUpperCase())}</td>
       <td class="c">${fmtDate(it.required_date)}</td>
       <td class="r">${it.last_po_rate!=null?Number(it.last_po_rate).toFixed(2):""}</td>
-      <td style="white-space:pre-line;">${esc(it.remarks||"")}</td>
+      <td style="white-space:pre-line;">${esc(tightLines(it.remarks))}</td>
     </tr>`).join("");
 
   const html=`<!DOCTYPE html>

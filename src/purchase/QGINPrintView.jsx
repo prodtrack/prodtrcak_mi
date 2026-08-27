@@ -14,6 +14,13 @@ import { formatDate } from "../shared.jsx";
 function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+// Collapses any blank/empty lines out of a multi-line field (e.g. a
+// remarks textarea saved with paragraph-separating double line breaks),
+// so the print shows tight, consecutive lines with no visible gaps —
+// while still keeping every genuine line break the person typed.
+function tightLines(s){
+  return String(s??"").split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+}
 
 export function printQualityGIN(qgin){
   const company=COMPANY_INFO[qgin.plant]||{};
@@ -129,8 +136,8 @@ export function printQualityGIN(qgin){
     </tbody>
   </table>
 
-  <div class="footer-box"><div class="label">Remarks</div>${esc(qgin.remarks||"")}</div>
-  <div class="footer-box"><div class="label">Reasons</div>${esc(qgin.reasons||"")}</div>
+  <div class="footer-box"><div class="label">Remarks</div>${esc(tightLines(qgin.remarks))}</div>
+  <div class="footer-box"><div class="label">Reasons</div>${esc(tightLines(qgin.reasons))}</div>
   <div class="sign-row">
     <div>Prepared By</div>
     <div>Approved By</div>

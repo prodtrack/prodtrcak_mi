@@ -17,6 +17,13 @@ import { formatDate } from "../shared.jsx";
 function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+// Collapses any blank/empty lines out of a multi-line field (e.g. a
+// remarks textarea saved with paragraph-separating double line breaks),
+// so the print shows tight, consecutive lines with no visible gaps —
+// while still keeping every genuine line break the person typed.
+function tightLines(s){
+  return String(s??"").split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+}
 function fd(d){return d?formatDate(d):"-";}
 
 export function printGRN(entry){
@@ -137,13 +144,13 @@ export function printGRN(entry){
         <td class="r">${entry.received_qty??"-"}</td>
         <td class="r">${entry.quantity??0}</td>
         <td class="r">${entry.rejected_qty??0}</td>
-        <td style="white-space:pre-line;">${esc(entry.remarks_line||"")}</td>
+        <td style="white-space:pre-line;">${esc(tightLines(entry.remarks_line))}</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="footer-box"><div class="label">Remarks :</div>${esc(entry.remarks||"")}</div>
-  <div class="footer-box"><div class="label">Comments :</div>${esc(entry.comments||"")}</div>
+  <div class="footer-box"><div class="label">Remarks :</div>${esc(tightLines(entry.remarks))}</div>
+  <div class="footer-box"><div class="label">Comments :</div>${esc(tightLines(entry.comments))}</div>
   <div class="sign-row">
     <div><div class="signee">${esc(entry.operator_name||"")}</div>Prepared By</div>
     <div><div class="signee">&nbsp;</div>Checked By</div>

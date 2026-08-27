@@ -18,6 +18,13 @@ import { COMPANY_LOGO_DATA_URI } from "./purchase/companyLogo.js";
 function esc(s){
   return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+// Collapses any blank/empty lines out of a multi-line field (e.g. a
+// remarks textarea saved with paragraph-separating double line breaks),
+// so the print shows tight, consecutive lines with no visible gaps —
+// while still keeping every genuine line break the person typed.
+function tightLines(s){
+  return String(s??"").split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+}
 function fmtDate(d){
   if(!d)return"-";
   const dt=new Date(d);
@@ -79,7 +86,7 @@ export function printEnquiry(enquiry){
     return `
     <div class="item-block">
       ${listHtml}
-      ${it.remarks&&it.remarks.trim()?`<div class="item-remarks"><b>Remarks:</b> ${esc(it.remarks)}</div>`:""}
+      ${it.remarks&&it.remarks.trim()?`<div class="item-remarks"><b>Remarks:</b> ${esc(tightLines(it.remarks))}</div>`:""}
       ${fp!=null?`<div class="final-price">The final price is ${CURRENCY_SYMBOLS[it.currency||"INR"]} ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
     </div>`;
   }).join("");
