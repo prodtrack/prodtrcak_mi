@@ -32,7 +32,7 @@ export function printPurchaseRequisition(pr){
       <td class="c">${esc((it.unit||"").toUpperCase())}</td>
       <td class="c">${fmtDate(it.required_date)}</td>
       <td class="r">${it.last_po_rate!=null?Number(it.last_po_rate).toFixed(2):""}</td>
-      <td>${esc(it.remarks||"")}</td>
+      <td style="white-space:pre-line;">${esc(it.remarks||"")}</td>
     </tr>`).join("");
 
   const html=`<!DOCTYPE html>

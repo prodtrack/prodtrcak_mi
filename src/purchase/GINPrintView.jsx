@@ -53,7 +53,7 @@ export function printGoodsInwardNote(gin){
       <td class="r">${fmtQty(it.actual_challan_qty)}</td>
       <td class="r">${fmtQty(it.accepted_qty)}</td>
       <td class="r">${fmtQty(it.rejected_qty)}</td>
-      <td>${esc(it.remarks||"")}</td>
+      <td style="white-space:pre-line;">${esc(it.remarks||"")}</td>
     </tr>`).join("");
 
   win.document.write(`
