@@ -99,8 +99,8 @@ export default function PurchaseOrdersTab({profile,showToast}){
       case "status":return po.status||"";
       case "remarks":return po.remarks||"";
       case "po_type":return po.po_type||"";
-      case "amount":return poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE).grandTotal;
-      case "tax":{const t=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);return t.treatment==="IGST"?t.igst:t.cgst+t.sgst;}
+      case "amount":return poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0).grandTotal;
+      case "tax":{const t=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);return t.treatment==="IGST"?t.igst:t.cgst+t.sgst;}
       default:return "";
     }
   }
@@ -169,7 +169,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
   function exportExcel(){
     const rows=[];
     sorted.forEach(po=>{
-      const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
+      const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
       (po.line_items||[]).forEach(it=>{
         const qty=parseFloat(it.qty)||0,rate=parseFloat(it.rate)||0;
         const itemAmount=qty*rate;
@@ -352,7 +352,7 @@ function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApp
 // ─── PO table row — click the selector circle to expand the existing detail view ─
 function POTableRow({po,selected,onSelect}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
+  const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
@@ -382,7 +382,7 @@ function POTableRow({po,selected,onSelect}){
 function PODetailPanel({po,profile,prs,showToast,canApprove,canEdit,isAmendment,canCancel,onEdit,onCancel,onDeleteDraft,onClose}){
   const [busy,setBusy]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
-  const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate||DEFAULT_GST_RATE);
+  const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const company=COMPANY_INFO[po.plant]||{};
 
   async function submitForApproval(){
@@ -523,7 +523,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
   const [modeOfDelivery,setModeOfDelivery]=useState(existing?.mode_of_delivery||"Road");
   const [poType,setPoType]=useState(existing?.po_type||"Domestic");
   const [remarks,setRemarks]=useState(existing?.remarks||"");
-  const [gstRate,setGstRate]=useState(existing?.gst_rate??DEFAULT_GST_RATE);
+  const [gstRate,setGstRate]=useState(existing?.gst_rate??(isEdit?"":DEFAULT_GST_RATE));
   const [saving,setSaving]=useState(false);
   const [errors,setErrors]=useState([]);
 
