@@ -1160,7 +1160,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
   const [bmeCopperPrice,setBmeCopperPrice]=useState(existing?.bme_copper_price||"");
   const [dueDate,setDueDate]=useState(existing?.due_date||"");
   const [saving,setSaving]=useState(false);
-  const [error,setError]=useState("");
+  const [errors,setErrors]=useState([]);
 
   // Real master list now available — replaces the earlier "grow from past
   // tenders" approach, since Admin can maintain an actual customer master.
@@ -1168,8 +1168,17 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
   async function save(){
-    if(!tenderNumber.trim()){setError("Tender number is required");return;}
-    setError("");setSaving(true);
+    const errs=[];
+    if(!tenderNumber.trim())errs.push("Tender number");
+    if(!tenderDate)errs.push("Tender date");
+    if(!company.trim())errs.push("Company");
+    if(conductorType==="wire"){if(!diameter)errs.push("Diameter");}
+    else{if(!width)errs.push("Width");if(!thickness)errs.push("Thickness");}
+    if(!quantity)errs.push("Quantity");
+    if(!uom)errs.push("UOM");
+    if(!dueDate)errs.push("Due date");
+    if(errs.length){setErrors(errs);return;}
+    setErrors([]);setSaving(true);
     try{
       const payload={
         tender_number:tenderNumber.trim(),tender_date:tenderDate||null,loi_no:loiNo.trim()||null,
@@ -1193,7 +1202,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
         showToast("Tender created");
       }
       onClose();
-    }catch(e){setError("Save failed: "+e.message);}
+    }catch(e){setErrors([`Save failed: ${e.message}`]);}
     finally{setSaving(false);}
   }
 
@@ -1316,7 +1325,12 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
         </div>
       </div>
 
-      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+      {errors.length>0&&(
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#dc2626"}}>
+          <strong>Please fix the following:</strong>
+          <ul style={{marginTop:6,paddingLeft:18}}>{errors.map((e,i)=><li key={i}>{e}</li>)}</ul>
+        </div>
+      )}
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
@@ -1728,7 +1742,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [notes,setNotes]=useState(existing?.notes||"");
   const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
-  const [error,setError]=useState("");
+  const [errors,setErrors]=useState([]);
 
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
@@ -1752,7 +1766,19 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   }
 
   async function save(asDraft){
-    setError("");setSaving(true);
+    if(!asDraft){
+      const errs=[];
+      if(!enqDate)errs.push("Enquiry date");
+      if(!company.trim())errs.push("Company");
+      items.forEach((it,i)=>{
+        const n=items.length>1?` (Item ${i+1})`:"";
+        if(!it.description.trim())errs.push(`Description${n}`);
+        if(!it.quantity)errs.push(`Quantity${n}`);
+        if(!it.uom)errs.push(`UOM${n}`);
+      });
+      if(errs.length){setErrors(errs);return;}
+    }
+    setErrors([]);setSaving(true);
     try{
       const payload={
         enq_date:enqDate||null,
@@ -1776,7 +1802,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         showToast(asDraft?"Enquiry saved as draft":"Enquiry created");
       }
       onClose();
-    }catch(e){setError("Save failed: "+e.message);}
+    }catch(e){setErrors([`Save failed: ${e.message}`]);}
     finally{setSaving(false);}
   }
 
@@ -1982,7 +2008,12 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         <button className="btn-ghost" style={{padding:"6px 14px",fontSize:12,borderStyle:"dashed"}} onClick={addItem}><Icon name="plus" size={12}/>Add item</button>
       </div>
 
-      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+      {errors.length>0&&(
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#dc2626"}}>
+          <strong>Please fix the following:</strong>
+          <ul style={{marginTop:6,paddingLeft:18}}>{errors.map((e,i)=><li key={i}>{e}</li>)}</ul>
+        </div>
+      )}
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
