@@ -578,7 +578,8 @@ function GINForm({profile,pos,existing,showToast,onClose}){
   const [saving,setSaving]=useState(false);
   const [errors,setErrors]=useState([]);
 
-  const receivablePOs=pos.filter(p=>p.plant===plant&&["approved","partially_received"].includes(p.status));
+  const receivablePOs=pos.filter(p=>p.plant===plant&&["approved","partially_received"].includes(p.status))
+    .map(p=>({...p,po_label:`${p.po_number} — ${p.vendor_name} (${PO_STATUS_LABELS[p.status]})`}));
   const po=pos.find(p=>p.id===poId);
 
   function onSelectPO(id){
@@ -661,11 +662,9 @@ function GINForm({profile,pos,existing,showToast,onClose}){
             </select>
           </div>
           <div style={{gridColumn:"1/-1"}}>
-            <label style={labelStyle}>Purchase order *</label>
-            <select style={fieldStyle} value={poId} onChange={e=>onSelectPO(e.target.value)} disabled={isEdit}>
-              <option value="">— Select an approved PO —</option>
-              {receivablePOs.map(p=><option key={p.id} value={p.id}>{p.po_number} — {p.vendor_name} ({PO_STATUS_LABELS[p.status]})</option>)}
-            </select>
+            <div style={isEdit?{pointerEvents:"none",opacity:.55}:undefined}>
+              <FuzzyAutocomplete label="Purchase order *" value={po?`${po.po_number} — ${po.vendor_name} (${PO_STATUS_LABELS[po.status]})`:""} onChange={()=>{}} onSelect={p=>onSelectPO(p.id)} options={receivablePOs} displayKey="po_label" strict placeholder="— Select an approved PO —"/>
+            </div>
             {receivablePOs.length===0&&!isEdit&&<div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>No approved POs awaiting receipt for {plant}.</div>}
           </div>
           <div>
