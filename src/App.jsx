@@ -1171,11 +1171,25 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
     const errs=[];
     if(!tenderNumber.trim())errs.push("Tender number");
     if(!tenderDate)errs.push("Tender date");
+    if(!specNumber.trim())errs.push("Specification number");
     if(!company.trim())errs.push("Company");
     if(conductorType==="wire"){if(!diameter)errs.push("Diameter");}
-    else{if(!width)errs.push("Width");if(!thickness)errs.push("Thickness");}
+    else{
+      if(!width)errs.push("Width");
+      if(!thickness)errs.push("Thickness");
+      if(!cornerRadius)errs.push("Corner radius");
+    }
+    if(!insulationType)errs.push("Insulation type");
+    if(conductorType==="ctc"){
+      if(!covering1)errs.push("Covering 1");
+      if(!covering2)errs.push("Covering 2");
+    }else{
+      if(!covering)errs.push("Covering");
+    }
     if(!quantity)errs.push("Quantity");
     if(!uom)errs.push("UOM");
+    if(!fabricationRate.trim())errs.push("Fabrication rate");
+    if(!bmeCopperPrice.trim())errs.push("BME/Copper price");
     if(!dueDate)errs.push("Due date");
     if(errs.length){setErrors(errs);return;}
     setErrors([]);setSaving(true);
@@ -1770,11 +1784,42 @@ function EnquiryForm({existing,profile,showToast,onClose}){
       const errs=[];
       if(!enqDate)errs.push("Enquiry date");
       if(!company.trim())errs.push("Company");
+      if(!deliveryTerms.trim())errs.push("Delivery");
+      if(!paymentTerms.trim())errs.push("Payment");
+      if(!tolerance.trim()||tolerance.trim()==="±")errs.push("Tolerance");
+      if(!freight.trim())errs.push("Freight");
+      if(!gst.trim())errs.push("GST");
+      if(!validityDate)errs.push("Validity date");
+      if(!notes.trim())errs.push("Notes");
       items.forEach((it,i)=>{
         const n=items.length>1?` (Item ${i+1})`:"";
         if(!it.description.trim())errs.push(`Description${n}`);
+        if(!it.specification_number?.trim())errs.push(`Specification Number${n}`);
+        if(it.conductor_type==="wire"){
+          if(!it.diameter)errs.push(`Diameter${n}`);
+        }else{
+          if(!it.width)errs.push(`Width${n}`);
+          if(!it.thickness)errs.push(`Thickness${n}`);
+          if(!it.corner_radius)errs.push(`Corner R${n}`);
+        }
+        if(!it.insulation_type)errs.push(`Insulation type${n}`);
+        if(it.conductor_type==="ctc"){
+          if(!it.covering_1)errs.push(`Covering 1${n}`);
+          if(!it.covering_2)errs.push(`Covering 2${n}`);
+          if(!it.no_of_paper)errs.push(`No. of Paper${n}`);
+          if(!it.no_of_conductors)errs.push(`No. of Conductors/Strands${n}`);
+          if(!it.interleaving_paper_type)errs.push(`Type of Insulation Paper${n}`);
+          if(!it.interleaving_paper_thickness)errs.push(`Thick. of Insulation Paper${n}`);
+          if(!it.paper_type)errs.push(`Paper Type${n}`);
+        }else{
+          if(!it.covering)errs.push(`Covering${n}`);
+        }
         if(!it.quantity)errs.push(`Quantity${n}`);
         if(!it.uom)errs.push(`UOM${n}`);
+        if(!it.fabrication_rate)errs.push(`Fabrication rate${n}`);
+        if(!it.copper_price)errs.push(`Copper price${n}`);
+        if(!it.packing?.trim())errs.push(`Packing${n}`);
+        if(!it.remarks?.trim())errs.push(`Remarks${n}`);
       });
       if(errs.length){setErrors(errs);return;}
     }
