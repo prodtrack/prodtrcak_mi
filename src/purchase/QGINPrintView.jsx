@@ -8,6 +8,7 @@
 // then Remarks/Reasons/Prepared-Approved By footer.
 
 import { COMPANY_INFO } from "./purchaseHelpers";
+import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
 import { formatDate } from "../shared.jsx";
 
 function esc(s){
@@ -43,6 +44,7 @@ export function printQualityGIN(qgin){
   .sheet { width:94%; margin:0 auto; }
   .letterhead { position:relative; text-align:center; border:1px solid #000; border-bottom:none; padding:8px 6px 6px; }
   .letterhead .name { font-size:16px; font-weight:700; }
+  .logo { max-width:210px; max-height:52px; margin:0 auto; display:block; }
   .letterhead .addr { font-size:11px; margin-top:3px; }
   .letterhead .page { position:absolute; top:6px; right:12px; font-size:11px; }
   .contact-row { display:flex; justify-content:space-between; border:1px solid #000; border-top:none; padding:3px 10px; font-size:10.5px; }
@@ -69,7 +71,7 @@ export function printQualityGIN(qgin){
   <div class="sheet">
   <div class="letterhead">
     <div class="page">Page 1 of 1</div>
-    <div class="name">${esc(company.name||"Mahendra Industries")}</div>
+    <img class="logo" src="${COMPANY_LOGO_DATA_URI}" alt="Mahendra Industries"/>
     <div class="addr">${esc(company.address||"")}</div>
   </div>
   <div class="contact-row">
