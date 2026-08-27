@@ -47,8 +47,8 @@ export function printGRN(entry){
   .header-table .row { display:flex; }
   .header-table .lbl { width:120px; flex-shrink:0; color:#374151; }
   .header-table .val { flex:1; }
-  .items { width:100%; border-collapse:collapse; margin-top:-1px; }
-  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:10.5px; }
+  .items { width:100%; border-collapse:collapse; margin-top:-1px; table-layout:fixed; }
+  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:10.5px; overflow-wrap:break-word; word-wrap:break-word; }
   .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:9.5px; }
   .r { text-align:right; } .c { text-align:center; }
   .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:60px; white-space:pre-line; }
@@ -114,16 +114,16 @@ export function printGRN(entry){
   <table class="items">
     <thead>
       <tr>
-        <th style="width:28px">Sr. No.</th>
-        <th style="width:80px">Item Code</th>
-        <th>Item Description</th>
-        <th style="width:44px">UOM</th>
-        <th style="width:64px">PO Qty</th>
-        <th style="width:64px">Challan Qty</th>
-        <th style="width:64px">Received Qty</th>
-        <th style="width:64px">Accepted Qty</th>
-        <th style="width:64px">Rejected Qty</th>
-        <th>Remarks</th>
+        <th style="width:4%">Sr. No.</th>
+        <th style="width:9%">Item Code</th>
+        <th style="width:20%">Item Description</th>
+        <th style="width:5%">UOM</th>
+        <th style="width:8%">PO Qty</th>
+        <th style="width:8%">Challan Qty</th>
+        <th style="width:8%">Received Qty</th>
+        <th style="width:8%">Accepted Qty</th>
+        <th style="width:8%">Rejected Qty</th>
+        <th style="width:22%">Remarks</th>
       </tr>
     </thead>
     <tbody>

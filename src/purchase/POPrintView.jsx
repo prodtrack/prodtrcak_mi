@@ -69,7 +69,7 @@ export function printPurchaseOrder(po){
   .r{text-align:right;}
   .c{text-align:center;}
   table{width:100%;border-collapse:collapse;}
-  td,th{padding:3px 6px;vertical-align:top;}
+  td,th{padding:3px 6px;vertical-align:top;overflow-wrap:break-word;word-wrap:break-word;}
   .header{padding:8px 12px 6px;text-align:center;border-bottom:1px solid #000;}
   .logo{max-width:210px;max-height:52px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:6px;}
@@ -83,6 +83,7 @@ export function printPurchaseOrder(po){
   .two-col>div:first-child{border-right:1px solid #000;}
   .two-col .vname{font-weight:700;}
   .terms-strip{border-bottom:1px solid #000;padding:4px 8px;font-size:10.5px;line-height:1.45;}
+  .items-table{table-layout:fixed;}
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
   .items-table td{border-bottom:1px solid #000;font-size:11px;}
   .items-table .partcode{font-weight:700;font-size:10.5px;}
@@ -159,6 +160,7 @@ export function printPurchaseOrder(po){
       <div>Your Reference : ${esc(po.your_reference||"")}</div>
       <div>PO Type : ${esc(po.po_type||"Domestic")}</div>
       ${po.po_type==="Import"?`<div>Inco Terms : ${esc(po.inco_terms||"-")}</div>`:""}
+      ${po.po_type==="Import"?`<div>Currency : ${esc(po.currency||"INR")}</div>`:""}
     </div>
     <div>
       <div class="vname">MAHENDRA INDUSTRIES</div>
@@ -176,14 +178,14 @@ export function printPurchaseOrder(po){
   <table class="items-table">
     <thead>
       <tr>
-        <th style="width:28px;">Sr.<br/>No.</th>
-        <th>Part Code<br/>Description of Goods</th>
-        <th style="width:70px;">HSN Code</th>
-        <th style="width:64px;">Req. Date</th>
-        <th style="width:50px;">Qty</th>
-        <th style="width:44px;">UOM</th>
-        <th style="width:60px;">Rate</th>
-        <th style="width:80px;">Net Amount</th>
+        <th style="width:4%;">Sr.<br/>No.</th>
+        <th style="width:34%;">Part Code<br/>Description of Goods</th>
+        <th style="width:10%;">HSN Code</th>
+        <th style="width:10%;">Req. Date</th>
+        <th style="width:9%;">Qty</th>
+        <th style="width:7%;">UOM</th>
+        <th style="width:10%;">Rate</th>
+        <th style="width:16%;">Net Amount</th>
       </tr>
     </thead>
     <tbody>

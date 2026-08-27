@@ -48,7 +48,7 @@ export function printPurchaseRequisition(pr){
   .r{text-align:right;}
   .c{text-align:center;}
   table{width:100%;border-collapse:collapse;}
-  td,th{padding:3px 6px;vertical-align:top;}
+  td,th{padding:3px 6px;vertical-align:top;overflow-wrap:break-word;word-wrap:break-word;}
   .header{padding:8px 12px 6px;text-align:center;border-bottom:1px solid #000;}
   .logo{max-width:210px;max-height:52px;margin:0 auto;display:block;}
   .addr{font-size:11px;margin-top:6px;}
@@ -58,6 +58,7 @@ export function printPurchaseRequisition(pr){
   .two-col>div{flex:1;padding:6px 8px;font-size:11px;line-height:1.45;}
   .two-col>div:first-child{border-right:1px solid #000;}
   .two-col b{font-weight:700;}
+  .items-table{table-layout:fixed;}
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
   .items-table td{border-bottom:1px solid #000;font-size:11px;}
   .items-table th,.items-table td{border-left:1px solid #000;}
@@ -101,6 +102,7 @@ export function printPurchaseRequisition(pr){
       <div>Site: <b>${esc(company.name||pr.plant)}</b></div>
       <div>Requisition Type: <b>${esc(pr.requisition_type||"")}</b></div>
       ${pr.requisition_type==="Import"?`<div>Inco Terms: <b>${esc(pr.inco_terms||"-")}</b></div>`:""}
+      ${pr.requisition_type==="Import"?`<div>Currency: <b>${esc(pr.currency||"INR")}</b></div>`:""}
       <div>Requested By Code: <b>${esc(pr.requested_by_code||"—")}</b></div>
     </div>
     <div>
@@ -114,15 +116,15 @@ export function printPurchaseRequisition(pr){
   <table class="items-table">
     <thead>
       <tr>
-        <th style="width:28px;">Sr.<br/>No</th>
-        <th style="width:70px;">Item Code</th>
-        <th>Item Description</th>
-        <th style="width:70px;">Inventory<br/>Qty</th>
-        <th style="width:70px;">Required<br/>Qty</th>
-        <th style="width:44px;">UOM</th>
-        <th style="width:70px;">Required<br/>Date</th>
-        <th style="width:64px;">Last PO<br/>Rate</th>
-        <th>Remarks</th>
+        <th style="width:4%;">Sr.<br/>No</th>
+        <th style="width:9%;">Item Code</th>
+        <th style="width:20%;">Item Description</th>
+        <th style="width:8%;">Inventory<br/>Qty</th>
+        <th style="width:8%;">Required<br/>Qty</th>
+        <th style="width:5%;">UOM</th>
+        <th style="width:8%;">Required<br/>Date</th>
+        <th style="width:7%;">Last PO<br/>Rate</th>
+        <th style="width:31%;">Remarks</th>
       </tr>
     </thead>
     <tbody>

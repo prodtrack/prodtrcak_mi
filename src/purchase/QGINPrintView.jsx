@@ -52,8 +52,8 @@ export function printQualityGIN(qgin){
   table.header-table { width:100%; border-collapse:collapse; }
   .header-table td { border:1px solid #000; border-top:none; padding:4px 10px; vertical-align:top; font-size:11.5px; }
   .header-table .label { display:inline-block; width:130px; color:#374151; }
-  .items { width:100%; border-collapse:collapse; margin-top:-1px; }
-  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:11px; }
+  .items { width:100%; border-collapse:collapse; margin-top:-1px; table-layout:fixed; }
+  .items th, .items td { border:1px solid #000; padding:3px 6px; font-size:11px; overflow-wrap:break-word; word-wrap:break-word; }
   .items th { background:#e5e7eb; text-transform:uppercase; letter-spacing:.02em; font-size:10px; }
   .r { text-align:right; } .c { text-align:center; }
   .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:26px; white-space:pre-line; }
@@ -115,13 +115,13 @@ export function printQualityGIN(qgin){
   <table class="items">
     <thead>
       <tr>
-        <th style="width:36px">Sr. No.</th>
-        <th style="width:140px">Parameter</th>
-        <th>Parameter Description</th>
-        <th style="width:80px">Visual</th>
-        <th style="width:56px">UOM</th>
-        <th style="width:90px">Standard Value</th>
-        <th style="width:90px">Actual Value</th>
+        <th style="width:5%">Sr. No.</th>
+        <th style="width:16%">Parameter</th>
+        <th style="width:27%">Parameter Description</th>
+        <th style="width:12%">Visual</th>
+        <th style="width:8%">UOM</th>
+        <th style="width:16%">Standard Value</th>
+        <th style="width:16%">Actual Value</th>
       </tr>
     </thead>
     <tbody>
