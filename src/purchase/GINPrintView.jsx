@@ -83,7 +83,7 @@ export function printGoodsInwardNote(gin){
   .r { text-align:right; } .c { text-align:center; }
   .footer-box { border:1px solid #000; border-top:none; padding:6px; min-height:60px; }
   .footer-box .label { font-size:11px; margin-bottom:3px; }
-  .sign-row { display:flex; border:1px solid #000; border-top:none; margin-top:40px; }
+  .sign-row { display:flex; border:1px solid #000; border-top:none; }
   .sign-row div { flex:1; padding:14px 8px 6px; font-size:11px; text-align:center; }
   .sign-row div:not(:last-child) { border-right:1px solid #000; }
   .print-btn { margin-bottom:14px; }
