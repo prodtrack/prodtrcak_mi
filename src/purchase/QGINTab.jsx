@@ -379,9 +379,10 @@ function QGINDetailPanel({qgin,profile,showToast,canApprove,canEdit,canCancel,on
       const ginData=ginSnap.data();
       const grnNumber=ginData.grn_number||ginData.gin_number;
 
+      const postedAt=new Date().toISOString().split("T")[0];
       const updatedGinLines=(ginData.line_items||[]).map(gl=>
         (qgin.material_id&&gl.material_id===qgin.material_id)
-          ?{...gl,posted:true,posted_qty:acceptedQty,posted_at:now,posted_by:operatorName,qgin_number:qgin.qgin_number}
+          ?{...gl,posted:true,posted_qty:acceptedQty,posted_at:postedAt,posted_by:operatorName,qgin_number:qgin.qgin_number}
           :gl
       );
       // Once every line that was actually sent to QC (accepted_qty > 0) has

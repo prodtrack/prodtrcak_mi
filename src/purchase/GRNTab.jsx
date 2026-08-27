@@ -173,6 +173,7 @@ export default function GRNTab({profile,showToast}){
     setHoldSaving(p=>({...p,[hold.id]:true}));
     try{
       const now=serverTimestamp();
+      const postedAtStr=new Date().toISOString().split("T")[0];
       const operatorName=profile.name||auth.currentUser.email;
       const newRef=await addDoc(collection(db,"rm_inventory"),{
         material_name:hold.material_name,unit:hold.unit||"kg",
@@ -189,7 +190,7 @@ export default function GRNTab({profile,showToast}){
           item_description:"",unit:hold.unit||"kg",
           challan_qty:hold.quantity,accepted_qty:hold.quantity,rejected_qty:0,actual_challan_qty:hold.quantity,
           remarks:holdRemark[hold.id]||hold.remarks||"",
-          posted:true,posted_qty:hold.quantity,posted_at:now,posted_by:hold.operator_name,
+          posted:true,posted_qty:hold.quantity,posted_at:postedAtStr,posted_by:hold.operator_name,
         }],
         remarks:holdRemark[hold.id]||hold.remarks||null,comments:null,
         status:"completed",
@@ -790,6 +791,7 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
     setError("");setSaving(true);
     try{
       const now=serverTimestamp();
+      const postedAtStr=new Date().toISOString().split("T")[0];
       const operatorName=profile.name||auth.currentUser.email;
       const operatorUid=auth.currentUser.uid;
 
@@ -815,7 +817,7 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
             item_code:"",material_id:matId,material_name:mat?.material_name||"",
             item_description:"",unit,
             challan_qty:qtyNum,accepted_qty:qtyNum,rejected_qty:0,actual_challan_qty:qtyNum,
-            remarks:remarks||"",posted:true,posted_qty:qtyNum,posted_at:now,posted_by:operatorName,
+            remarks:remarks||"",posted:true,posted_qty:qtyNum,posted_at:postedAtStr,posted_by:operatorName,
           }],
           remarks:remarks||null,comments:null,
           status:"completed",
