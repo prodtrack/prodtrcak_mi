@@ -43,7 +43,7 @@ function itemSizeLabel(it){
   if(!it.width&&!it.thickness)return"";
   return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, CR ${it.corner_radius}`:""}`;
 }
-const CURRENCY_SYMBOLS={INR:"₹",USD:"$",EUR:"€"};
+const CURRENCY_SYMBOLS={INR:"₹",USD:"$",EUR:"€",GBP:"£"};
 
 export function printEnquiry(enquiry){
   const company=COMPANY_INFO.Bidadi||{};

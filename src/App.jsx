@@ -88,17 +88,17 @@ function itemSizeLabel(it){
   return `${it.width||"-"} × ${it.thickness||"-"} mm${it.corner_radius?`, CR ${it.corner_radius}`:""}`;
 }
 
-const CURRENCY_SYMBOLS={INR:"₹",USD:"$",EUR:"€"};
+const CURRENCY_SYMBOLS={INR:"₹",USD:"$",EUR:"€",GBP:"£"};
 // Converts an amount from one currency to another via INR as the pivot,
-// using the admin/sales-set rates ({usd_to_inr, eur_to_inr}). Always uses
-// whatever rate is passed in — callers pass the current rate, never a
-// historical one.
+// using the admin/sales-set rates ({usd_to_inr, eur_to_inr, gbp_to_inr}).
+// Always uses whatever rate is passed in — callers pass the current rate,
+// never a historical one.
 function convertCurrency(amount,fromCur,toCur,rates){
   const n=parseFloat(amount);
   if(isNaN(n))return"";
   if(fromCur===toCur)return amount;
-  const usd=rates?.usd_to_inr||1,eur=rates?.eur_to_inr||1;
-  const toINR={INR:1,USD:usd,EUR:eur};
+  const usd=rates?.usd_to_inr||1,eur=rates?.eur_to_inr||1,gbp=rates?.gbp_to_inr||1;
+  const toINR={INR:1,USD:usd,EUR:eur,GBP:gbp};
   const inINR=n*(toINR[fromCur]||1);
   const converted=inINR/(toINR[toCur]||1);
   return String(Math.round(converted*100)/100);
@@ -1341,6 +1341,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
 function RatesModal({rates,profile,showToast,onClose}){
   const [usd,setUsd]=useState(rates?.usd_to_inr||"");
   const [eur,setEur]=useState(rates?.eur_to_inr||"");
+  const [gbp,setGbp]=useState(rates?.gbp_to_inr||"");
   const [saving,setSaving]=useState(false);
 
   async function save(){
@@ -1348,13 +1349,13 @@ function RatesModal({rates,profile,showToast,onClose}){
     try{
       const changedBy=profile.name||auth.currentUser.email;
       await setDoc(doc(db,"settings","exchange_rates"),{
-        usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,
+        usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,gbp_to_inr:parseFloat(gbp)||0,
         updated_at:serverTimestamp(),updated_by:changedBy,
       },{merge:true});
       // Every save is logged permanently — the running timeline of what the
       // rate was set to and when, visible to everyone with Enquiry access.
       await addDoc(collection(db,"rate_history"),{
-        usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,
+        usd_to_inr:parseFloat(usd)||0,eur_to_inr:parseFloat(eur)||0,gbp_to_inr:parseFloat(gbp)||0,
         changed_at:serverTimestamp(),changed_by:changedBy,
       });
       showToast("Exchange rates saved");
@@ -1373,7 +1374,9 @@ function RatesModal({rates,profile,showToast,onClose}){
         <label style={labelStyle}>1 USD =</label>
         <input style={{...fieldStyle,marginBottom:12}} type="number" min="0" step="0.01" value={usd} onChange={e=>setUsd(e.target.value)} placeholder="e.g. 83.00"/>
         <label style={labelStyle}>1 EUR =</label>
-        <input style={{...fieldStyle,marginBottom:6}} type="number" min="0" step="0.01" value={eur} onChange={e=>setEur(e.target.value)} placeholder="e.g. 90.00"/>
+        <input style={{...fieldStyle,marginBottom:12}} type="number" min="0" step="0.01" value={eur} onChange={e=>setEur(e.target.value)} placeholder="e.g. 90.00"/>
+        <label style={labelStyle}>1 GBP =</label>
+        <input style={{...fieldStyle,marginBottom:6}} type="number" min="0" step="0.01" value={gbp} onChange={e=>setGbp(e.target.value)} placeholder="e.g. 105.00"/>
         {rates?.updated_at&&<div style={{fontSize:11,color:"#9ca3af",marginBottom:14}}>Last updated: {formatDate(rates.updated_at?.toDate?rates.updated_at.toDate():rates.updated_at)}</div>}
         <button className="btn-primary" style={{width:"100%",justifyContent:"center",marginTop:8}} disabled={saving} onClick={save}>{saving?"Saving…":"Save rates"}</button>
       </div>
@@ -1405,7 +1408,7 @@ function RateHistoryView({onBack}){
           <div className="card" style={{padding:0,overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
-                {["Date","1 USD =","1 EUR =","Changed by"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
+                {["Date","1 USD =","1 EUR =","1 GBP =","Changed by"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",...S}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {history.map(h=>(
@@ -1413,6 +1416,7 @@ function RateHistoryView({onBack}){
                     <td style={{padding:"10px 12px",...S}}>{h.changed_at?formatDate(h.changed_at?.toDate?h.changed_at.toDate():h.changed_at):"—"}</td>
                     <td style={{padding:"10px 12px",...S}}>₹ {h.usd_to_inr}</td>
                     <td style={{padding:"10px 12px",...S}}>₹ {h.eur_to_inr}</td>
+                    <td style={{padding:"10px 12px",...S}}>₹ {h.gbp_to_inr??"—"}</td>
                     <td style={{padding:"10px 12px"}}>{h.changed_by||"—"}</td>
                   </tr>
                 ))}
@@ -1945,6 +1949,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
                   <option value="INR">INR (₹)</option>
                   <option value="USD">USD ($)</option>
                   <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
                 </select>
               </div>
               <div>
