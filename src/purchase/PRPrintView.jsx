@@ -72,7 +72,7 @@ export function printPurchaseRequisition(pr){
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
   .items-table thead{display:table-header-group;}
   .items-table tr{break-inside:avoid;page-break-inside:avoid;}
-  .remarks-row{border-top:1px solid #000;min-height:28px;padding:4px 8px;font-size:11px;}
+  .remarks-row{border-top:1px solid #000;min-height:28px;padding:4px 8px;font-size:11px;break-inside:avoid;page-break-inside:avoid;}
   .remarks-row:last-child{border-bottom:1px solid #000;}
   .remarks-row b{font-weight:700;}
   @media print{
@@ -139,8 +139,8 @@ export function printPurchaseRequisition(pr){
     </tbody>
   </table>
 
-  <div class="remarks-row"><b>Remarks:</b><br/>${esc(pr.remarks||"")}</div>
-  <div class="remarks-row"><b>Comments:</b><br/>${esc(pr.comments||"")}</div>
+  ${(pr.remarks&&pr.remarks.trim())?`<div class="remarks-row"><b>Remarks:</b><br/>${esc(tightLines(pr.remarks))}</div>`:""}
+  ${(pr.comments&&pr.comments.trim())?`<div class="remarks-row"><b>Comments:</b><br/>${esc(tightLines(pr.comments))}</div>`:""}
 
 </div>
 </body>

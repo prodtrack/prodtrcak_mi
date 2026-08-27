@@ -106,10 +106,10 @@ export function printPurchaseOrder(po){
   .tc-head{font-weight:700;padding:4px 8px;border-bottom:1px solid #000;font-size:11px;}
   .tc-table td{font-size:10px;border:none;padding:1px 8px;line-height:1.4;}
   .tc-table .tno{width:20px;vertical-align:top;}
-  .remarks-row{display:flex;border-top:1px solid #000;border-bottom:1px solid #000;min-height:40px;}
+  .remarks-row{display:flex;border-top:1px solid #000;border-bottom:1px solid #000;min-height:40px;break-inside:avoid;page-break-inside:avoid;}
   .remarks-row>div{flex:1;padding:4px 8px;font-size:11px;}
   .remarks-row>div:first-child{border-right:1px solid #000;}
-  .sign-row{display:flex;}
+  .sign-row{display:flex;break-inside:avoid;page-break-inside:avoid;}
   .sign-row>div{flex:1;padding:18px 8px 6px;text-align:center;font-size:11px;border-right:1px solid #000;}
   .sign-row>div:last-child{border-right:none;}
   .sign-row .for-company{font-weight:700;margin-bottom:26px;}
