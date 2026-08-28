@@ -12,13 +12,13 @@ import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, order
 import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
-  PLANTS, COMPANY_INFO, UNITS, PO_STATUSES, PO_STATUS_LABELS, PO_STATUS_COLORS,
+  PLANTS, COMPANY_INFO, PO_STATUSES, PO_STATUS_LABELS, PO_STATUS_COLORS,
   generatePONumber, lineAmount, poTotals, emptyLineItem, DEFAULT_GST_RATE,
   GST_RATE_OPTIONS, DELIVERY_TERMS_OPTIONS, DELIVERY_MODE_OPTIONS, PAYMENT_TERMS_OPTIONS,
-  earliestRequiredDate, resolveOrCreateMaterialId, CURRENCY_SYMBOLS,
+  earliestRequiredDate, resolveOrCreateMaterialId, currencySymbol,
 } from "./purchaseHelpers";
 import { printPurchaseOrder } from "./POPrintView.jsx";
-import SelectOrCustom, { CustomFieldsEditor } from "./PurchaseFormControls.jsx";
+import SelectOrCustom, { CustomFieldsEditor, CurrencyField, UomField } from "./PurchaseFormControls.jsx";
 
 // A PO line item's own item_remarks wins if set; otherwise, for POs that
 // were auto-generated from a PR (po.pr_reference), fall back to that PR's
@@ -356,7 +356,7 @@ function POTableRow({po,selected,onSelect}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
-  const curSym=CURRENCY_SYMBOLS[po.currency||"INR"];
+  const curSym=currencySymbol(po.currency||"INR");
   const customFieldText=(po.line_items||[]).flatMap(it=>it.custom_fields||[]).filter(f=>f.label&&f.value).map(f=>`${f.label}: ${f.value}`).join(", ");
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
@@ -388,7 +388,7 @@ function PODetailPanel({po,profile,prs,showToast,canApprove,canEdit,isAmendment,
   const [busy,setBusy]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
-  const curSym=CURRENCY_SYMBOLS[po.currency||"INR"];
+  const curSym=currencySymbol(po.currency||"INR");
   const company=COMPANY_INFO[po.plant]||{};
 
   async function submitForApproval(){
@@ -687,13 +687,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         )}
         {poType==="Import"&&(
           <div style={{maxWidth:220,marginBottom:16,...(isAmendment?{pointerEvents:"none",opacity:.55}:{})}}>
-            <label style={labelStyle}>Currency</label>
-            <select style={fieldStyle} value={currency} onChange={e=>setCurrency(e.target.value)} disabled={isAmendment}>
-              <option value="INR">INR (₹)</option>
-              <option value="USD">USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-              <option value="GBP">GBP (£)</option>
-            </select>
+            <CurrencyField value={currency} onChange={setCurrency} disabled={isAmendment}/>
           </div>
         )}
         {lineItems.map((it,i)=>(
@@ -747,7 +741,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
               </div>
               <div>
                 <label style={labelStyle}>Amount</label>
-                <div style={{...fieldStyle,...S,background:"#f9fafb",fontWeight:600}}>{CURRENCY_SYMBOLS[currency]}{lineAmount(it).toLocaleString("en-IN")}</div>
+                <div style={{...fieldStyle,...S,background:"#f9fafb",fontWeight:600}}>{currencySymbol(currency)}{lineAmount(it).toLocaleString("en-IN")}</div>
               </div>
             </div>
           </div>
@@ -755,9 +749,9 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         {!isAmendment&&<button className="btn-ghost" style={{width:"100%",justifyContent:"center",marginTop:16,borderStyle:"dashed"}} onClick={addLine}><Icon name="plus" size={13}/>Add line item</button>}
 
         <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid #f3f4f6"}}>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:100,textAlign:"right"}}>{CURRENCY_SYMBOLS[currency]}{totals.subtotal.toLocaleString("en-IN")}</span></div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>{totals.treatment==="IGST"?`IGST ${totals.gstRate}%`:`CGST+SGST ${totals.gstRate}%`}</span><span style={{...S,minWidth:100,textAlign:"right"}}>{CURRENCY_SYMBOLS[currency]}{totals.gstAmount.toLocaleString("en-IN")}</span></div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:14,fontWeight:700}}><span>Total</span><span style={{...S,minWidth:100,textAlign:"right"}}>{CURRENCY_SYMBOLS[currency]}{totals.grandTotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:100,textAlign:"right"}}>{currencySymbol(currency)}{totals.subtotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>{totals.treatment==="IGST"?`IGST ${totals.gstRate}%`:`CGST+SGST ${totals.gstRate}%`}</span><span style={{...S,minWidth:100,textAlign:"right"}}>{currencySymbol(currency)}{totals.gstAmount.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:14,fontWeight:700}}><span>Total</span><span style={{...S,minWidth:100,textAlign:"right"}}>{currencySymbol(currency)}{totals.grandTotal.toLocaleString("en-IN")}</span></div>
         </div>
       </div>
 
@@ -788,20 +782,3 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
 }
 
 // ─── UOM field with a "Other (specify)" escape hatch ───────────────────────
-function UomField({value,onChange,disabled}){
-  const isCustom=!!value&&!UNITS.includes(value);
-  if(isCustom){
-    return(
-      <div style={{display:"flex",gap:4}}>
-        <input style={{...fieldStyle,flex:1}} value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} placeholder="Unit"/>
-        <button type="button" className="btn-ghost" style={{padding:"0 8px",flexShrink:0}} title="Choose from list" disabled={disabled} onClick={()=>onChange(UNITS[0])}><Icon name="arrow" size={11}/></button>
-      </div>
-    );
-  }
-  return(
-    <select style={fieldStyle} value={value} disabled={disabled} onChange={e=>onChange(e.target.value==="__other__"?"":e.target.value)}>
-      {UNITS.map(u=><option key={u}>{u}</option>)}
-      <option value="__other__">Other (specify)</option>
-    </select>
-  );
-}

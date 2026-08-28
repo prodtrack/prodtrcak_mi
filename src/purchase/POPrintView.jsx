@@ -8,7 +8,7 @@
 // Change the letterhead layout ONLY here — nothing else in the app renders
 // a PO for print.
 
-import { COMPANY_INFO, poTotals, lineAmount, amountInWords, STANDARD_TERMS, CURRENCY_SYMBOLS } from "./purchaseHelpers";
+import { COMPANY_INFO, poTotals, lineAmount, amountInWords, STANDARD_TERMS, currencySymbol } from "./purchaseHelpers";
 import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
 
 function esc(s){
@@ -32,7 +32,7 @@ export function printPurchaseOrder(po){
   const company=COMPANY_INFO[po.plant]||{};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const items=po.line_items||[];
-  const curSym=CURRENCY_SYMBOLS[po.currency||"INR"];
+  const curSym=currencySymbol(po.currency||"INR");
 
   const rows=items.map((it,i)=>{
     const desc=(it.item_description||"").trim();

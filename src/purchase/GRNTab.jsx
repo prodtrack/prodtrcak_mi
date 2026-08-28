@@ -17,11 +17,11 @@ import { collection, doc, addDoc, updateDoc, getDoc, onSnapshot, query, orderBy,
 import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
-  PLANTS, UNITS, GIN_TYPES, GIN_STATUSES, GIN_STATUS_LABELS, GIN_STATUS_COLORS,
+  PLANTS, GIN_TYPES, GIN_STATUSES, GIN_STATUS_LABELS, GIN_STATUS_COLORS,
   generateGINNumber, generateQGINNumber, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS,
 } from "./purchaseHelpers";
 import { printGoodsInwardNote } from "./GINPrintView.jsx";
-import { CustomFieldsEditor } from "./PurchaseFormControls.jsx";
+import { CustomFieldsEditor, UomField } from "./PurchaseFormControls.jsx";
 
 export default function GRNTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
@@ -910,20 +910,3 @@ function DirectReceipt({profile,materials,suppliers,showToast,onClose}){
 }
 
 // ─── UOM field with a "Other (specify)" escape hatch ───────────────────────
-function UomField({value,onChange}){
-  const isCustom=!!value&&!UNITS.includes(value);
-  if(isCustom){
-    return(
-      <div style={{display:"flex",gap:4}}>
-        <input style={{...fieldStyle,flex:1}} value={value} onChange={e=>onChange(e.target.value)} placeholder="Unit"/>
-        <button type="button" className="btn-ghost" style={{padding:"0 8px",flexShrink:0}} title="Choose from list" onClick={()=>onChange(UNITS[0])}><Icon name="arrow" size={11}/></button>
-      </div>
-    );
-  }
-  return(
-    <select style={fieldStyle} value={value} onChange={e=>onChange(e.target.value==="__other__"?"":e.target.value)}>
-      {UNITS.map(u=><option key={u}>{u}</option>)}
-      <option value="__other__">Other (specify)</option>
-    </select>
-  );
-}

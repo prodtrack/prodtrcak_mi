@@ -11,12 +11,12 @@ import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, order
 import * as XLSX from "xlsx";
 import { S, Icon, EmptyState, formatDate, fieldStyle, labelStyle, FuzzyAutocomplete } from "../shared.jsx";
 import {
-  PLANTS, UNITS, REQUISITION_TYPES, PR_STATUSES, PR_STATUS_LABELS, PR_STATUS_COLORS,
+  PLANTS, REQUISITION_TYPES, PR_STATUSES, PR_STATUS_LABELS, PR_STATUS_COLORS,
   generatePRNumber, generatePONumber, emptyPRLineItem, lastPORateForMaterial, DEFAULT_GST_RATE,
   resolveOrCreateMaterialId,
 } from "./purchaseHelpers";
 import { printPurchaseRequisition } from "./PRPrintView.jsx";
-import { CustomFieldsEditor } from "./PurchaseFormControls.jsx";
+import { CustomFieldsEditor, CurrencyField, UomField } from "./PurchaseFormControls.jsx";
 
 export default function PurchaseRequisitionsTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
@@ -603,13 +603,7 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Line items</div>
         {requisitionType==="Import"&&(
           <div style={{maxWidth:220,marginBottom:16}}>
-            <label style={labelStyle}>Currency</label>
-            <select style={fieldStyle} value={currency} onChange={e=>setCurrency(e.target.value)}>
-              <option value="INR">INR (₹)</option>
-              <option value="USD">USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-              <option value="GBP">GBP (£)</option>
-            </select>
+            <CurrencyField value={currency} onChange={setCurrency}/>
           </div>
         )}
         {lineItems.map((it,i)=>(
@@ -695,20 +689,3 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
 }
 
 // ─── UOM field with a "Other (specify)" escape hatch ───────────────────────
-function UomField({value,onChange}){
-  const isCustom=!!value&&!UNITS.includes(value);
-  if(isCustom){
-    return(
-      <div style={{display:"flex",gap:4}}>
-        <input style={{...fieldStyle,flex:1}} value={value} onChange={e=>onChange(e.target.value)} placeholder="Unit"/>
-        <button type="button" className="btn-ghost" style={{padding:"0 8px",flexShrink:0}} title="Choose from list" onClick={()=>onChange(UNITS[0])}><Icon name="arrow" size={11}/></button>
-      </div>
-    );
-  }
-  return(
-    <select style={fieldStyle} value={value} onChange={e=>onChange(e.target.value==="__other__"?"":e.target.value)}>
-      {UNITS.map(u=><option key={u}>{u}</option>)}
-      <option value="__other__">Other (specify)</option>
-    </select>
-  );
-}

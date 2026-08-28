@@ -267,6 +267,12 @@ export function emptyLineItem(){
   return {part_code:"",material_id:"",material_name:"",hsn_code:"",qty:"",unit:"kg",rate:"",required_date:"",received_qty:0};
 }
 export const CURRENCY_SYMBOLS = {INR:"₹",USD:"$",EUR:"€",GBP:"£"};
+// Falls back to showing the currency code itself (e.g. "AED ") for any
+// custom/typed currency that isn't one of the four with a known symbol —
+// so amount fields never render "undefined123.45" for a typed-in currency.
+export function currencySymbol(code){
+  return CURRENCY_SYMBOLS[code] || (code?`${code} `:CURRENCY_SYMBOLS.INR);
+}
 
 // ─── Standard Terms & Conditions (printed on every PO) ─────────────────────
 // Edit this list to change what prints on every PO going forward — it's not
