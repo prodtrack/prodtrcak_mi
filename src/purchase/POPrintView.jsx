@@ -113,6 +113,7 @@ export function printPurchaseOrder(po){
   .sign-row>div{flex:1;padding:18px 8px 6px;text-align:center;font-size:11px;border-right:1px solid #000;}
   .sign-row>div:last-child{border-right:none;}
   .sign-row .for-company{font-weight:700;margin-bottom:26px;}
+  .sign-row .signee{font-weight:600;margin-bottom:16px;min-height:14px;}
   @media print{
     .print-btn{display:none;}
     body{padding:0;}
@@ -214,8 +215,8 @@ export function printPurchaseOrder(po){
   </div>
 
   <div class="sign-row">
-    <div><br/><br/><br/>Prepared By</div>
-    <div><br/><br/><br/>Checked By</div>
+    <div><div class="signee">${esc(po.created_by_name||"")}</div><br/><br/>Prepared By</div>
+    <div><div class="signee">${esc(po.approved_by||"")}</div><br/><br/>Checked By</div>
     <div><div class="for-company">For MAHENDRA INDUSTRIES</div>Authorised Signatory</div>
   </div>
 
