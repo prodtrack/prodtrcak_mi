@@ -29,18 +29,26 @@ export function printPurchaseRequisition(pr){
   const company=COMPANY_INFO[pr.plant]||{};
   const items=pr.line_items||[];
 
-  const rows=items.map((it,i)=>`
+  const rows=items.map((it,i)=>{
+    const desc=(it.item_description||"").trim();
+    const name=(it.material_name||"").trim();
+    const isDuplicateDesc=desc&&name&&desc.toLowerCase()===name.toLowerCase();
+    return `
     <tr>
       <td class="c">${i+1}</td>
       <td>${esc(it.item_code||"")}</td>
-      <td>${esc(it.material_name)}</td>
+      <td>
+        <div>${esc(it.material_name)}</div>
+        ${(desc&&!isDuplicateDesc)?`<div class="itemsub">${esc(tightLines(it.item_description))}</div>`:""}
+      </td>
       <td class="r">${Number(it.inventory_qty||0).toFixed(3)}</td>
       <td class="r">${Number(it.qty||0).toFixed(3)}</td>
       <td class="c">${esc((it.unit||"").toUpperCase())}</td>
       <td class="c">${fmtDate(it.required_date)}</td>
       <td class="r">${it.last_po_rate!=null?Number(it.last_po_rate).toFixed(2):""}</td>
       <td style="white-space:pre-line;">${esc(tightLines(it.remarks))}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   const html=`<!DOCTYPE html>
 <html>
@@ -68,6 +76,7 @@ export function printPurchaseRequisition(pr){
   .items-table{table-layout:fixed;}
   .items-table th{background:#dcdcdc;border-bottom:1px solid #000;border-top:1px solid #000;font-size:10px;text-transform:uppercase;}
   .items-table td{border-bottom:1px solid #000;font-size:11px;}
+  .items-table .itemsub{font-size:9.5px;color:#4b5563;margin-top:1px;white-space:pre-line;}
   .items-table th,.items-table td{border-left:1px solid #000;}
   .items-table th:first-child,.items-table td:first-child{border-left:none;}
   .items-table thead{display:table-header-group;}
