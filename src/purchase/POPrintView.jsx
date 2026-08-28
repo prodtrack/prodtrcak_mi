@@ -176,7 +176,7 @@ export function printPurchaseOrder(po){
       <div>Payment Terms : ${esc(po.payment_terms||"-")}</div>
       <div>Terms of delivery : ${esc(po.terms_of_delivery||"-")}</div>
       <div>Mode of Delivery : ${esc(po.mode_of_delivery||"-")}</div>
-      ${po.po_type==="Import"?`<div>Inco Terms : ${esc(po.inco_terms||"-")}</div>`:""}
+      ${po.po_type==="Import"?`<br/><div>Inco Terms : ${esc(po.inco_terms||"-")}</div>`:""}
     </div>
   </div>
 
