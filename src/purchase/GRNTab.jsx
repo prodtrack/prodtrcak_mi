@@ -21,6 +21,7 @@ import {
   generateGINNumber, generateQGINNumber, generateGRNNumber, poReceivedStatus, PO_STATUS_LABELS,
 } from "./purchaseHelpers";
 import { printGoodsInwardNote } from "./GINPrintView.jsx";
+import { CustomFieldsEditor } from "./PurchaseFormControls.jsx";
 
 export default function GRNTab({profile,showToast}){
   const isAdmin=profile.role==="admin";
@@ -386,7 +387,7 @@ function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApp
 // ─── GIN table row — select circle only; View/Edit buttons open full detail ─
 function GINTableRow({gin,selected,onSelect}){
   const sc=GIN_STATUS_COLORS[gin.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const customField=(gin.line_items||[]).find(it=>it.custom_field_label&&it.custom_field_value);
+  const customFieldText=(gin.line_items||[]).flatMap(it=>it.custom_fields||[]).filter(f=>f.label&&f.value).map(f=>`${f.label}: ${f.value}`).join(", ");
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
@@ -405,7 +406,7 @@ function GINTableRow({gin,selected,onSelect}){
       <td style={cellStyle}>{formatDate(gin.created_at?.toDate?gin.created_at.toDate():gin.created_at)}</td>
       <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{GIN_STATUS_LABELS[gin.status]}</span></td>
       <td style={cellStyle}>{gin.vehicle_no||"—"}</td>
-      <td style={cellStyle} title={customField?`${customField.custom_field_label}: ${customField.custom_field_value}`:undefined}>{customField?`${customField.custom_field_label}: ${customField.custom_field_value}`:"—"}</td>
+      <td style={cellStyle} title={customFieldText||undefined}>{customFieldText||"—"}</td>
     </tr>
   );
 }
@@ -548,7 +549,7 @@ function GINDetailPanel({gin,profile,pos,showToast,canApprove,canEdit,canCancel,
             <span style={{flex:1}}>
               <div style={{fontWeight:500}}>{it.item_code&&<span style={{...S,color:"#6b7280"}}>{it.item_code} — </span>}{it.material_name}</div>
               {it.remarks&&<div style={{...S,fontSize:10,color:"#9ca3af"}}>{it.remarks}</div>}
-              {it.custom_field_label&&it.custom_field_value&&<div style={{fontSize:11,color:"#6b7280",marginTop:2}}><b>{it.custom_field_label}:</b> {it.custom_field_value}</div>}
+              {(it.custom_fields||[]).filter(f=>f.label&&f.value).map((f,fi)=><div key={fi} style={{fontSize:11,color:"#6b7280",marginTop:2}}><b>{f.label}:</b> {f.value}</div>)}
             </span>
             <span style={{width:70,textAlign:"right",...S}}>{it.challan_qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S,color:"#16a34a"}}>{it.accepted_qty} {it.unit}</span>
@@ -737,15 +738,8 @@ function GINForm({profile,pos,existing,showToast,onClose}){
               <div><label style={labelStyle}>Actual challan qty</label><input type="number" disabled={qtyLocked} style={{...fieldStyle,...(qtyLocked?{background:"#f9fafb",color:"#9ca3af"}:{})}} min="0" step="0.01" value={it.actual_challan_qty} onChange={e=>updateLine(i,"actual_challan_qty",e.target.value)}/></div>
               <div><label style={labelStyle}>Remarks</label><textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.remarks} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="e.g. LME rate, coil no."/></div>
             </div>
-            <div style={{display:"flex",gap:10,marginTop:10}}>
-              <div style={{flex:1}}>
-                <label style={labelStyle}>Custom field name</label>
-                <input style={fieldStyle} value={it.custom_field_label||""} onChange={e=>updateLine(i,"custom_field_label",e.target.value)} placeholder="e.g. Batch No"/>
-              </div>
-              <div style={{flex:1}}>
-                <label style={labelStyle}>Custom field value</label>
-                <input style={fieldStyle} value={it.custom_field_value||""} onChange={e=>updateLine(i,"custom_field_value",e.target.value)} placeholder="Value"/>
-              </div>
+            <div style={{marginTop:10}}>
+              <CustomFieldsEditor fields={it.custom_fields} onChange={v=>updateLine(i,"custom_fields",v)}/>
             </div>
           </div>
         ))}

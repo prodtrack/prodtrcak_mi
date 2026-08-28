@@ -8,7 +8,7 @@
 // Add new shared purchase-form controls here, not inline in each form file.
 
 import { useState } from "react";
-import { fieldStyle, labelStyle } from "../shared.jsx";
+import { fieldStyle, labelStyle, Icon } from "../shared.jsx";
 
 export default function SelectOrCustom({label, value, onChange, options, placeholder="— Select —", otherLabel="Other (specify)", required=false, suffix=""}){
   const isKnown = options.some(o=>String(o)===String(value));
@@ -39,6 +39,37 @@ export default function SelectOrCustom({label, value, onChange, options, placeho
         {options.map(o=><option key={o} value={o}>{typeof o==="number"?`${o}${suffix}`:o}</option>)}
         <option value="__other__">{otherLabel}</option>
       </select>
+    </div>
+  );
+}
+
+// ─── CustomFieldsEditor ──────────────────────────────────────────────────────
+// Repeatable label/value pairs for a single line item. `fields` is an array
+// of {label,value}; "+ Add field" appends another pair, same pattern as
+// "+ Add line item" at the item level. Reflected in list tables only, not
+// print views (by design, for now).
+export function CustomFieldsEditor({fields, onChange, disabled=false}){
+  const list = fields||[];
+  function updateField(i,k,v){ onChange(list.map((f,idx)=>idx===i?{...f,[k]:v}:f)); }
+  function addField(){ onChange([...list,{label:"",value:""}]); }
+  function removeField(i){ onChange(list.filter((_,idx)=>idx!==i)); }
+
+  return(
+    <div style={{marginBottom:10}}>
+      {list.map((f,i)=>(
+        <div key={i} style={{display:"flex",gap:10,marginBottom:8,alignItems:"flex-end"}}>
+          <div style={{flex:1,...(disabled?{pointerEvents:"none",opacity:.55}:{})}}>
+            <label style={labelStyle}>Custom field name</label>
+            <input style={fieldStyle} value={f.label||""} onChange={e=>updateField(i,"label",e.target.value)} placeholder="e.g. Batch No" readOnly={disabled}/>
+          </div>
+          <div style={{flex:1,...(disabled?{pointerEvents:"none",opacity:.55}:{})}}>
+            <label style={labelStyle}>Custom field value</label>
+            <input style={fieldStyle} value={f.value||""} onChange={e=>updateField(i,"value",e.target.value)} placeholder="Value" readOnly={disabled}/>
+          </div>
+          {!disabled&&<button type="button" className="btn-danger" style={{padding:"7px 8px",fontSize:11,flexShrink:0}} onClick={()=>removeField(i)}><Icon name="x" size={11}/></button>}
+        </div>
+      ))}
+      {!disabled&&<button type="button" className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} onClick={addField}><Icon name="plus" size={11}/>Add field</button>}
     </div>
   );
 }

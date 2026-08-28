@@ -18,7 +18,7 @@ import {
   earliestRequiredDate, resolveOrCreateMaterialId,
 } from "./purchaseHelpers";
 import { printPurchaseOrder } from "./POPrintView.jsx";
-import SelectOrCustom from "./PurchaseFormControls.jsx";
+import SelectOrCustom, { CustomFieldsEditor } from "./PurchaseFormControls.jsx";
 
 // A PO line item's own item_remarks wins if set; otherwise, for POs that
 // were auto-generated from a PR (po.pr_reference), fall back to that PR's
@@ -146,7 +146,7 @@ export default function PurchaseOrdersTab({profile,showToast}){
       line_items:(po.line_items||[]).map(it=>({
         part_code:it.part_code||"", material_id:it.material_id||"", material_name:it.material_name,
         hsn_code:it.hsn_code||"", item_description:it.item_description||"", item_remarks:it.item_remarks||"",
-        custom_field_label:it.custom_field_label||"", custom_field_value:it.custom_field_value||"",
+        custom_fields:(it.custom_fields||[]).map(f=>({label:f.label||"",value:f.value||""})),
         rate:it.rate, unit:it.unit, qty:"", required_date:"", received_qty:0,
       })),
     });
@@ -356,7 +356,7 @@ function POTableRow({po,selected,onSelect}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
-  const customField=(po.line_items||[]).find(it=>it.custom_field_label&&it.custom_field_value);
+  const customFieldText=(po.line_items||[]).flatMap(it=>it.custom_fields||[]).filter(f=>f.label&&f.value).map(f=>`${f.label}: ${f.value}`).join(", ");
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
@@ -376,7 +376,7 @@ function POTableRow({po,selected,onSelect}){
       <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{PO_STATUS_LABELS[po.status]}</span></td>
       <td style={cellStyle} title={po.remarks}>{po.remarks||"—"}</td>
       <td style={cellStyle}>{po.po_type||"—"}</td>
-      <td style={cellStyle} title={customField?`${customField.custom_field_label}: ${customField.custom_field_value}`:undefined}>{customField?`${customField.custom_field_label}: ${customField.custom_field_value}`:"—"}</td>
+      <td style={cellStyle} title={customFieldText||undefined}>{customFieldText||"—"}</td>
       <td style={{...cellStyle,textAlign:"right",...S}}>₹{totals.grandTotal.toLocaleString("en-IN")}</td>
       <td style={{...cellStyle,textAlign:"right",...S}}>₹{tax.toLocaleString("en-IN")}</td>
     </tr>
@@ -483,7 +483,7 @@ function PODetailPanel({po,profile,prs,showToast,canApprove,canEdit,isAmendment,
               <div style={{fontWeight:500}}>{it.part_code&&<span style={{...S,color:"#6b7280"}}>{it.part_code} — </span>}{it.material_name}</div>
               <div style={{...S,fontSize:10,color:"#9ca3af"}}>{it.hsn_code&&`HSN ${it.hsn_code}`}{it.hsn_code&&it.required_date?" · ":""}{it.required_date&&`Req ${formatDate(it.required_date)}`}</div>
               {itemRemarks&&<div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{itemRemarks}</div>}
-              {it.custom_field_label&&it.custom_field_value&&<div style={{fontSize:11,color:"#6b7280",marginTop:2}}><b>{it.custom_field_label}:</b> {it.custom_field_value}</div>}
+              {(it.custom_fields||[]).filter(f=>f.label&&f.value).map((f,fi)=><div key={fi} style={{fontSize:11,color:"#6b7280",marginTop:2}}><b>{f.label}:</b> {f.value}</div>)}
             </span>
             <span style={{width:70,textAlign:"right",...S}}>{it.qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S,color:(it.received_qty||0)>=parseFloat(it.qty)?"#16a34a":"#6b7280"}}>{it.received_qty||0}</span>
@@ -725,16 +725,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
                 <textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.item_remarks||""} onChange={e=>updateLine(i,"item_remarks",e.target.value)} placeholder="Optional — e.g. LME rate, coil no., special instruction" readOnly={isAmendment}/>
               </div>
             </div>
-            <div style={{display:"flex",gap:10,marginBottom:10}}>
-              <div style={{flex:1,...(isAmendment?{pointerEvents:"none",opacity:.55}:{})}}>
-                <label style={labelStyle}>Custom field name</label>
-                <input style={fieldStyle} value={it.custom_field_label||""} onChange={e=>updateLine(i,"custom_field_label",e.target.value)} placeholder="e.g. Batch No" readOnly={isAmendment}/>
-              </div>
-              <div style={{flex:1,...(isAmendment?{pointerEvents:"none",opacity:.55}:{})}}>
-                <label style={labelStyle}>Custom field value</label>
-                <input style={fieldStyle} value={it.custom_field_value||""} onChange={e=>updateLine(i,"custom_field_value",e.target.value)} placeholder="Value" readOnly={isAmendment}/>
-              </div>
-            </div>
+            <CustomFieldsEditor fields={it.custom_fields} onChange={v=>updateLine(i,"custom_fields",v)} disabled={isAmendment}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",gap:10}}>
               <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
                 <label style={labelStyle}>Qty *</label>
