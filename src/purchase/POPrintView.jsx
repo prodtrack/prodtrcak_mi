@@ -165,7 +165,7 @@ export function printPurchaseOrder(po){
       <div>GSTIN : ${esc(po.vendor_gstin||"")}</div>
       <div>PAN No : ${esc(po.vendor_pan||"")}</div>
       <div>Your Reference : ${esc(po.your_reference||"")}</div>
-      <div>PO Type : ${esc(po.po_type||"Domestic")}</div>
+      ${po.po_type==="Import"?`<div>PO Type : Import</div>`:""}
       ${po.po_type==="Import"?`<div>Inco Terms : ${esc(po.inco_terms||"-")}</div>`:""}
       ${po.po_type==="Import"?`<div>Currency : ${esc(po.currency||"INR")}</div>`:""}
     </div>

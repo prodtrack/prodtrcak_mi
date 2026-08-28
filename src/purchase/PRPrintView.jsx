@@ -4,6 +4,9 @@
 // Letterhead/logo/GSTIN block and CSS classes are deliberately copied from
 // POPrintView.jsx so both documents look like they belong to the same
 // company stationery — change the shared look in both places if it changes.
+// Deliberately simple/self-contained layout: two-column header block, one
+// item table, Remarks/Comments footer. No Vendor/Supplier Details block, no
+// Terms & Conditions, no signature row — those belong to POPrintView.jsx.
 
 import { COMPANY_INFO } from "./purchaseHelpers";
 import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
