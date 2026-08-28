@@ -107,7 +107,7 @@ async function nextNumber(counterKey,prefix,plant){
     return `${prefix}/${plantCode(plant)}/${fy}/${String(next).padStart(3,"0")}`;
   });
 }
-export function generatePONumber(plant){return nextNumber("PO","PO",plant);}
+export function generatePONumber(plant,poType){return nextNumber("PO",poType==="Import"?"IMPO":"PO",plant);}
 export function generateGRNNumber(plant){return nextNumber("GRN","GRN",plant);}
 // Own counter ("PR"), so PR numbering never collides with or borrows from the
 // PO sequence — mirrors the exact same plant/FY-scoped pattern as generatePONumber.

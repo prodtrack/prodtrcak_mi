@@ -348,7 +348,7 @@ function PRDetailPanel({pr,profile,vendors,showToast,canApprove,canEdit,canCance
   async function approveAndConvert(){
     setBusy(true);
     try{
-      const poNumber=await generatePONumber(pr.plant);
+      const poNumber=await generatePONumber(pr.plant,pr.requisition_type);
       const poLineItems=(pr.line_items||[]).map(it=>({
         part_code:it.item_code||"", material_id:it.material_id||"", material_name:it.material_name,
         item_description:it.item_description||"", item_remarks:it.remarks||"",

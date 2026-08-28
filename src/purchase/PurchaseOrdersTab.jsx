@@ -608,7 +608,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         await updateDoc(doc(db,"purchase_orders",existing.id),editPayload);
         showToast(isAmendment?`${existing.po_number} amended (Amd #${editPayload.amd_no}) — sent for re-approval`:submitForApproval?`${existing.po_number} submitted for approval`:`${existing.po_number} updated`);
       }else{
-        const poNumber=await generatePONumber(plant);
+        const poNumber=await generatePONumber(plant,poType);
         await addDoc(collection(db,"purchase_orders"),{
           ...payload, po_number:poNumber, status:submitForApproval?"pending_approval":"draft",
           created_by:auth.currentUser.uid, created_by_name:profile.name||auth.currentUser.email, created_at:serverTimestamp(),

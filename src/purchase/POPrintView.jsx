@@ -141,7 +141,7 @@ export function printPurchaseOrder(po){
     <span></span>
   </div>
 
-  <div class="title">Purchase Order</div>
+  <div class="title">${po.po_type==="Import"?"IMPORT PURCHASE ORDER":"Purchase Order"}</div>
 
   <div class="ponum-row">
     <span>PO No : <b>${esc(po.po_number)}</b></span>
