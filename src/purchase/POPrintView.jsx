@@ -215,8 +215,8 @@ export function printPurchaseOrder(po){
   </div>
 
   <div class="sign-row">
-    <div><div class="signee">${esc(po.created_by_name||"")}</div><br/><br/>Prepared By</div>
-    <div><div class="signee">${esc(po.approved_by||"")}</div><br/><br/>Checked By</div>
+    <div><div class="signee">Purchase</div><br/><br/>Prepared By</div>
+    <div><div class="signee">Purchase</div><br/><br/>Checked By</div>
     <div><div class="for-company">For MAHENDRA INDUSTRIES</div>Authorised Signatory</div>
   </div>
 
