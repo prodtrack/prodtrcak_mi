@@ -151,8 +151,8 @@ export function printPurchaseRequisition(pr){
     </tbody>
   </table>
 
-  ${(pr.remarks&&pr.remarks.trim())?`<div class="remarks-row"><b>Remarks:</b><br/>${esc(tightLines(pr.remarks))}</div>`:""}
-  ${(pr.comments&&pr.comments.trim())?`<div class="remarks-row"><b>Comments:</b><br/>${esc(tightLines(pr.comments))}</div>`:""}
+  <div class="remarks-row"><b>Remarks:</b><br/>${esc(tightLines(pr.remarks))}</div>
+  <div class="remarks-row"><b>Comments:</b><br/>${esc(tightLines(pr.comments))}</div>
 
 </div>
 </body>
