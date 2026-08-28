@@ -193,7 +193,7 @@ export function printPurchaseOrder(po){
         <th style="width:9%;">Qty</th>
         <th style="width:7%;">UOM</th>
         <th style="width:10%;">Rate</th>
-        <th style="width:16%;">Net Amount</th>
+        <th style="width:16%;">Net Amount${po.po_type==="Import"?` (${esc(po.currency||"INR")})`:""}</th>
       </tr>
     </thead>
     <tbody>

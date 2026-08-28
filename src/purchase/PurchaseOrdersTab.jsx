@@ -675,17 +675,6 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
               <input style={fieldStyle} value={incoTerms} onChange={e=>setIncoTerms(e.target.value)} placeholder="e.g. FOB, CIF, EXW" readOnly={isAmendment}/>
             </div>
           )}
-          {poType==="Import"&&(
-            <div style={isAmendment?{pointerEvents:"none",opacity:.55}:undefined}>
-              <label style={labelStyle}>Currency</label>
-              <select style={fieldStyle} value={currency} onChange={e=>setCurrency(e.target.value)} disabled={isAmendment}>
-                <option value="INR">INR (₹)</option>
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-              </select>
-            </div>
-          )}
         </div>
       </div>
 
@@ -693,6 +682,17 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Line items</div>
         {isAmendment&&(
           <div style={{fontSize:11,color:"#9ca3af",marginBottom:12}}>Only the Required date can be changed during an amendment — all other fields are locked.</div>
+        )}
+        {poType==="Import"&&(
+          <div style={{maxWidth:220,marginBottom:16,...(isAmendment?{pointerEvents:"none",opacity:.55}:{})}}>
+            <label style={labelStyle}>Currency</label>
+            <select style={fieldStyle} value={currency} onChange={e=>setCurrency(e.target.value)} disabled={isAmendment}>
+              <option value="INR">INR (₹)</option>
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+            </select>
+          </div>
         )}
         {lineItems.map((it,i)=>(
           <div key={i} style={{borderTop:i>0?"1px solid #f3f4f6":undefined,paddingTop:i>0?14:0,marginTop:i>0?14:0}}>

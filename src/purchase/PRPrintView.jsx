@@ -121,7 +121,6 @@ export function printPurchaseRequisition(pr){
       <div>Site: <b>${esc(company.name||pr.plant)}</b></div>
       <div>Requisition Type: <b>${esc(pr.requisition_type||"")}</b></div>
       ${pr.requisition_type==="Import"?`<div>Inco Terms: <b>${esc(pr.inco_terms||"-")}</b></div>`:""}
-      ${pr.requisition_type==="Import"?`<div>Currency: <b>${esc(pr.currency||"INR")}</b></div>`:""}
       <div>Requested By Code: <b>${esc(pr.requested_by_code||"—")}</b></div>
     </div>
     <div>
@@ -142,7 +141,7 @@ export function printPurchaseRequisition(pr){
         <th style="width:8%;">Required<br/>Qty</th>
         <th style="width:5%;">UOM</th>
         <th style="width:8%;">Required<br/>Date</th>
-        <th style="width:7%;">Last PO<br/>Rate</th>
+        <th style="width:7%;">Last PO<br/>Rate${pr.requisition_type==="Import"?` (${esc(pr.currency||"INR")})`:""}</th>
         <th style="width:31%;">Remarks</th>
       </tr>
     </thead>
