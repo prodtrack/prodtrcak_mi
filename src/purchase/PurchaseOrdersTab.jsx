@@ -15,7 +15,7 @@ import {
   PLANTS, COMPANY_INFO, UNITS, PO_STATUSES, PO_STATUS_LABELS, PO_STATUS_COLORS,
   generatePONumber, lineAmount, poTotals, emptyLineItem, DEFAULT_GST_RATE,
   GST_RATE_OPTIONS, DELIVERY_TERMS_OPTIONS, DELIVERY_MODE_OPTIONS, PAYMENT_TERMS_OPTIONS,
-  earliestRequiredDate, resolveOrCreateMaterialId,
+  earliestRequiredDate, resolveOrCreateMaterialId, CURRENCY_SYMBOLS,
 } from "./purchaseHelpers";
 import { printPurchaseOrder } from "./POPrintView.jsx";
 import SelectOrCustom, { CustomFieldsEditor } from "./PurchaseFormControls.jsx";
@@ -356,6 +356,7 @@ function POTableRow({po,selected,onSelect}){
   const sc=PO_STATUS_COLORS[po.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const tax=totals.treatment==="IGST"?totals.igst:totals.cgst+totals.sgst;
+  const curSym=CURRENCY_SYMBOLS[po.currency||"INR"];
   const customFieldText=(po.line_items||[]).flatMap(it=>it.custom_fields||[]).filter(f=>f.label&&f.value).map(f=>`${f.label}: ${f.value}`).join(", ");
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
@@ -377,8 +378,8 @@ function POTableRow({po,selected,onSelect}){
       <td style={cellStyle} title={po.remarks}>{po.remarks||"—"}</td>
       <td style={cellStyle}>{po.po_type||"—"}</td>
       <td style={cellStyle} title={customFieldText||undefined}>{customFieldText||"—"}</td>
-      <td style={{...cellStyle,textAlign:"right",...S}}>₹{totals.grandTotal.toLocaleString("en-IN")}</td>
-      <td style={{...cellStyle,textAlign:"right",...S}}>₹{tax.toLocaleString("en-IN")}</td>
+      <td style={{...cellStyle,textAlign:"right",...S}}>{curSym}{totals.grandTotal.toLocaleString("en-IN")}</td>
+      <td style={{...cellStyle,textAlign:"right",...S}}>{curSym}{tax.toLocaleString("en-IN")}</td>
     </tr>
   );
 }
@@ -387,6 +388,7 @@ function PODetailPanel({po,profile,prs,showToast,canApprove,canEdit,isAmendment,
   const [busy,setBusy]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
+  const curSym=CURRENCY_SYMBOLS[po.currency||"INR"];
   const company=COMPANY_INFO[po.plant]||{};
 
   async function submitForApproval(){
@@ -487,21 +489,21 @@ function PODetailPanel({po,profile,prs,showToast,canApprove,canEdit,isAmendment,
             </span>
             <span style={{width:70,textAlign:"right",...S}}>{it.qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S,color:(it.received_qty||0)>=parseFloat(it.qty)?"#16a34a":"#6b7280"}}>{it.received_qty||0}</span>
-            <span style={{width:80,textAlign:"right",...S}}>₹{it.rate}</span>
-            <span style={{width:90,textAlign:"right",...S,fontWeight:600}}>₹{lineAmount(it).toLocaleString("en-IN")}</span>
+            <span style={{width:80,textAlign:"right",...S}}>{curSym}{it.rate}</span>
+            <span style={{width:90,textAlign:"right",...S,fontWeight:600}}>{curSym}{lineAmount(it).toLocaleString("en-IN")}</span>
           </div>
           );
         })}
         <div style={{padding:"10px 14px",background:"#fafafa"}}>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.subtotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:90,textAlign:"right"}}>{curSym}{totals.subtotal.toLocaleString("en-IN")}</span></div>
           {totals.treatment==="IGST"
-            ?<div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>IGST {totals.gstRate}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.igst.toLocaleString("en-IN")}</span></div>
+            ?<div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>IGST {totals.gstRate}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>{curSym}{totals.igst.toLocaleString("en-IN")}</span></div>
             :<>
-              <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>CGST {totals.gstRate/2}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.cgst.toLocaleString("en-IN")}</span></div>
-              <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>SGST {totals.gstRate/2}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.sgst.toLocaleString("en-IN")}</span></div>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>CGST {totals.gstRate/2}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>{curSym}{totals.cgst.toLocaleString("en-IN")}</span></div>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>SGST {totals.gstRate/2}%</span><span style={{...S,minWidth:90,textAlign:"right"}}>{curSym}{totals.sgst.toLocaleString("en-IN")}</span></div>
             </>
           }
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:13,fontWeight:700,paddingTop:6,borderTop:"1px solid #9ca3af"}}><span>Total</span><span style={{...S,minWidth:90,textAlign:"right"}}>₹{totals.grandTotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:13,fontWeight:700,paddingTop:6,borderTop:"1px solid #9ca3af"}}><span>Total</span><span style={{...S,minWidth:90,textAlign:"right"}}>{curSym}{totals.grandTotal.toLocaleString("en-IN")}</span></div>
         </div>
       </div>
 
@@ -745,7 +747,7 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
               </div>
               <div>
                 <label style={labelStyle}>Amount</label>
-                <div style={{...fieldStyle,...S,background:"#f9fafb",fontWeight:600}}>₹{lineAmount(it).toLocaleString("en-IN")}</div>
+                <div style={{...fieldStyle,...S,background:"#f9fafb",fontWeight:600}}>{CURRENCY_SYMBOLS[currency]}{lineAmount(it).toLocaleString("en-IN")}</div>
               </div>
             </div>
           </div>
@@ -753,9 +755,9 @@ function POForm({profile,vendors,materials,existing,isAmendment,showToast,onClos
         {!isAmendment&&<button className="btn-ghost" style={{width:"100%",justifyContent:"center",marginTop:16,borderStyle:"dashed"}} onClick={addLine}><Icon name="plus" size={13}/>Add line item</button>}
 
         <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid #f3f4f6"}}>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:100,textAlign:"right"}}>₹{totals.subtotal.toLocaleString("en-IN")}</span></div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>{totals.treatment==="IGST"?`IGST ${totals.gstRate}%`:`CGST+SGST ${totals.gstRate}%`}</span><span style={{...S,minWidth:100,textAlign:"right"}}>₹{totals.gstAmount.toLocaleString("en-IN")}</span></div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:14,fontWeight:700}}><span>Total</span><span style={{...S,minWidth:100,textAlign:"right"}}>₹{totals.grandTotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>Subtotal</span><span style={{...S,minWidth:100,textAlign:"right"}}>{CURRENCY_SYMBOLS[currency]}{totals.subtotal.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:12,marginBottom:4}}><span style={{color:"#6b7280"}}>{totals.treatment==="IGST"?`IGST ${totals.gstRate}%`:`CGST+SGST ${totals.gstRate}%`}</span><span style={{...S,minWidth:100,textAlign:"right"}}>{CURRENCY_SYMBOLS[currency]}{totals.gstAmount.toLocaleString("en-IN")}</span></div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:24,fontSize:14,fontWeight:700}}><span>Total</span><span style={{...S,minWidth:100,textAlign:"right"}}>{CURRENCY_SYMBOLS[currency]}{totals.grandTotal.toLocaleString("en-IN")}</span></div>
         </div>
       </div>
 

@@ -8,7 +8,7 @@
 // Change the letterhead layout ONLY here — nothing else in the app renders
 // a PO for print.
 
-import { COMPANY_INFO, poTotals, lineAmount, amountInWords, STANDARD_TERMS } from "./purchaseHelpers";
+import { COMPANY_INFO, poTotals, lineAmount, amountInWords, STANDARD_TERMS, CURRENCY_SYMBOLS } from "./purchaseHelpers";
 import { COMPANY_LOGO_DATA_URI } from "./companyLogo.js";
 
 function esc(s){
@@ -32,6 +32,7 @@ export function printPurchaseOrder(po){
   const company=COMPANY_INFO[po.plant]||{};
   const totals=poTotals(po.plant,po.vendor_state_code,po.line_items,po.gst_rate??0);
   const items=po.line_items||[];
+  const curSym=CURRENCY_SYMBOLS[po.currency||"INR"];
 
   const rows=items.map((it,i)=>{
     const desc=(it.item_description||"").trim();
@@ -50,15 +51,15 @@ export function printPurchaseOrder(po){
       <td class="c">${fmtDate(it.required_date)}</td>
       <td class="r">${Number(it.qty).toFixed(2)}</td>
       <td class="c">${esc((it.unit||"").toUpperCase())}</td>
-      <td class="r">${Number(it.rate).toFixed(2)}</td>
-      <td class="r">${lineAmount(it).toFixed(2)}</td>
+      <td class="r">${curSym}${Number(it.rate).toFixed(2)}</td>
+      <td class="r">${curSym}${lineAmount(it).toFixed(2)}</td>
     </tr>`;
   }).join("");
 
   const gstRows=totals.treatment==="IGST"
-    ? `<tr><td colspan="7" class="r label">Purchase IGST-${totals.gstRate}%</td><td class="r">${totals.igst.toFixed(2)}</td></tr>`
-    : `<tr><td colspan="7" class="r label">Purchase SGST-${totals.gstRate/2}%</td><td class="r">${totals.sgst.toFixed(2)}</td></tr>
-       <tr><td colspan="7" class="r label">Purchase CGST-${totals.gstRate/2}%</td><td class="r">${totals.cgst.toFixed(2)}</td></tr>`;
+    ? `<tr><td colspan="7" class="r label">Purchase IGST-${totals.gstRate}%</td><td class="r">${curSym}${totals.igst.toFixed(2)}</td></tr>`
+    : `<tr><td colspan="7" class="r label">Purchase SGST-${totals.gstRate/2}%</td><td class="r">${curSym}${totals.sgst.toFixed(2)}</td></tr>
+       <tr><td colspan="7" class="r label">Purchase CGST-${totals.gstRate/2}%</td><td class="r">${curSym}${totals.cgst.toFixed(2)}</td></tr>`;
 
   const termsHtml=STANDARD_TERMS.map((t,i)=>`<tr><td class="c tno">${i+1}</td><td>${esc(t)}</td></tr>`).join("");
 
@@ -198,9 +199,9 @@ export function printPurchaseOrder(po){
     </thead>
     <tbody>
       ${rows}
-      <tr class="totalrow"><td colspan="7" class="r">TOTAL</td><td class="r">${totals.subtotal.toFixed(2)}</td></tr>
+      <tr class="totalrow"><td colspan="7" class="r">TOTAL</td><td class="r">${curSym}${totals.subtotal.toFixed(2)}</td></tr>
       ${gstRows}
-      <tr class="totalrow"><td colspan="7" class="r">Total Amount (In Figure)</td><td class="r">${totals.grandTotal.toFixed(2)}</td></tr>
+      <tr class="totalrow"><td colspan="7" class="r">Total Amount (In Figure)</td><td class="r">${curSym}${totals.grandTotal.toFixed(2)}</td></tr>
     </tbody>
   </table>
 

@@ -266,6 +266,7 @@ export function earliestRequiredDate(lineItems){
 export function emptyLineItem(){
   return {part_code:"",material_id:"",material_name:"",hsn_code:"",qty:"",unit:"kg",rate:"",required_date:"",received_qty:0};
 }
+export const CURRENCY_SYMBOLS = {INR:"₹",USD:"$",EUR:"€",GBP:"£"};
 
 // ─── Standard Terms & Conditions (printed on every PO) ─────────────────────
 // Edit this list to change what prints on every PO going forward — it's not
