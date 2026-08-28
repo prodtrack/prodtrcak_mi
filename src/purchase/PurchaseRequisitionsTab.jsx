@@ -124,6 +124,7 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
         item_code:it.item_code||"", material_id:it.material_id||"", material_name:it.material_name,
         item_description:it.item_description||"", last_po_rate:it.last_po_rate,
         inventory_qty:"", qty:"", unit:it.unit, required_date:"", remarks:"",
+        custom_field_label:"", custom_field_value:"",
       })),
     });
   }
@@ -218,6 +219,7 @@ export default function PurchaseRequisitionsTab({profile,showToast}){
                   <DateRangeTh label="PR date" field="created_at" sortField={sortField} sortDir={sortDir} onSort={onSort} dateFrom={dateFrom} dateTo={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);setPage(1);}}/>
                   <SortTh label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
                   <SortTh label="Converted PO" field="converted_po_number" sortField={sortField} sortDir={sortDir} onSort={onSort}/>
+                  <th style={{padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",fontSize:11,color:"#6b7280",whiteSpace:"nowrap"}}>Custom Field</th>
                   <SortTh label="Items" field="items" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right"/>
                 </tr>
               </thead>
@@ -302,6 +304,7 @@ function DateRangeTh({label,field,sortField,sortDir,onSort,dateFrom,dateTo,onApp
 // ─── PR table row — select circle only; View/Edit buttons open full detail ──
 function PRTableRow({pr,selected,onSelect}){
   const sc=PR_STATUS_COLORS[pr.status]||{bg:"#f3f4f6",c:"#6b7280"};
+  const customField=(pr.line_items||[]).find(it=>it.custom_field_label&&it.custom_field_value);
   const cellStyle={padding:"7px 6px",borderBottom:"1px solid #9ca3af",borderLeft:"1px solid #9ca3af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:160};
 
   return(
@@ -319,6 +322,7 @@ function PRTableRow({pr,selected,onSelect}){
       <td style={cellStyle}>{formatDate(pr.created_at?.toDate?pr.created_at.toDate():pr.created_at)}</td>
       <td style={cellStyle}><span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{PR_STATUS_LABELS[pr.status]}</span></td>
       <td style={cellStyle}>{pr.converted_po_number||"—"}</td>
+      <td style={cellStyle} title={customField?`${customField.custom_field_label}: ${customField.custom_field_value}`:undefined}>{customField?`${customField.custom_field_label}: ${customField.custom_field_value}`:"—"}</td>
       <td style={{...cellStyle,textAlign:"right"}}>{(pr.line_items||[]).length}</td>
     </tr>
   );
@@ -434,6 +438,7 @@ function PRDetailPanel({pr,profile,vendors,showToast,canApprove,canEdit,canCance
             <span style={{flex:1}}>
               <div style={{fontWeight:500}}>{it.item_code&&<span style={{...S,color:"#6b7280"}}>{it.item_code} — </span>}{it.material_name}</div>
               {it.required_date&&<div style={{...S,fontSize:10,color:"#9ca3af"}}>Req {formatDate(it.required_date)}</div>}
+              {it.custom_field_label&&it.custom_field_value&&<div style={{fontSize:11,color:"#6b7280",marginTop:2}}><b>{it.custom_field_label}:</b> {it.custom_field_value}</div>}
             </span>
             <span style={{width:70,textAlign:"right",...S}}>{it.inventory_qty} {it.unit}</span>
             <span style={{width:70,textAlign:"right",...S}}>{it.qty} {it.unit}</span>
@@ -652,6 +657,16 @@ function PRForm({profile,vendors,materials,purchaseOrders,existing,showToast,onC
             <div style={{marginTop:10}}>
               <label style={labelStyle}>Item remarks</label>
               <textarea style={{...fieldStyle,minHeight:44,resize:"vertical"}} value={it.remarks||""} onChange={e=>updateLine(i,"remarks",e.target.value)} placeholder="Optional"/>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:10}}>
+              <div style={{flex:1}}>
+                <label style={labelStyle}>Custom field name</label>
+                <input style={fieldStyle} value={it.custom_field_label||""} onChange={e=>updateLine(i,"custom_field_label",e.target.value)} placeholder="e.g. Batch No"/>
+              </div>
+              <div style={{flex:1}}>
+                <label style={labelStyle}>Custom field value</label>
+                <input style={fieldStyle} value={it.custom_field_value||""} onChange={e=>updateLine(i,"custom_field_value",e.target.value)} placeholder="Value"/>
+              </div>
             </div>
           </div>
         ))}
