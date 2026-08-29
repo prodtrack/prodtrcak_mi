@@ -1066,7 +1066,7 @@ function TenderDetailView({tender:t,profile,showToast,onBack}){
       customer_name:t.company||"",
       ...(hasStructuredDims?{conductor_type:t.conductor_type||"conductor",product_type:t.product_type||"conductor",dimensions:dims}:{}),
       quantity:t.quantity||"",
-      quantity_unit:t.uom&&["kg","nos"].includes(t.uom)?t.uom:"kg",
+      quantity_unit:{kg:"kg",mtr:"m",nos:"nos"}[t.uom]||"kg",
       insulation:t.conductor_type==="ctc"
         ?[{scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:t.covering_1||"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""},
           {scheme:t.insulation_type||"",thermal:"",tempIndex:"",covering:t.covering_2||"",spec:t.specification_number||"",rawMaterial:"",qtyUsed:""}]
@@ -1629,7 +1629,7 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
       product_type:it.product_type||"conductor",
       dimensions:dims,
       quantity:it.quantity||"",
-      quantity_unit:it.uom&&["kg","nos"].includes(it.uom)?it.uom:"kg",
+      quantity_unit:{kg:"kg",mtr:"m",nos:"nos"}[it.uom]||"kg",
       insulation:it.conductor_type==="ctc"
         ?[{scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_1||"",spec:it.specification_number||"",rawMaterial:"",qtyUsed:""},
           {scheme:it.insulation_type||"",thermal:"",tempIndex:"",covering:it.covering_2||"",spec:it.specification_number||"",rawMaterial:"",qtyUsed:""}]
