@@ -69,6 +69,7 @@ export function printEnquiry(enquiry){
           ["Thick. of Insulation Paper",it.interleaving_paper_thickness?`${it.interleaving_paper_thickness}mm`:null],
           ["Paper Type",it.paper_type]]
         :[["Covering",it.covering?`${it.covering}mm`:null]]),
+      ["Total Quantity",it.quantity!=null&&it.quantity!==""?`${it.quantity}${it.uom?` ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}`:null],
       ["Packing",it.packing],
       ["Delivery",enquiry.delivery_terms],
       ["Payment",enquiry.payment_terms],
@@ -85,6 +86,7 @@ export function printEnquiry(enquiry){
     const listHtml=listRows.join("");
     return `
     <div class="item-block">
+      <div class="item-no-heading">Item ${i+1}</div>
       ${listHtml}
       ${it.remarks&&it.remarks.trim()?`<div class="item-remarks"><b>Remarks:</b> ${esc(tightLines(it.remarks))}</div>`:""}
       ${fp!=null?`<div class="final-price">The final price is ${CURRENCY_SYMBOLS[it.currency||"INR"]} ${fp}${it.uom?` / ${esc(it.uom==="kg"?"Kgs":it.uom)}`:""}</div>`:""}
@@ -106,6 +108,7 @@ export function printEnquiry(enquiry){
   .addr{font-size:11px;margin-top:6px;}
   .contact-row{display:flex;justify-content:space-between;padding:4px 12px;border-bottom:1px solid #000;font-size:10.5px;}
   .item-block{padding:12px 16px;border-bottom:1px solid #6b7280;break-inside:avoid;page-break-inside:avoid;}
+  .item-no-heading{font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;}
   .offer-row{display:flex;gap:8px;padding:2px 0;font-size:12px;}
   .offer-no{width:20px;flex-shrink:0;color:#555;}
   .offer-label{width:90px;flex-shrink:0;font-weight:600;}
@@ -137,7 +140,10 @@ export function printEnquiry(enquiry){
     <span></span>
   </div>
 
-  <div class="enq-no-line">Enquiry No : ${esc(enquiry.enq_number||"-")}</div>
+  <div class="enq-no-line" style="display:flex;justify-content:space-between;">
+    <span>Enquiry No : ${esc(enquiry.enq_number||"-")}</span>
+    <span>Enq Date : ${fmtDate(enquiry.enq_date)}</span>
+  </div>
   <div class="offer-intro">Please find our offer as follows</div>
 
   ${itemBlocks||`<div class="item-block">No items on this enquiry yet.</div>`}
