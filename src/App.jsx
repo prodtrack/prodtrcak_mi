@@ -462,9 +462,9 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
   const progress=stageProgress(order.current_stage,order.product_type);
   const statusColors={in_progress:{bg:"#eff6ff",c:"#1d4ed8"},ready_dispatch:{bg:"#f0fdf4",c:"#16a34a"},dispatched:{bg:"#f3f4f6",c:"#6b7280"},on_hold:{bg:"#fffbeb",c:"#b45309"},cancelled:{bg:"#fef2f2",c:"#dc2626"}};
   const sc=statusColors[order.status]||{bg:"#f3f4f6",c:"#6b7280"};
-  const dims=order.conductor_type==="conductor"
-    ?`${order.dimensions?.width}×${order.dimensions?.thickness}mm${order.dimensions?.cornerRadius?`, CR ${order.dimensions.cornerRadius}`:""}`
-    :`Ø${order.dimensions?.diameter}mm`;
+  const dims=order.conductor_type==="wire"
+    ?`Ø${order.dimensions?.diameter}mm`
+    :`${order.dimensions?.width}×${order.dimensions?.thickness}mm${order.dimensions?.cornerRadius?`, CR ${order.dimensions.cornerRadius}`:""}`;
   const insLabels=order.insulation?.map(ins=>`${ins.scheme}·${ins.tempIndex}`).join("  ");
   return(
     <div className="card animate-in" style={{padding:0,marginBottom:8,borderLeft:overdue?"3px solid #dc2626":"3px solid transparent",overflow:"hidden"}}>
@@ -511,7 +511,7 @@ function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,exp
           <span style={{fontSize:11,color:overdue?"#dc2626":"#9ca3af",display:"flex",alignItems:"center",gap:4}}>
             <Icon name="calendar" size={11}/>{formatDate(order.delivery_date)}
           </span>
-          <span style={{...S,fontSize:10,color:"#9ca3af"}}>{order.conductor_type==="conductor"?"Rect. strip":"Round wire"}</span>
+          <span style={{...S,fontSize:10,color:"#9ca3af"}}>{order.conductor_type==="wire"?"Round wire":order.conductor_type==="ctc"?"CTC":"Rect. strip"}</span>
         </div>
       </div>
 
@@ -570,8 +570,8 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
 
   async function handleSave(){
     const errs=[];
-    if(conductorType==="conductor"){if(!dims.width)errs.push("Width");if(!dims.thickness)errs.push("Thickness");}
-    else{if(!dims.diameter)errs.push("Diameter");}
+    if(conductorType==="wire"){if(!dims.diameter)errs.push("Diameter");}
+    else{if(!dims.width)errs.push("Width");if(!dims.thickness)errs.push("Thickness");}
     if(!insulation.length)errs.push("At least one insulation layer");
     if(insulation.some(r=>!r.scheme))errs.push("Insulation scheme on all layers");
     if(insulation.some(r=>!r.thermal))errs.push("Thermal class on all layers");
@@ -659,14 +659,16 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
       <div className="card" style={{padding:20,marginBottom:16}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Conductor type</div>
         <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:14}}>
-          {[["conductor","Rectangular strip"],["wire","Round wire"]].map(([v,l])=><button key={v} style={segStyle(conductorType===v)} onClick={()=>{setConductorType(v);if(v==="wire")setProductType("wire");}}>{l}</button>)}
+          {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} style={segStyle(conductorType===v)} onClick={()=>{setConductorType(v);if(v==="wire")setProductType("wire");else if(v==="ctc")setProductType("conductor");}}>{l}</button>)}
         </div>
 
-        {conductorType==="conductor"&&(
+        {conductorType!=="wire"&&(
+          <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:14}}>
+            {(conductorType==="ctc"?[["conductor","Conductor / Strip"]]:[["conductor","Conductor / Strip"],["coil","Coil / Stator"]]).map(([v,l])=><button key={v} style={segStyle(productType===v)} onClick={()=>setProductType(v)}>{l}</button>)}
+          </div>
+        )}
+        {conductorType!=="wire"&&(
           <>
-            <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:14}}>
-              {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} style={segStyle(productType===v)} onClick={()=>setProductType(v)}>{l}</button>)}
-            </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
               {[["Width (mm)","width"],["Thickness (mm)","thickness"],["Corner R (mm)","cornerRadius"]].map(([label,key])=>(
                 <div key={key}>
@@ -844,7 +846,7 @@ function InlineStagePanel({order,profile,showToast,canUpdate,onEdit}){
     <div>
       <div className="card animate-in" style={{padding:20,marginBottom:16,background:"#fff"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="conductor"?`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`:`Ø ${order.dimensions?.diameter} mm`],["Delivery",formatDate(order.delivery_date)],["Specification No.",order.insulation?.map(ins=>ins.spec).filter(Boolean).join(", ")||"—"],["PO Date",(order.po_date||order.receipt_date)?formatDate(order.po_date||order.receipt_date):"—"]].map(([k,v])=>(
+          {[["Customer",order.customer_name],["Material",order.material],["Dimensions",order.conductor_type==="wire"?`Ø ${order.dimensions?.diameter} mm`:`${order.dimensions?.width} × ${order.dimensions?.thickness} mm`],["Delivery",formatDate(order.delivery_date)],["Specification No.",order.insulation?.map(ins=>ins.spec).filter(Boolean).join(", ")||"—"],["PO Date",(order.po_date||order.receipt_date)?formatDate(order.po_date||order.receipt_date):"—"]].map(([k,v])=>(
             <div key={k}><div style={{fontSize:11,color:"#9ca3af",marginBottom:2}}>{k}</div><div style={{fontSize:13,fontWeight:500}}>{v}</div></div>
           ))}
         </div>
@@ -1256,9 +1258,9 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
           <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:conductorType!=="wire"?10:0}}>
             {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:conductorType===v?"#fff":"#f3f4f6",color:conductorType===v?"#1a1f2e":"#6b7280",fontWeight:conductorType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{setConductorType(v);if(v==="wire")setProductType("wire");else if(v==="ctc")setProductType("conductor");}}>{l}</button>)}
           </div>
-          {conductorType==="conductor"&&(
+          {conductorType!=="wire"&&(
             <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
-              {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:productType===v?"#fff":"#f3f4f6",color:productType===v?"#1a1f2e":"#6b7280",fontWeight:productType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>setProductType(v)}>{l}</button>)}
+              {(conductorType==="ctc"?[["conductor","Conductor / Strip"]]:[["conductor","Conductor / Strip"],["coil","Coil / Stator"]]).map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:productType===v?"#fff":"#f3f4f6",color:productType===v?"#1a1f2e":"#6b7280",fontWeight:productType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>setProductType(v)}>{l}</button>)}
             </div>
           )}
         </div>
@@ -1926,9 +1928,9 @@ function EnquiryForm({existing,profile,showToast,onClose}){
               <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:it.conductor_type!=="wire"?10:0}}>
                 {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.conductor_type===v?"#fff":"#f3f4f6",color:it.conductor_type===v?"#1a1f2e":"#6b7280",fontWeight:it.conductor_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{updateItem(i,"conductor_type",v);if(v==="wire")updateItem(i,"product_type","wire");else if(v==="ctc")updateItem(i,"product_type","conductor");}}>{l}</button>)}
               </div>
-              {it.conductor_type==="conductor"&&(
+              {it.conductor_type!=="wire"&&(
                 <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
-                  {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.product_type===v?"#fff":"#f3f4f6",color:it.product_type===v?"#1a1f2e":"#6b7280",fontWeight:it.product_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>updateItem(i,"product_type",v)}>{l}</button>)}
+                  {(it.conductor_type==="ctc"?[["conductor","Conductor / Strip"]]:[["conductor","Conductor / Strip"],["coil","Coil / Stator"]]).map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.product_type===v?"#fff":"#f3f4f6",color:it.product_type===v?"#1a1f2e":"#6b7280",fontWeight:it.product_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>updateItem(i,"product_type",v)}>{l}</button>)}
                 </div>
               )}
             </div>
