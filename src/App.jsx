@@ -5,7 +5,7 @@ import {
 } from "firebase/auth";
 import {
   collection, doc, getDoc, addDoc, updateDoc, deleteDoc, setDoc,
-  onSnapshot, query, orderBy, runTransaction, serverTimestamp, where, arrayUnion, limit,
+  onSnapshot, query, orderBy, runTransaction, serverTimestamp, where, arrayUnion,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import "./App.css";
@@ -2418,8 +2418,8 @@ function MaterialForm({existing,vendors,showToast,onClose}){
 // ─── Dispatch Tab ─────────────────────────────────────────────────────────────
 function DispatchTab({profile,showToast}){
   const [orders,setOrders]=useState([]);
-  const [recentDispatches,setRecentDispatches]=useState([]);
-  const [showHistory,setShowHistory]=useState(false);
+  const [log,setLog]=useState([]);
+  const [search,setSearch]=useState("");
   // Admin and Sales always have dispatch access by role; anyone else's
   // access is governed by the dispatch_access toggle. Existing users who
   // predate this flag default to enabled (!==false) so nobody's silently
@@ -2431,8 +2431,8 @@ function DispatchTab({profile,showToast}){
     return onSnapshot(q,snap=>setOrders(snap.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
   useEffect(()=>{
-    const q=query(collection(db,"dispatch_log"),orderBy("timestamp","desc"),limit(5));
-    return onSnapshot(q,snap=>setRecentDispatches(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const q=query(collection(db,"dispatch_log"),orderBy("timestamp","desc"));
+    return onSnapshot(q,snap=>setLog(snap.docs.map(d=>({id:d.id,...d.data()}))));
   },[]);
 
   async function dispatch(order,vehicleLR){
@@ -2441,65 +2441,7 @@ function DispatchTab({profile,showToast}){
     showToast(`${order.wo_number} dispatched`);
   }
 
-  if(showHistory){
-    return <DispatchHistoryView onBack={()=>setShowHistory(false)}/>;
-  }
-
-  return(
-    <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
-        <SectionHeader mono="Dispatch" title="Ready for Dispatch" sub={`${orders.length} order${orders.length!==1?"s":""} ready`}/>
-        <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowHistory(true)}><Icon name="clipboard" size={12}/>History</button>
-      </div>
-      {orders.length===0
-        ?<EmptyState text="No orders ready for dispatch"/>
-        :orders.map(o=><DispatchCard key={o.id} order={o} canDispatch={canDispatch} onDispatch={dispatch}/>)
-      }
-
-      {recentDispatches.length>0&&(
-        <div style={{marginTop:28}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:10}}>
-            <div style={{fontSize:14,fontWeight:600}}>Recent dispatches</div>
-            <button className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={()=>setShowHistory(true)}>View all</button>
-          </div>
-          <div className="card" style={{padding:0,overflow:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
-                {["WO Number","Customer","Quantity","Vehicle / LR","Dispatch Date"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {recentDispatches.map(l=>(
-                  <tr key={l.id} style={{borderBottom:"1px solid #f3f4f6"}}>
-                    <td style={{padding:"10px 12px",...S,fontWeight:600}}>{l.wo_number||"—"}</td>
-                    <td style={{padding:"10px 12px"}}>{l.customer_name||"—"}</td>
-                    <td style={{padding:"10px 12px",...S}}>{l.quantity!=null?`${l.quantity} ${l.quantity_unit||""}`:"—"}</td>
-                    <td style={{padding:"10px 12px",...S}}>{l.vehicle_lr||"—"}</td>
-                    <td style={{padding:"10px 12px",...S}}>{l.dispatch_date?formatDate(l.dispatch_date):"—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Dispatch history ───────────────────────────────────────────────────────
-// Reads dispatch_log — written on every "Confirm Dispatch" but never
-// surfaced anywhere until now. Search by WO/customer/vehicle, export to
-// Excel, same patterns as the other list tabs in the app.
-function DispatchHistoryView({onBack}){
-  const [log,setLog]=useState([]);
-  const [search,setSearch]=useState("");
-
-  useEffect(()=>{
-    const q=query(collection(db,"dispatch_log"),orderBy("timestamp","desc"));
-    return onSnapshot(q,snap=>setLog(snap.docs.map(d=>({id:d.id,...d.data()}))));
-  },[]);
-
-  const filtered=log.filter(l=>{
+  const filteredLog=log.filter(l=>{
     if(!search.trim())return true;
     const s=search.trim().toLowerCase();
     return (l.wo_number||"").toLowerCase().includes(s)
@@ -2508,7 +2450,7 @@ function DispatchHistoryView({onBack}){
   });
 
   function exportExcel(){
-    const rows=filtered.map(l=>({
+    const rows=filteredLog.map(l=>({
       "WO Number":l.wo_number||"","Customer":l.customer_name||"",
       "Quantity":l.quantity??"","Unit":l.quantity_unit||"",
       "Vehicle / LR":l.vehicle_lr||"","Dispatch Date":l.dispatch_date?formatDate(l.dispatch_date):"",
@@ -2522,40 +2464,43 @@ function DispatchHistoryView({onBack}){
 
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
-        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Dispatch History</div>
-      </div>
-
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <input style={{...fieldStyle,maxWidth:320}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WO / customer / vehicle…"/>
-        {filtered.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
-      </div>
-
-      {filtered.length===0
-        ?<EmptyState text={search.trim()?"No dispatches match your search":"No dispatches yet"}/>
-        :(
-          <div className="card" style={{padding:0,overflow:"auto",maxHeight:520}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
-                {["WO Number","Customer","Quantity","Vehicle / LR","Dispatch Date","Dispatched By"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {filtered.map(l=>(
-                  <tr key={l.id} style={{borderBottom:"1px solid #f3f4f6"}}>
-                    <td style={{padding:"10px 12px",...S,fontWeight:600}}>{l.wo_number||"—"}</td>
-                    <td style={{padding:"10px 12px"}}>{l.customer_name||"—"}</td>
-                    <td style={{padding:"10px 12px",...S}}>{l.quantity!=null?`${l.quantity} ${l.quantity_unit||""}`:"—"}</td>
-                    <td style={{padding:"10px 12px",...S}}>{l.vehicle_lr||"—"}</td>
-                    <td style={{padding:"10px 12px",...S}}>{l.dispatch_date?formatDate(l.dispatch_date):"—"}</td>
-                    <td style={{padding:"10px 12px"}}>{l.dispatched_by||"—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
+      <div style={{marginBottom:20}}><SectionHeader mono="Dispatch" title="Ready for Dispatch" sub={`${orders.length} order${orders.length!==1?"s":""} ready`}/></div>
+      {orders.length===0
+        ?<EmptyState text="No orders ready for dispatch"/>
+        :orders.map(o=><DispatchCard key={o.id} order={o} canDispatch={canDispatch} onDispatch={dispatch}/>)
       }
+
+      <div style={{marginTop:28}}>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:12}}>Dispatch history</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+          <input style={{...fieldStyle,maxWidth:320}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search WO / customer / vehicle…"/>
+          {filteredLog.length>0&&<button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={exportExcel}><Icon name="clipboard" size={12}/>Export Excel</button>}
+        </div>
+        {filteredLog.length===0
+          ?<EmptyState text={search.trim()?"No dispatches match your search":"No dispatches yet"}/>
+          :(
+            <div className="card" style={{padding:0,overflow:"auto",maxHeight:520}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:1}}>
+                  {["WO Number","Customer","Quantity","Vehicle / LR","Dispatch Date","Dispatched By"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {filteredLog.map(l=>(
+                    <tr key={l.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                      <td style={{padding:"10px 12px",...S,fontWeight:600}}>{l.wo_number||"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{l.customer_name||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{l.quantity!=null?`${l.quantity} ${l.quantity_unit||""}`:"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{l.vehicle_lr||"—"}</td>
+                      <td style={{padding:"10px 12px",...S}}>{l.dispatch_date?formatDate(l.dispatch_date):"—"}</td>
+                      <td style={{padding:"10px 12px"}}>{l.dispatched_by||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+      </div>
     </div>
   );
 }
