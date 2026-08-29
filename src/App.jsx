@@ -1256,7 +1256,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
           <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:conductorType!=="wire"?10:0}}>
             {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:conductorType===v?"#fff":"#f3f4f6",color:conductorType===v?"#1a1f2e":"#6b7280",fontWeight:conductorType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{setConductorType(v);if(v==="wire")setProductType("wire");else if(v==="ctc")setProductType("conductor");}}>{l}</button>)}
           </div>
-          {conductorType!=="wire"&&(
+          {conductorType==="conductor"&&(
             <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
               {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:productType===v?"#fff":"#f3f4f6",color:productType===v?"#1a1f2e":"#6b7280",fontWeight:productType===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>setProductType(v)}>{l}</button>)}
             </div>
@@ -1926,7 +1926,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
               <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:it.conductor_type!=="wire"?10:0}}>
                 {[["conductor","Rectangular strip"],["wire","Round wire"],["ctc","CTC"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.conductor_type===v?"#fff":"#f3f4f6",color:it.conductor_type===v?"#1a1f2e":"#6b7280",fontWeight:it.conductor_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>{updateItem(i,"conductor_type",v);if(v==="wire")updateItem(i,"product_type","wire");else if(v==="ctc")updateItem(i,"product_type","conductor");}}>{l}</button>)}
               </div>
-              {it.conductor_type!=="wire"&&(
+              {it.conductor_type==="conductor"&&(
                 <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden"}}>
                   {[["conductor","Conductor / Strip"],["coil","Coil / Stator"]].map(([v,l])=><button key={v} type="button" style={{padding:"7px 0",border:"none",background:it.product_type===v?"#fff":"#f3f4f6",color:it.product_type===v?"#1a1f2e":"#6b7280",fontWeight:it.product_type===v?600:400,cursor:"pointer",fontSize:12,flex:1}} onClick={()=>updateItem(i,"product_type",v)}>{l}</button>)}
                 </div>
