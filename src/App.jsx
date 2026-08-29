@@ -1492,7 +1492,6 @@ function EnquiryTab({profile,showToast}){
         rows.push({
           "Enq No":e.enq_number||"","Enq Date":e.enq_date?formatDate(e.enq_date):"",
           "Spec No":it.specification_number||"","Company":e.company||"",
-          "Notes":e.notes||"",
           "Description":it.description||"","Size":itemSizeLabel(it),
           "Covering (mm)":it.conductor_type==="ctc"?"":(it.covering||""),
           "Covering 1 (mm)":it.conductor_type==="ctc"?(it.covering_1||""):"",
@@ -1503,7 +1502,7 @@ function EnquiryTab({profile,showToast}){
           "Thick. of Insulation Paper (mm)":it.conductor_type==="ctc"?(it.interleaving_paper_thickness||""):"",
           "Paper Type":it.conductor_type==="ctc"?(it.paper_type||""):"",
           "Quantity":it.quantity??"","UOM":it.uom||"","Currency":it.currency||"INR","Fabrication Rate":it.fabrication_rate||"",
-          "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"",
+          "Copper Price":it.copper_price||"","Final Price":fp??"","Packing":it.packing||"","Remarks":it.remarks||"","Notes":it.notes||"",
           "Delivery":e.delivery_terms||"","Payment":e.payment_terms||"",
           "Tolerance":e.tolerance||"","Freight":e.freight||"","GST":e.gst||"",
           "Validity":e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:"",
@@ -1669,11 +1668,6 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
           <Field label="GST" value={e.gst}/>
           <Field label="Validity" value={e.validity_date?`${formatDate(e.validity_date)}${e.validity_time?` ${e.validity_time}`:""}`:null}/>
         </div>
-        {e.notes&&(
-          <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #f3f4f6"}}>
-            <Field label="Notes (internal only)" value={e.notes}/>
-          </div>
-        )}
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
@@ -1716,6 +1710,11 @@ function EnquiryDetailView({enquiry:e,profile,showToast,onBack}){
                     <Field label="Remarks" value={it.remarks}/>
                   </div>
                 )}
+                {it.notes&&(
+                  <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid #f3f4f6"}}>
+                    <Field label="Notes (internal only)" value={it.notes}/>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1753,8 +1752,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [gst,setGst]=useState(existing?.gst||"");
   const [validityDate,setValidityDate]=useState(existing?.validity_date||"");
   const [validityTime,setValidityTime]=useState(existing?.validity_time||"");
-  const [notes,setNotes]=useState(existing?.notes||"");
-  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",notes:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);
   const [saving,setSaving]=useState(false);
   const [errors,setErrors]=useState([]);
 
@@ -1764,7 +1762,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
   const [rates,setRates]=useState(null);
   useEffect(()=>onSnapshot(doc(db,"settings","exchange_rates"),snap=>setRates(snap.exists()?snap.data():null)),[]);
 
-  function addItem(){setItems(i=>[...i,{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);}
+  function addItem(){setItems(i=>[...i,{description:"",specification_number:"",conductor_type:"conductor",product_type:"conductor",width:"",thickness:"",corner_radius:"",diameter:"",insulation_type:"",covering:"",covering_1:"",covering_2:"",no_of_paper:"",no_of_conductors:"",interleaving_paper_type:"",interleaving_paper_thickness:"",paper_type:"",packing:"",remarks:"",notes:"",quantity:"",uom:"",fabrication_rate:"",copper_price:"",currency:"INR",show_breakdown:false}]);}
   function removeItem(i){setItems(its=>its.filter((_,idx)=>idx!==i));}
   function updateItem(i,k,v){setItems(its=>its.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
   // Switching currency converts the already-entered Fabrication rate and
@@ -1790,7 +1788,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
       if(!freight.trim())errs.push("Freight");
       if(!gst.trim())errs.push("GST");
       if(!validityDate)errs.push("Validity date");
-      if(!notes.trim())errs.push("Notes");
       items.forEach((it,i)=>{
         const n=items.length>1?` (Item ${i+1})`:"";
         if(!it.description.trim())errs.push(`Description${n}`);
@@ -1820,6 +1817,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         if(!it.copper_price)errs.push(`Copper price${n}`);
         if(!it.packing?.trim())errs.push(`Packing${n}`);
         if(!it.remarks?.trim())errs.push(`Remarks${n}`);
+        if(!it.notes?.trim())errs.push(`Notes${n}`);
       });
       if(errs.length){setErrors(errs);return;}
     }
@@ -1831,7 +1829,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
         delivery_terms:deliveryTerms.trim()||null,payment_terms:paymentTerms.trim()||null,
         tolerance:tolerance.trim()||null,freight:freight.trim()||null,gst:gst.trim()||null,
         validity_date:validityDate||null,validity_time:validityTime||null,
-        notes:notes.trim()||null,
         items,
         status:asDraft?"draft":"final",
         updated_at:serverTimestamp(),
@@ -1900,10 +1897,6 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <label style={labelStyle}>Validity time <span style={{color:"#9ca3af",fontWeight:400}}>(optional)</span></label>
             <input style={fieldStyle} type="time" value={validityTime} onChange={e=>setValidityTime(e.target.value)}/>
           </div>
-        </div>
-        <div>
-          <label style={labelStyle}>Notes</label>
-          <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="e.g. Client prefers courier delivery, confirm stock before quoting"/>
         </div>
       </div>
 
@@ -2048,6 +2041,10 @@ function EnquiryForm({existing,profile,showToast,onClose}){
               <label style={labelStyle}>Remarks</label>
               <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={it.remarks} onChange={e=>updateItem(i,"remarks",e.target.value)} placeholder="Notes for this item…"/>
             </div>
+            <div style={{marginTop:12}}>
+              <label style={labelStyle}>Notes <span style={{color:"#9ca3af",fontWeight:400}}>(internal only)</span></label>
+              <textarea style={{...fieldStyle,minHeight:56,resize:"vertical"}} value={it.notes||""} onChange={e=>updateItem(i,"notes",e.target.value)} placeholder="e.g. Client prefers courier delivery, confirm stock before quoting"/>
+            </div>
           </div>
         ))}
         <button className="btn-ghost" style={{padding:"6px 14px",fontSize:12,borderStyle:"dashed"}} onClick={addItem}><Icon name="plus" size={12}/>Add item</button>
@@ -2062,7 +2059,7 @@ function EnquiryForm({existing,profile,showToast,onClose}){
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-ghost" disabled={saving} onClick={()=>save(true)}><Icon name="clipboard" size={14}/>{saving?"Saving…":"Save as Draft"}</button>
+        {!isEdit&&<button className="btn-ghost" disabled={saving} onClick={()=>save(true)}><Icon name="clipboard" size={14}/>{saving?"Saving…":"Save as Draft"}</button>}
         <button className="btn-primary" disabled={saving} onClick={()=>save(false)}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Enquiry":"Save Enquiry"}</button>
       </div>
     </div>
