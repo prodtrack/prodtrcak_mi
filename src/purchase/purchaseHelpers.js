@@ -48,9 +48,9 @@ export const COMPANY_INFO = {
   },
   Bhiwandi:{
     name:"Mahendra Industries",
-    address:"⚠ Update Bhiwandi plant address in Admin before use",
+    address:"House No. 1324, Survey No. 28/4, Kamdhenu Complex, Bhiwandi Nashik Highway, Sonale Village, Bhiwandi – 421302",
     phone:"", email:"purchase@mahendraindustries.in", website:"www.mahendraindustries.in",
-    gstin:"⚠ SET BHIWANDI GSTIN", pan:"⚠ SET BHIWANDI PAN", state_code:"⚠",
+    gstin:"27AAJFM0341F1ZL", pan:"AAJFM0341F", state_code:"27",
   },
 };
 
