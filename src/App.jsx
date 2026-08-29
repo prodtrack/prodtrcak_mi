@@ -423,7 +423,7 @@ function DashboardTab({profile,showToast,onNavigate}){
 
       {/* Filter chips */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-        {[["all","All"],["active","Active"],["in_progress","In Progress"],["on_hold","On Hold"],["overdue","Overdue"],["due7d","Due 7d"],["ready_dispatch","Ready"],["dispatched","Dispatched"]].map(([v,l])=>(
+        {[["all","All"],["in_progress","In Progress"],["on_hold","On Hold"],["ready_dispatch","Ready"],["dispatched","Dispatched"]].map(([v,l])=>(
           <button key={v} onClick={()=>setQuickFilter(v)} style={{padding:"5px 14px",borderRadius:20,border:`1px solid ${quickFilter===v?"#1a1f2e":"#d1d5db"}`,background:quickFilter===v?"#1a1f2e":"#fff",color:quickFilter===v?"#fff":"#6b7280",fontSize:12,cursor:"pointer",fontFamily:"'Roboto',sans-serif"}}>{l}</button>
         ))}
       </div>
