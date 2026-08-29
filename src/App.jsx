@@ -1881,8 +1881,8 @@ function EnquiryForm({existing,profile,showToast,onClose}){
             <label style={labelStyle}>Tolerance</label>
             <input style={fieldStyle} value={tolerance} onChange={e=>{
               let v=e.target.value;
-              if(!v.startsWith("±"))v="±"+v.replace(/^±+/,"");
-              setTolerance(v);
+              v=v.replace(/^±+/,"").replace(/%+$/,"");
+              setTolerance("±"+(v?v+"%":""));
             }} placeholder="±2%"/>
           </div>
           <div>
