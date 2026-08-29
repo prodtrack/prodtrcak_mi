@@ -218,7 +218,7 @@ function MainApp({user,profile}){
           {sidebarCollapsed&&<div style={{height:22,marginBottom:22}}/>}
           <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center",textAlign:"center",padding:sidebarCollapsed?"10px 0":"10px 14px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:14,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
+              <button key={t.id} onClick={()=>setTab(t.id)} title={sidebarCollapsed?t.label:undefined} style={{display:"flex",alignItems:"center",gap:10,justifyContent:sidebarCollapsed?"center":"flex-start",textAlign:"left",padding:sidebarCollapsed?"10px 0":"10px 14px",borderRadius:8,border:"none",background:tab===t.id?"#f3f4f6":"transparent",borderLeft:tab===t.id?"2px solid #e8c547":"2px solid transparent",color:tab===t.id?"#1a1f2e":"#6b7280",fontWeight:tab===t.id?600:400,cursor:"pointer",fontSize:14,fontFamily:"'Roboto',sans-serif",transition:"all .15s"}}>
                 <Icon name={t.icon} size={17}/>
                 {!sidebarCollapsed&&t.label}
               </button>
