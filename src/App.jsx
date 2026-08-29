@@ -2081,6 +2081,7 @@ function InventoryTab({profile,showToast}){
   const [creatingNew,setCreatingNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
   const [quickEdit,setQuickEdit]=useState(null); // {id, field, value}
+  const [showBOM,setShowBOM]=useState(false);
 
   useEffect(()=>onSnapshot(collection(db,"rm_inventory"),snap=>setMaterials(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
   useEffect(()=>onSnapshot(collection(db,"supplier_master"),snap=>setVendors(snap.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.active!==false))),[]);
@@ -2149,6 +2150,10 @@ function InventoryTab({profile,showToast}){
     showToast("Exported to Excel");
   }
 
+  if(showBOM){
+    return <BOMTab profile={profile} materials={materials} showToast={showToast} onBack={()=>setShowBOM(false)}/>;
+  }
+
   if(creatingNew||editingId){
     const existing=editingId?materials.find(m=>m.id===editingId):null;
     return <MaterialForm existing={existing} vendors={vendors} showToast={showToast} onClose={()=>{setCreatingNew(false);setEditingId(null);}}/>;
@@ -2200,7 +2205,10 @@ function InventoryTab({profile,showToast}){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <SectionHeader mono="Store" title="RM Inventory" sub="Raw material stock levels"/>
-        {canAddMaterial&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Item</button>}
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn-ghost" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setShowBOM(true)}><Icon name="layers" size={12}/>BOM</button>
+          {canAddMaterial&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New Item</button>}
+        </div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:20}}>
@@ -2410,6 +2418,225 @@ function MaterialForm({existing,vendors,showToast,onClose}){
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Item":"Save Item"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── BOM (Bill of Materials) ────────────────────────────────────────────────
+// Traditional BOM: a finished product mapped to the raw materials (drawn
+// from rm_inventory) and quantities needed to make one unit of it. Distinct
+// from MOTRAK's "BOM" (a batch-imported order tracker) — this one is a
+// straightforward product → components recipe list.
+function BOMTab({profile,materials,showToast,onBack}){
+  const isAdmin=profile.role==="admin";
+  const canManage=isAdmin||profile.role==="sales";
+  const [boms,setBoms]=useState([]);
+  const [search,setSearch]=useState("");
+  const [creatingNew,setCreatingNew]=useState(false);
+  const [editingId,setEditingId]=useState(null);
+  const [deleteTarget,setDeleteTarget]=useState(null);
+
+  useEffect(()=>onSnapshot(collection(db,"bom_master"),snap=>setBoms(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
+
+  const filtered=boms.filter(b=>{
+    if(!search.trim())return true;
+    const s=search.trim().toLowerCase();
+    return (b.product_name||"").toLowerCase().includes(s)||(b.product_code||"").toLowerCase().includes(s);
+  }).sort((a,b)=>(a.product_name||"").localeCompare(b.product_name||""));
+
+  async function handleDelete(){
+    await deleteDoc(doc(db,"bom_master",deleteTarget.id));
+    showToast(`${deleteTarget.product_name} BOM deleted`);
+    setDeleteTarget(null);
+  }
+
+  if(creatingNew||editingId){
+    const existing=editingId?boms.find(b=>b.id===editingId):null;
+    return <BOMForm existing={existing} materials={materials} showToast={showToast} onClose={()=>{setCreatingNew(false);setEditingId(null);}}/>;
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onBack}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>Bill of Materials</div>
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <input style={{...fieldStyle,maxWidth:320}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search product name / code…"/>
+        {canManage&&<button className="btn-primary" style={{fontSize:12,padding:"7px 14px"}} onClick={()=>setCreatingNew(true)}><Icon name="plus" size={12}/>New BOM</button>}
+      </div>
+
+      {boms.length===0
+        ?<EmptyState text="No BOMs yet" sub="Click 'New BOM' to define a product's raw material recipe"/>
+        :filtered.length===0
+        ?<EmptyState text="No BOMs match your search"/>
+        :(
+          <div className="card" style={{padding:0,overflow:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{background:"#f3f4f6",borderBottom:"1px solid #e5e7eb"}}>
+                {["Product","Code","Produces","Materials","Updated","Actions"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#6b7280",fontWeight:500,fontSize:11,whiteSpace:"nowrap",background:"#f3f4f6",...S}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {filtered.map(b=>(
+                  <tr key={b.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                    <td style={{padding:"10px 12px",fontWeight:600}}>{b.product_name}</td>
+                    <td style={{padding:"10px 12px",...S}}>{b.product_code||"—"}</td>
+                    <td style={{padding:"10px 12px",...S}}>{b.base_qty||1} {b.base_uom||"pcs"}</td>
+                    <td style={{padding:"10px 12px",...S}}>{(b.items||[]).length} item{(b.items||[]).length!==1?"s":""}</td>
+                    <td style={{padding:"10px 12px",...S}}>{b.updated_at?.toDate?formatDate(b.updated_at.toDate()):b.created_at?.toDate?formatDate(b.created_at.toDate()):"—"}</td>
+                    <td style={{padding:"10px 12px"}}>
+                      <div style={{display:"flex",gap:6}}>
+                        <button className="btn-ghost" style={{padding:"4px 8px",fontSize:11}} onClick={()=>setEditingId(b.id)}><Icon name="edit" size={11}/></button>
+                        {isAdmin&&<button className="btn-ghost" style={{padding:"4px 8px",fontSize:11,color:"#dc2626"}} onClick={()=>setDeleteTarget(b)}><Icon name="trash" size={11}/></button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      {deleteTarget&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setDeleteTarget(null)}>
+          <div className="card" style={{padding:20,width:340}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:600,marginBottom:8}}>Delete this BOM?</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:16}}>"{deleteTarget.product_name}" and its {(deleteTarget.items||[]).length} material line{(deleteTarget.items||[]).length!==1?"s":""} will be permanently removed.</div>
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+              <button className="btn-ghost" onClick={()=>setDeleteTarget(null)}>Cancel</button>
+              <button className="btn-primary" style={{background:"#dc2626"}} onClick={handleDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BOMForm({existing,materials,showToast,onClose}){
+  const isEdit=!!existing;
+  const [productName,setProductName]=useState(existing?.product_name||"");
+  const [productCode,setProductCode]=useState(existing?.product_code||"");
+  const [baseQty,setBaseQty]=useState(existing?.base_qty??1);
+  const [baseUom,setBaseUom]=useState(existing?.base_uom||"pcs");
+  const [items,setItems]=useState(existing?.items?.length?existing.items:[{material_id:"",qty:"",uom:""}]);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+
+  function updateItem(i,k,v){
+    setItems(list=>list.map((it,idx)=>{
+      if(idx!==i)return it;
+      if(k==="material_id"){
+        const mat=materials.find(m=>m.id===v);
+        return {...it,material_id:v,uom:mat?.unit||""};
+      }
+      return {...it,[k]:v};
+    }));
+  }
+  function addItem(){setItems(list=>[...list,{material_id:"",qty:"",uom:""}]);}
+  function removeItem(i){setItems(list=>list.filter((_,idx)=>idx!==i));}
+
+  async function save(){
+    const errs=[];
+    if(!productName.trim())errs.push("Product name is required");
+    const validItems=items.filter(it=>it.material_id&&it.qty);
+    if(validItems.length===0)errs.push("At least one raw material with a quantity is required");
+    items.forEach((it,i)=>{
+      if((it.material_id||it.qty)&&!(it.material_id&&it.qty))errs.push(`Line ${i+1}: both material and quantity are required`);
+    });
+    if(errs.length){setError(errs.join(" · "));return;}
+    setError("");setSaving(true);
+    try{
+      const payload={
+        product_name:productName.trim(),
+        product_code:productCode.trim()||null,
+        base_qty:parseFloat(baseQty)||1,
+        base_uom:baseUom,
+        items:validItems.map(it=>{
+          const mat=materials.find(m=>m.id===it.material_id);
+          return {material_id:it.material_id,item_code:mat?.item_code||null,material_name:mat?.material_name||"",qty:parseFloat(it.qty)||0,uom:it.uom||mat?.unit||""};
+        }),
+      };
+      if(isEdit){
+        await updateDoc(doc(db,"bom_master",existing.id),{...payload,updated_at:serverTimestamp()});
+        showToast("BOM updated");
+      }else{
+        await addDoc(collection(db,"bom_master"),{...payload,created_at:serverTimestamp()});
+        showToast(`${productName.trim()} BOM created`);
+      }
+      onClose();
+    }catch(e){setError("Save failed: "+e.message);}
+    finally{setSaving(false);}
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{isEdit?`Edit BOM — ${existing.product_name}`:"New BOM"}</div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14}}>
+          <div>
+            <label style={labelStyle}>Product name *</label>
+            <input style={fieldStyle} value={productName} onChange={e=>setProductName(e.target.value)} placeholder="e.g. 5x2mm CTC Copper Conductor"/>
+          </div>
+          <div>
+            <label style={labelStyle}>Product code</label>
+            <input style={fieldStyle} value={productCode} onChange={e=>setProductCode(e.target.value)} placeholder="Optional"/>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,maxWidth:340}}>
+          <div>
+            <label style={labelStyle}>Produces (qty)</label>
+            <input type="number" style={fieldStyle} min="0" step="0.01" value={baseQty} onChange={e=>setBaseQty(e.target.value)}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Unit</label>
+            <select style={fieldStyle} value={baseUom} onChange={e=>setBaseUom(e.target.value)}>
+              {["kg","L","pcs","mtr","rolls","nos"].map(u=><option key={u}>{u}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:14}}>Raw materials</div>
+        {items.map((it,i)=>{
+          const mat=materials.find(m=>m.id===it.material_id);
+          return(
+            <div key={i} style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-end"}}>
+              <div style={{flex:2}}>
+                {i===0&&<label style={labelStyle}>Material</label>}
+                <select style={fieldStyle} value={it.material_id} onChange={e=>updateItem(i,"material_id",e.target.value)}>
+                  <option value="">— Select material —</option>
+                  {materials.map(m=><option key={m.id} value={m.id}>{m.item_code?`${m.item_code} — `:""}{m.material_name}</option>)}
+                </select>
+              </div>
+              <div style={{width:120}}>
+                {i===0&&<label style={labelStyle}>Qty needed</label>}
+                <input type="number" style={fieldStyle} min="0" step="0.0001" value={it.qty} onChange={e=>updateItem(i,"qty",e.target.value)} placeholder="0"/>
+              </div>
+              <div style={{width:70}}>
+                {i===0&&<label style={labelStyle}>Unit</label>}
+                <div style={{...fieldStyle,background:"#f9fafb",color:"#6b7280"}}>{mat?.unit||"—"}</div>
+              </div>
+              <button type="button" className="btn-ghost" style={{padding:"9px 8px",flexShrink:0}} onClick={()=>removeItem(i)}><Icon name="x" size={12}/></button>
+            </div>
+          );
+        })}
+        <button type="button" className="btn-ghost" style={{fontSize:12,padding:"6px 12px"}} onClick={addItem}><Icon name="plus" size={11}/>Add material</button>
+      </div>
+
+      {error&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#dc2626"}}>{error}</div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update BOM":"Save BOM"}</button>
       </div>
     </div>
   );
