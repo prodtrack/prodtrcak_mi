@@ -2420,6 +2420,7 @@ function DispatchTab({profile,showToast}){
   const [orders,setOrders]=useState([]);
   const [log,setLog]=useState([]);
   const [search,setSearch]=useState("");
+  const [viewOrder,setViewOrder]=useState(null);
   // Admin and Sales always have dispatch access by role; anyone else's
   // access is governed by the dispatch_access toggle. Existing users who
   // predate this flag default to enabled (!==false) so nobody's silently
@@ -2439,6 +2440,16 @@ function DispatchTab({profile,showToast}){
     await updateDoc(doc(db,"work_orders",order.id),{status:"dispatched",updated_at:serverTimestamp()});
     await addDoc(collection(db,"dispatch_log"),{wo_id:order.id,wo_number:order.wo_number,customer_name:order.customer_name,quantity:order.quantity,quantity_unit:order.quantity_unit,vehicle_lr:vehicleLR||null,dispatch_date:new Date().toISOString().split("T")[0],user_uid:auth.currentUser.uid,dispatched_by:profile.name||auth.currentUser.email,timestamp:serverTimestamp()});
     showToast(`${order.wo_number} dispatched`);
+  }
+
+  // History rows only carry a summary (wo_number, customer, qty...), not the
+  // full WO doc — fetch it by wo_id on demand when the number is clicked.
+  // The WO could've since been deleted, so this fails gracefully.
+  async function openHistoryOrder(l){
+    if(!l.wo_id)return;
+    const snap=await getDoc(doc(db,"work_orders",l.wo_id));
+    if(!snap.exists()){showToast("That work order no longer exists","error");return;}
+    setViewOrder({id:snap.id,...snap.data()});
   }
 
   const filteredLog=log.filter(l=>{
@@ -2464,10 +2475,11 @@ function DispatchTab({profile,showToast}){
 
   return(
     <div>
+      {viewOrder&&<WODetailModal order={viewOrder} onClose={()=>setViewOrder(null)}/>}
       <div style={{marginBottom:20}}><SectionHeader mono="Dispatch" title="Ready for Dispatch" sub={`${orders.length} order${orders.length!==1?"s":""} ready`}/></div>
       {orders.length===0
         ?<EmptyState text="No orders ready for dispatch"/>
-        :orders.map(o=><DispatchCard key={o.id} order={o} canDispatch={canDispatch} onDispatch={dispatch}/>)
+        :orders.map(o=><DispatchCard key={o.id} order={o} canDispatch={canDispatch} onDispatch={dispatch} onViewDetails={()=>setViewOrder(o)}/>)
       }
 
       <div style={{marginTop:28}}>
@@ -2487,7 +2499,11 @@ function DispatchTab({profile,showToast}){
                 <tbody>
                   {filteredLog.map(l=>(
                     <tr key={l.id} style={{borderBottom:"1px solid #f3f4f6"}}>
-                      <td style={{padding:"10px 12px",...S,fontWeight:600}}>{l.wo_number||"—"}</td>
+                      <td onClick={()=>openHistoryOrder(l)} style={{padding:"10px 12px",...S,fontWeight:600,color:"#2563eb",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}}
+                        onMouseEnter={ev=>ev.currentTarget.style.textDecorationColor="#2563eb"}
+                        onMouseLeave={ev=>ev.currentTarget.style.textDecorationColor="transparent"}>
+                        {l.wo_number||"—"}
+                      </td>
                       <td style={{padding:"10px 12px"}}>{l.customer_name||"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{l.quantity!=null?`${l.quantity} ${l.quantity_unit||""}`:"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{l.vehicle_lr||"—"}</td>
@@ -2505,7 +2521,67 @@ function DispatchTab({profile,showToast}){
   );
 }
 
-function DispatchCard({order,canDispatch,onDispatch}){
+// ─── WO detail modal ────────────────────────────────────────────────────────
+// Lightweight read-only overlay — same fixed/backdrop/card pattern as
+// RatesModal above. Not a full editable OrderListItem: Dispatch only needs
+// to look details up, not act on them.
+function WODetailModal({order,onClose}){
+  const dims=order.conductor_type==="wire"
+    ?`Ø ${order.dimensions?.diameter||"—"} mm`
+    :`${order.dimensions?.width||"—"} × ${order.dimensions?.thickness||"—"} mm${order.dimensions?.cornerRadius?`, CR ${order.dimensions.cornerRadius}`:""}`;
+  const conductorLabel=order.conductor_type==="wire"?"Round wire":order.conductor_type==="ctc"?"CTC":"Rectangular strip";
+  const statusColors={in_progress:{bg:"#eff6ff",c:"#1d4ed8"},ready_dispatch:{bg:"#f0fdf4",c:"#16a34a"},dispatched:{bg:"#f3f4f6",c:"#6b7280"},on_hold:{bg:"#fffbeb",c:"#b45309"},cancelled:{bg:"#fef2f2",c:"#dc2626"}};
+  const sc=statusColors[order.status]||{bg:"#f3f4f6",c:"#6b7280"};
+  const Field=({label,value})=>(
+    <div>
+      <div style={{fontSize:11,color:"#9ca3af",marginBottom:2}}>{label}</div>
+      <div style={{fontSize:13,fontWeight:500}}>{value||"—"}</div>
+    </div>
+  );
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}} onClick={onClose}>
+      <div className="card" style={{padding:20,width:480,maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span style={{...S,fontSize:15,fontWeight:700}}>{order.wo_number}</span>
+            <span style={{background:sc.bg,color:sc.c,padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:600,textTransform:"capitalize"}}>{(order.status||"").replace(/_/g,"  ")}</span>
+          </div>
+          <button className="btn-ghost" style={{padding:"3px 8px"}} onClick={onClose}><Icon name="x" size={14}/></button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+          <Field label="Customer" value={order.customer_name}/>
+          <Field label="Material" value={order.material?order.material.charAt(0).toUpperCase()+order.material.slice(1):null}/>
+          <Field label="Conductor type" value={conductorLabel}/>
+          <Field label="Dimensions" value={dims}/>
+          <Field label="Quantity" value={order.quantity!=null?`${order.quantity} ${order.quantity_unit||""}`:null}/>
+          <Field label="Packing qty" value={order.packing_qty?`${order.packing_qty} ${order.quantity_unit||""}`:null}/>
+          <Field label="Spool type" value={order.spool_type}/>
+          <Field label="PO Number" value={order.po_number}/>
+          <Field label="PO Date" value={(order.po_date||order.receipt_date)?formatDate(order.po_date||order.receipt_date):null}/>
+          <Field label="Delivery date" value={order.delivery_date?formatDate(order.delivery_date):null}/>
+        </div>
+        {order.insulation?.length>0&&(
+          <div style={{marginBottom:order.remarks?16:0}}>
+            <div style={{fontSize:11,color:"#9ca3af",marginBottom:6}}>Insulation</div>
+            {order.insulation.map((ins,i)=>(
+              <div key={i} style={{fontSize:12,color:"#374151",padding:"4px 0",borderTop:i>0?"1px solid #f3f4f6":undefined}}>
+                {[ins.scheme,ins.thermal,ins.tempIndex,ins.covering?`${ins.covering}mm`:null,ins.spec].filter(Boolean).join(" · ")||"—"}
+              </div>
+            ))}
+          </div>
+        )}
+        {order.remarks&&(
+          <div>
+            <div style={{fontSize:11,color:"#9ca3af",marginBottom:2}}>Remarks</div>
+            <div style={{fontSize:13,whiteSpace:"pre-line"}}>{order.remarks}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DispatchCard({order,canDispatch,onDispatch,onViewDetails}){
   const [vehicleLR,setVehicleLR]=useState("");
   const [busy,setBusy]=useState(false);
   const fieldStyle={background:"#fff",border:"1px solid #d1d5db",borderRadius:8,padding:"9px 13px",color:"#1a1f2e",fontSize:13,width:"100%",outline:"none"};
@@ -2513,7 +2589,9 @@ function DispatchCard({order,canDispatch,onDispatch}){
   return(
     <div className="card animate-in" style={{padding:20,marginBottom:12}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-        <span style={{...S,fontSize:13,fontWeight:700}}>{order.wo_number}</span>
+        <span onClick={onViewDetails} style={{...S,fontSize:13,fontWeight:700,color:"#2563eb",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}}
+          onMouseEnter={e=>e.currentTarget.style.textDecorationColor="#2563eb"}
+          onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>{order.wo_number}</span>
         <span style={{...S,background:order.material==="copper"?"#fffbeb":"#eff6ff",color:order.material==="copper"?"#92400e":"#1e3a5f",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600}}>{order.material}</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:canDispatch?14:0}}>
