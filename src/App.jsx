@@ -182,13 +182,13 @@ function MainApp({user,profile}){
   const canDispatch=isAdmin||["sales"].includes(profile.role)||profile.dispatch_access!==false;
 
   const TABS=[
-    ...(canEnquiry?[{id:"enquiry",label:"Enquiry",icon:"document"}]:[]),
-    ...(canTender?[{id:"tender",label:"Tender",icon:"clipboard"}]:[]),
-    ...(canWO?[{id:"dashboard",label:"Work Orders",icon:"list"}]:[]),
-    ...(canPurchase?[{id:"purchase",label:"Purchase",icon:"bag"}]:[]),
-    ...(canInventory?[{id:"inventory",label:"Inventory",icon:"box"}]:[]),
-    ...(canDispatch?[{id:"dispatch",label:"Dispatch",icon:"truck"}]:[]),
-    ...(isAdmin?[{id:"admin",label:"Admin",icon:"settings"}]:[]),
+    ...(canEnquiry?[{id:"enquiry",label:"Enquiry",icon:"help-circle"}]:[]),
+    ...(canTender?[{id:"tender",label:"Tender",icon:"award"}]:[]),
+    ...(canWO?[{id:"dashboard",label:"Work Orders",icon:"tool"}]:[]),
+    ...(canPurchase?[{id:"purchase",label:"Purchase",icon:"cart"}]:[]),
+    ...(canInventory?[{id:"inventory",label:"Inventory",icon:"layers"}]:[]),
+    ...(canDispatch?[{id:"dispatch",label:"Dispatch",icon:"send"}]:[]),
+    ...(isAdmin?[{id:"admin",label:"Admin",icon:"sliders"}]:[]),
   ];
 
   // Default landing tab: first one this profile actually has access to. No
