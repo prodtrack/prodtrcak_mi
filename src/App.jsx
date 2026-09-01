@@ -553,6 +553,18 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
   const [remarks,setRemarks]=useState(existing?.remarks||"");
   const [saving,setSaving]=useState(false);
   const [errors,setErrors]=useState([]);
+  // BOM mode: when set, raw-material consumption on save is driven entirely
+  // by the selected BOM's recipe (scaled to order quantity) instead of the
+  // manual base-material + per-insulation-layer rawMaterial/qtyUsed entry.
+  // Only affects stock deduction — conductor type, dimensions, and
+  // insulation scheme/thermal/covering/spec are still entered manually
+  // either way. Only applies on new-WO creation, same as the existing
+  // deduction logic below (edits never re-deduct).
+  const [useBom,setUseBom]=useState(!!existing?.bom_id);
+  const [bomId,setBomId]=useState(existing?.bom_id||"");
+  const [bomList,setBomList]=useState([]);
+  useEffect(()=>onSnapshot(collection(db,"bom_master"),snap=>setBomList(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
+  const selectedBom=bomList.find(b=>b.id===bomId);
 
   useEffect(()=>{
     return onSnapshot(collection(db,"rm_inventory"),snap=>{
@@ -578,6 +590,7 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
     if(insulation.some(r=>!r.tempIndex))errs.push("Temp index on all layers");
     if(insulation.some(r=>!r.covering))errs.push("Covering (mm) on all layers");
     if(!qty)errs.push("Quantity");
+    if(useBom&&!bomId)errs.push("Please select a BOM");
     if(!poNumber)errs.push("PO number");
     if(!customer)errs.push("Customer name");
     if(!deliveryDate)errs.push("Delivery date");
@@ -585,7 +598,7 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
     setSaving(true);
     try{
       const stages=stagesFor(productType);
-      const payload={material,conductor_type:conductorType,product_type:productType,dimensions:dims,insulation,quantity:parseFloat(qty),quantity_unit:qtyUnit,packing_qty:packQty?parseFloat(packQty):null,spool_type:spoolType||null,po_number:poNumber,customer_name:customer,po_date:poDate||null,delivery_date:deliveryDate,remarks:remarks||null,status:existing?.status||"in_progress",current_stage:existing?.current_stage||stages[0],stage_index:existing?.stage_index??0};
+      const payload={material,conductor_type:conductorType,product_type:productType,dimensions:dims,insulation,quantity:parseFloat(qty),quantity_unit:qtyUnit,packing_qty:packQty?parseFloat(packQty):null,spool_type:spoolType||null,po_number:poNumber,customer_name:customer,po_date:poDate||null,delivery_date:deliveryDate,remarks:remarks||null,bom_id:useBom?bomId||null:null,bom_product_name:useBom?(selectedBom?.product_name||null):null,status:existing?.status||"in_progress",current_stage:existing?.current_stage||stages[0],stage_index:existing?.stage_index??0};
       if(isEdit){
         await updateDoc(doc(db,"work_orders",existing.id),{...payload,updated_at:serverTimestamp()});
         showToast("Work order updated");
@@ -593,19 +606,29 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
         const woNumber=await generateWONumber();
         const woRef=doc(collection(db,"work_orders"));
 
-        // Stock consumed by this WO: the base metal (Copper/Aluminium) at the
-        // order quantity, plus whatever Quantity Used was entered on each
-        // insulation layer. Deducted once, at creation, in the same
-        // transaction as the WO write so the two can never go out of sync.
+        // Stock consumed by this WO. Without BOM: the base metal
+        // (Copper/Aluminium) at the order quantity, plus whatever Quantity
+        // Used was entered on each insulation layer — as before. With BOM:
+        // the selected BOM's raw materials, each scaled by
+        // (order quantity ÷ BOM's Produces quantity), replacing the manual
+        // entry entirely. Either way, deducted once, at creation, in the
+        // same transaction as the WO write so the two can never go out of sync.
         const deductions=[];
-        const baseMat=baseMaterials.find(m=>m.category?.toLowerCase()===material);
-        if(baseMat&&qty)deductions.push({id:baseMat.id,name:baseMat.material_name,unit:baseMat.unit,qtyUsed:parseFloat(qty)});
-        insulation.forEach(ins=>{
-          if(ins.rawMaterial&&ins.qtyUsed){
-            const im=insulationMaterials.find(m=>m.material_name===ins.rawMaterial);
-            if(im)deductions.push({id:im.id,name:im.material_name,unit:im.unit,qtyUsed:parseFloat(ins.qtyUsed)});
-          }
-        });
+        if(useBom&&selectedBom){
+          const ratio=parseFloat(qty)/(parseFloat(selectedBom.base_qty)||1);
+          (selectedBom.items||[]).forEach(it=>{
+            if(it.material_id&&it.qty)deductions.push({id:it.material_id,name:it.material_name,unit:it.uom,qtyUsed:Math.round(parseFloat(it.qty)*ratio*10000)/10000});
+          });
+        }else{
+          const baseMat=baseMaterials.find(m=>m.category?.toLowerCase()===material);
+          if(baseMat&&qty)deductions.push({id:baseMat.id,name:baseMat.material_name,unit:baseMat.unit,qtyUsed:parseFloat(qty)});
+          insulation.forEach(ins=>{
+            if(ins.rawMaterial&&ins.qtyUsed){
+              const im=insulationMaterials.find(m=>m.material_name===ins.rawMaterial);
+              if(im)deductions.push({id:im.id,name:im.material_name,unit:im.unit,qtyUsed:parseFloat(ins.qtyUsed)});
+            }
+          });
+        }
 
         await runTransaction(db,async tx=>{
           const matSnaps=await Promise.all(deductions.map(d=>tx.get(doc(db,"rm_inventory",d.id))));
@@ -643,6 +666,35 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
       {!isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#1d4ed8",marginBottom:20}}>Auto-generated WO / {getFY()} / 00X on save</div>}
       {isEdit&&<div style={{...S,display:"inline-flex",alignItems:"center",gap:8,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"6px 14px",fontSize:12,color:"#92400e",marginBottom:20}}>{existing.wo_number}</div>}
 
+      {/* BOM mode */}
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Raw material sourcing</div>
+        <div style={{display:"flex",background:"#f3f4f6",border:"1px solid #e5e7eb",borderRadius:8,overflow:"hidden",marginBottom:useBom?14:0}}>
+          <button style={segStyle(!useBom)} onClick={()=>setUseBom(false)}>Without BOM</button>
+          <button style={segStyle(useBom)} onClick={()=>setUseBom(true)}>With BOM</button>
+        </div>
+        {useBom&&(
+          <>
+            <label style={labelStyle}>Bill of Materials</label>
+            <select style={fieldStyle} value={bomId} onChange={e=>setBomId(e.target.value)}>
+              <option value="">— Select BOM —</option>
+              {bomList.map(b=><option key={b.id} value={b.id}>{b.product_code?`${b.product_code} — `:""}{b.product_name}</option>)}
+            </select>
+            {selectedBom&&(
+              <div style={{marginTop:12,fontSize:12,color:"#6b7280"}}>
+                <div style={{marginBottom:6}}>Recipe: {selectedBom.base_qty||1} {selectedBom.base_uom||"pcs"} per batch — scaled to order quantity below.</div>
+                {qty&&(selectedBom.items||[]).map((it,i)=>{
+                  const ratio=parseFloat(qty)/(parseFloat(selectedBom.base_qty)||1);
+                  const need=Math.round(parseFloat(it.qty)*ratio*10000)/10000;
+                  return <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderTop:i>0?"1px solid #f3f4f6":undefined}}><span>{it.material_name}</span><span style={{...S}}>{need} {it.uom}</span></div>;
+                })}
+                {!qty&&<div style={{fontStyle:"italic"}}>Enter a quantity below to preview deductions.</div>}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       {/* Material */}
       <div className="card" style={{padding:20,marginBottom:16}}>
         <div style={{...S,fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:12}}>Material</div>
@@ -650,6 +702,7 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
           {["copper","aluminium"].map(m=><button key={m} style={segStyle(material===m)} onClick={()=>setMaterial(m)}>{m.charAt(0).toUpperCase()+m.slice(1)}</button>)}
         </div>
         {(()=>{
+          if(useBom)return <div style={{fontSize:11,color:"#9ca3af",marginTop:8}}>Stock deduction is driven by the selected BOM instead.</div>;
           const selBase=baseMaterials.find(m=>m.category?.toLowerCase()===material);
           return selBase?<div style={{fontSize:11,color:"#9ca3af",marginTop:8}}>Current stock: {selBase.current_stock??0} {selBase.unit} — Quantity below will be deducted on save</div>:null;
         })()}
@@ -698,7 +751,7 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
                 <button className="btn-danger" style={{padding:"3px 8px",fontSize:11}} onClick={()=>removeIns(i)}><Icon name="x" size={11}/>Remove</button>
               </div>
             )}
-            {insulationMaterials.length>0&&(
+            {!useBom&&insulationMaterials.length>0&&(
               <div style={{marginBottom:12}}>
                 <label style={labelStyle}>Raw material</label>
                 <select style={fieldStyle} value={ins.rawMaterial} onChange={e=>updateIns(i,"rawMaterial",e.target.value)}>
