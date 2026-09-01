@@ -460,7 +460,7 @@ function DashboardTab({profile,showToast,onNavigate}){
 function OrderListItem({order,profile,showToast,isAdmin,canUpdate,canAdvance,expanded,editing,onToggle,onQuickEdit,onCopy,onEditClick,onCancelEdit,onDelete}){
   const overdue=isOverdue(order.delivery_date)&&order.status!=="dispatched";
   const progress=stageProgress(order.current_stage,order.product_type);
-  const statusColors={in_progress:{bg:"#eff6ff",c:"#1d4ed8"},ready_dispatch:{bg:"#f0fdf4",c:"#16a34a"},dispatched:{bg:"#f3f4f6",c:"#6b7280"},on_hold:{bg:"#fffbeb",c:"#b45309"},cancelled:{bg:"#fef2f2",c:"#dc2626"}};
+  const statusColors={draft:{bg:"#f3f4f6",c:"#6b7280"},in_progress:{bg:"#eff6ff",c:"#1d4ed8"},ready_dispatch:{bg:"#f0fdf4",c:"#16a34a"},dispatched:{bg:"#f3f4f6",c:"#6b7280"},on_hold:{bg:"#fffbeb",c:"#b45309"},cancelled:{bg:"#fef2f2",c:"#dc2626"}};
   const sc=statusColors[order.status]||{bg:"#f3f4f6",c:"#6b7280"};
   const dims=order.conductor_type==="wire"
     ?`Ø${order.dimensions?.diameter}mm`
@@ -580,73 +580,88 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
   function removeIns(i){setInsulation(ins=>ins.filter((_,idx)=>idx!==i));}
   function updateIns(i,k,v){setInsulation(ins=>ins.map((r,idx)=>idx===i?{...r,[k]:v}:r));}
 
-  async function handleSave(){
-    const errs=[];
-    if(conductorType==="wire"){if(!dims.diameter)errs.push("Diameter");}
-    else{if(!dims.width)errs.push("Width");if(!dims.thickness)errs.push("Thickness");}
-    if(!insulation.length)errs.push("At least one insulation layer");
-    if(insulation.some(r=>!r.scheme))errs.push("Insulation scheme on all layers");
-    if(insulation.some(r=>!r.thermal))errs.push("Thermal class on all layers");
-    if(insulation.some(r=>!r.tempIndex))errs.push("Temp index on all layers");
-    if(insulation.some(r=>!r.covering))errs.push("Covering (mm) on all layers");
-    if(!qty)errs.push("Quantity");
-    if(useBom&&!bomId)errs.push("Please select a BOM");
-    if(!poNumber)errs.push("PO number");
-    if(!customer)errs.push("Customer name");
-    if(!deliveryDate)errs.push("Delivery date");
-    if(errs.length){setErrors(errs);return;}
+  async function handleSave(asDraft){
+    if(!asDraft){
+      const errs=[];
+      if(conductorType==="wire"){if(!dims.diameter)errs.push("Diameter");}
+      else{if(!dims.width)errs.push("Width");if(!dims.thickness)errs.push("Thickness");}
+      if(!insulation.length)errs.push("At least one insulation layer");
+      if(insulation.some(r=>!r.scheme))errs.push("Insulation scheme on all layers");
+      if(insulation.some(r=>!r.thermal))errs.push("Thermal class on all layers");
+      if(insulation.some(r=>!r.tempIndex))errs.push("Temp index on all layers");
+      if(insulation.some(r=>!r.covering))errs.push("Covering (mm) on all layers");
+      if(!qty)errs.push("Quantity");
+      if(useBom&&!bomId)errs.push("Please select a BOM");
+      if(!poNumber)errs.push("PO number");
+      if(!customer)errs.push("Customer name");
+      if(!deliveryDate)errs.push("Delivery date");
+      if(errs.length){setErrors(errs);return;}
+    }
     setSaving(true);
     try{
       const stages=stagesFor(productType);
-      const payload={material,conductor_type:conductorType,product_type:productType,dimensions:dims,insulation,quantity:parseFloat(qty),quantity_unit:qtyUnit,packing_qty:packQty?parseFloat(packQty):null,spool_type:spoolType||null,po_number:poNumber,customer_name:customer,po_date:poDate||null,delivery_date:deliveryDate,remarks:remarks||null,bom_id:useBom?bomId||null:null,bom_product_name:useBom?(selectedBom?.product_name||null):null,status:existing?.status||"in_progress",current_stage:existing?.current_stage||stages[0],stage_index:existing?.stage_index??0};
+      const payload={material,conductor_type:conductorType,product_type:productType,dimensions:dims,insulation,quantity:qty?parseFloat(qty):null,quantity_unit:qtyUnit,packing_qty:packQty?parseFloat(packQty):null,spool_type:spoolType||null,po_number:poNumber||null,customer_name:customer||null,po_date:poDate||null,delivery_date:deliveryDate||null,remarks:remarks||null,bom_id:useBom?bomId||null:null,bom_product_name:useBom?(selectedBom?.product_name||null):null,status:asDraft?"draft":(existing?.status||"in_progress"),current_stage:existing?.current_stage||stages[0],stage_index:existing?.stage_index??0};
       if(isEdit){
         await updateDoc(doc(db,"work_orders",existing.id),{...payload,updated_at:serverTimestamp()});
-        showToast("Work order updated");
-      }else{
-        const woNumber=await generateWONumber();
-        const woRef=doc(collection(db,"work_orders"));
+        showToast(asDraft?"Work order saved as draft":"Work order updated");
+        onClose();
+        return;
+      }
+      const woNumber=await generateWONumber();
+      const woRef=doc(collection(db,"work_orders"));
 
-        // Stock consumed by this WO. Without BOM: the base metal
-        // (Copper/Aluminium) at the order quantity, plus whatever Quantity
-        // Used was entered on each insulation layer — as before. With BOM:
-        // the selected BOM's raw materials, each scaled by
-        // (order quantity ÷ BOM's Produces quantity), replacing the manual
-        // entry entirely. Either way, deducted once, at creation, in the
-        // same transaction as the WO write so the two can never go out of sync.
-        const deductions=[];
-        if(useBom&&selectedBom){
-          const ratio=parseFloat(qty)/(parseFloat(selectedBom.base_qty)||1);
-          (selectedBom.items||[]).forEach(it=>{
-            if(it.material_id&&it.qty)deductions.push({id:it.material_id,name:it.material_name,unit:it.uom,qtyUsed:Math.round(parseFloat(it.qty)*ratio*10000)/10000});
-          });
-        }else{
-          const baseMat=baseMaterials.find(m=>m.category?.toLowerCase()===material);
-          if(baseMat&&qty)deductions.push({id:baseMat.id,name:baseMat.material_name,unit:baseMat.unit,qtyUsed:parseFloat(qty)});
-          insulation.forEach(ins=>{
-            if(ins.rawMaterial&&ins.qtyUsed){
-              const im=insulationMaterials.find(m=>m.material_name===ins.rawMaterial);
-              if(im)deductions.push({id:im.id,name:im.material_name,unit:im.unit,qtyUsed:parseFloat(ins.qtyUsed)});
-            }
-          });
-        }
-
-        await runTransaction(db,async tx=>{
-          const matSnaps=await Promise.all(deductions.map(d=>tx.get(doc(db,"rm_inventory",d.id))));
-          matSnaps.forEach((snap,idx)=>{
-            const d=deductions[idx];
-            const current=snap.exists()?(snap.data().current_stock||0):0;
-            d.newStock=Math.round((current-d.qtyUsed)*100)/100;
-            tx.update(doc(db,"rm_inventory",d.id),{current_stock:d.newStock,updated_at:serverTimestamp()});
-          });
-          tx.set(woRef,{...payload,wo_number:woNumber,created_by:auth.currentUser.uid,created_at:serverTimestamp()});
-        });
-
-        showToast("Work order created");
+      if(asDraft){
+        // Draft: not a real order yet — no stock deduction, no
+        // required-field validation above. Just save as-is with a real WO
+        // number (same as Enquiry's draft), so it can be found and finished
+        // later without losing its place in the numbering sequence.
+        await setDoc(woRef,{...payload,wo_number:woNumber,created_by:auth.currentUser.uid,created_at:serverTimestamp()});
+        showToast("Work order saved as draft");
         if(onSaved)onSaved({id:woRef.id,wo_number:woNumber});
-        const negatives=deductions.filter(d=>d.newStock<0);
-        if(negatives.length>0){
-          showToast(`⚠ Stock now negative: ${negatives.map(d=>`${d.name} (${d.newStock} ${d.unit})`).join(", ")}`,"error");
-        }
+        onClose();
+        return;
+      }
+
+      // Stock consumed by this WO. Without BOM: the base metal
+      // (Copper/Aluminium) at the order quantity, plus whatever Quantity
+      // Used was entered on each insulation layer — as before. With BOM:
+      // the selected BOM's raw materials, each scaled by
+      // (order quantity ÷ BOM's Produces quantity), replacing the manual
+      // entry entirely. Either way, deducted once, at creation, in the
+      // same transaction as the WO write so the two can never go out of sync.
+      const deductions=[];
+      if(useBom&&selectedBom){
+        const ratio=parseFloat(qty)/(parseFloat(selectedBom.base_qty)||1);
+        (selectedBom.items||[]).forEach(it=>{
+          if(it.material_id&&it.qty)deductions.push({id:it.material_id,name:it.material_name,unit:it.uom,qtyUsed:Math.round(parseFloat(it.qty)*ratio*10000)/10000});
+        });
+      }else{
+        const baseMat=baseMaterials.find(m=>m.category?.toLowerCase()===material);
+        if(baseMat&&qty)deductions.push({id:baseMat.id,name:baseMat.material_name,unit:baseMat.unit,qtyUsed:parseFloat(qty)});
+        insulation.forEach(ins=>{
+          if(ins.rawMaterial&&ins.qtyUsed){
+            const im=insulationMaterials.find(m=>m.material_name===ins.rawMaterial);
+            if(im)deductions.push({id:im.id,name:im.material_name,unit:im.unit,qtyUsed:parseFloat(ins.qtyUsed)});
+          }
+        });
+      }
+
+      await runTransaction(db,async tx=>{
+        const matSnaps=await Promise.all(deductions.map(d=>tx.get(doc(db,"rm_inventory",d.id))));
+        matSnaps.forEach((snap,idx)=>{
+          const d=deductions[idx];
+          const current=snap.exists()?(snap.data().current_stock||0):0;
+          d.newStock=Math.round((current-d.qtyUsed)*100)/100;
+          tx.update(doc(db,"rm_inventory",d.id),{current_stock:d.newStock,updated_at:serverTimestamp()});
+        });
+        tx.set(woRef,{...payload,wo_number:woNumber,created_by:auth.currentUser.uid,created_at:serverTimestamp()});
+      });
+
+      showToast("Work order created");
+      if(onSaved)onSaved({id:woRef.id,wo_number:woNumber});
+      const negatives=deductions.filter(d=>d.newStock<0);
+      if(negatives.length>0){
+        showToast(`⚠ Stock now negative: ${negatives.map(d=>`${d.name} (${d.newStock} ${d.unit})`).join(", ")}`,"error");
       }
       onClose();
     }catch(e){setErrors([`Save failed: ${e.message}`]);}
@@ -860,7 +875,8 @@ function OrderForm({profile,existing,showToast,onClose,onSaved}){
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" disabled={saving} onClick={handleSave}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Order":"Save Work Order"}</button>
+        {!isEdit&&<button className="btn-ghost" disabled={saving} onClick={()=>handleSave(true)}><Icon name="clipboard" size={14}/>{saving?"Saving…":"Save as Draft"}</button>}
+        <button className="btn-primary" disabled={saving} onClick={()=>handleSave(false)}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Order":"Save Work Order"}</button>
       </div>
     </div>
   );
@@ -1056,6 +1072,7 @@ function TenderTab({profile,showToast}){
                         onMouseEnter={e=>e.currentTarget.style.textDecorationColor="#2563eb"}
                         onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>
                         {t.tender_number||"—"}
+                        {t.status==="draft"&&<span style={{...S,marginLeft:6,background:"#f3f4f6",color:"#6b7280",padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:600,textDecoration:"none"}}>DRAFT</span>}
                       </td>
                       <td style={{padding:"10px 12px",...S}}>{t.tender_date?formatDate(t.tender_date):"—"}</td>
                       <td style={{padding:"10px 12px",...S}}>{t.loi_no||"—"}</td>
@@ -1222,31 +1239,33 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
   const [customerMaster,setCustomerMaster]=useState([]);
   useEffect(()=>onSnapshot(collection(db,"customer_master"),snap=>setCustomerMaster(snap.docs.map(d=>({id:d.id,...d.data()})))),[]);
 
-  async function save(){
-    const errs=[];
-    if(!tenderNumber.trim())errs.push("Tender number");
-    if(!tenderDate)errs.push("Tender date");
-    if(!specNumber.trim())errs.push("Specification number");
-    if(!company.trim())errs.push("Company");
-    if(conductorType==="wire"){if(!diameter)errs.push("Diameter");}
-    else{
-      if(!width)errs.push("Width");
-      if(!thickness)errs.push("Thickness");
-      if(!cornerRadius)errs.push("Corner radius");
+  async function save(asDraft){
+    if(!asDraft){
+      const errs=[];
+      if(!tenderNumber.trim())errs.push("Tender number");
+      if(!tenderDate)errs.push("Tender date");
+      if(!specNumber.trim())errs.push("Specification number");
+      if(!company.trim())errs.push("Company");
+      if(conductorType==="wire"){if(!diameter)errs.push("Diameter");}
+      else{
+        if(!width)errs.push("Width");
+        if(!thickness)errs.push("Thickness");
+        if(!cornerRadius)errs.push("Corner radius");
+      }
+      if(!insulationType)errs.push("Insulation type");
+      if(conductorType==="ctc"){
+        if(!covering1)errs.push("Covering 1");
+        if(!covering2)errs.push("Covering 2");
+      }else{
+        if(!covering)errs.push("Covering");
+      }
+      if(!quantity)errs.push("Quantity");
+      if(!uom)errs.push("UOM");
+      if(!fabricationRate.trim())errs.push("Fabrication rate");
+      if(!bmeCopperPrice.trim())errs.push("BME/Copper price");
+      if(!dueDate)errs.push("Due date");
+      if(errs.length){setErrors(errs);return;}
     }
-    if(!insulationType)errs.push("Insulation type");
-    if(conductorType==="ctc"){
-      if(!covering1)errs.push("Covering 1");
-      if(!covering2)errs.push("Covering 2");
-    }else{
-      if(!covering)errs.push("Covering");
-    }
-    if(!quantity)errs.push("Quantity");
-    if(!uom)errs.push("UOM");
-    if(!fabricationRate.trim())errs.push("Fabrication rate");
-    if(!bmeCopperPrice.trim())errs.push("BME/Copper price");
-    if(!dueDate)errs.push("Due date");
-    if(errs.length){setErrors(errs);return;}
     setErrors([]);setSaving(true);
     try{
       const payload={
@@ -1259,16 +1278,17 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
         covering_2:conductorType==="ctc"?(covering2||null):null,
         insulation_type:insulationType||null,quantity:quantity||null,uom:uom||null,
         fabrication_rate:fabricationRate.trim()||null,bme_copper_price:bmeCopperPrice.trim()||null,due_date:dueDate||null,
+        status:asDraft?"draft":"final",
         updated_at:serverTimestamp(),
       };
       if(isEdit){
         await updateDoc(doc(db,"tenders",existing.id),payload);
-        showToast("Tender updated");
+        showToast(asDraft?"Tender saved as draft":"Tender updated");
       }else{
         await addDoc(collection(db,"tenders"),{
           ...payload,created_by:profile.name||auth.currentUser.email,created_at:serverTimestamp(),
         });
-        showToast("Tender created");
+        showToast(asDraft?"Tender saved as draft":"Tender created");
       }
       onClose();
     }catch(e){setErrors([`Save failed: ${e.message}`]);}
@@ -1279,7 +1299,7 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
     <div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
         <button className="btn-ghost" style={{padding:"7px 12px"}} onClick={onClose}><Icon name="arrow" size={14}/>Back</button>
-        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{isEdit?"Edit Tender":"New Tender"}</div>
+        <div style={{fontSize:16,fontWeight:700,color:"#1a1f2e"}}>{isEdit?"Edit Tender":"New Tender"}{existing?.status==="draft"&&" · Draft"}</div>
       </div>
 
       <div className="card" style={{padding:20,marginBottom:16}}>
@@ -1403,7 +1423,8 @@ function TenderForm({existing,profile,showToast,tenders,onClose}){
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" disabled={saving} onClick={save}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Tender":"Save Tender"}</button>
+        {!isEdit&&<button className="btn-ghost" disabled={saving} onClick={()=>save(true)}><Icon name="clipboard" size={14}/>{saving?"Saving…":"Save as Draft"}</button>}
+        <button className="btn-primary" disabled={saving} onClick={()=>save(false)}><Icon name="check" size={14}/>{saving?"Saving…":isEdit?"Update Tender":"Save Tender"}</button>
       </div>
     </div>
   );
